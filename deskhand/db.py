@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from typing import Any, cast
 
 import psycopg
-from psycopg.rows import dict_row
+from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
 from deskhand.config import settings
@@ -51,14 +51,21 @@ def close_pool() -> None:
 
 
 @contextmanager
-def connection() -> Iterator[psycopg.Connection]:
-    """A pooled connection in its own transaction, committed on clean exit."""
+def connection() -> Iterator[psycopg.Connection[DictRow]]:
+    """A pooled connection in its own transaction, committed on clean exit.
+
+    Parameterised on DictRow to match the pool's row_factory, so callers can
+    index rows by column name without the type checker objecting.
+    """
     with pool().connection() as conn:
-        yield conn
+        # The row factory is set in the pool's kwargs, which the type checker
+        # cannot see through, so the parameterisation is asserted here once
+        # rather than at every call site.
+        yield cast(psycopg.Connection[DictRow], conn)
 
 
 @contextmanager
-def cursor() -> Iterator[psycopg.Cursor]:
+def cursor() -> Iterator[psycopg.Cursor[DictRow]]:
     """A cursor on a pooled connection. Commits on clean exit, rolls back on
     an exception — the default psycopg context-manager semantics, named here
     so call sites read as one unit of work."""
