@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deskhand"
+version = "0.0.1"
+description = "A durable agent runtime for support operations that can act irreversibly"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["deskhand", "evals"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "eval: merge-gating trajectory evals (durability, consent, boundedness, integrity)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import sorting
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "SIM",      # simplify
+    "C4",       # comprehensions
+]
+ignore = [
+    "E501",  # line length is the formatter's job, and SQL strings read better long
+    "B008",  # FastAPI's Depends() in defaults is the framework's idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests and evals reach into private helpers on purpose to assert on internals.
+"tests/*" = ["E402"]
+"evals/*" = ["E402"]
+
+[tool.mypy]
+# No python_version pin: it must match the interpreter in use, or mypy rejects
+# dependency stubs written with newer syntax.
+files = ["deskhand"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
