@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Local data and scratch
+results/
+*.db
+
+# Working scratch file, never committed
+PLAN.md
+
+# OS / editor
+.DS_Store
