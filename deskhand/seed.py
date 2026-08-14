@@ -18,12 +18,27 @@ than to look plausible in a screenshot:
 
 from __future__ import annotations
 
+import functools
+
 import psycopg
 
 from deskhand.auth import hash_password
 from deskhand.config import settings
 
 DEMO_PASSWORD = "demo-password-123"
+
+
+@functools.cache
+def _demo_hash() -> str:
+    """Hash the demo password once per process.
+
+    Every seeded account shares one published password, so they share one hash.
+    That is fine here and nowhere else: bcrypt is deliberately slow, the test
+    suite reseeds before each test that writes, and hashing five accounts from
+    scratch every time turned a two-second suite into a thirty-second one. Real
+    signup hashes per user, in deskhand/auth.py.
+    """
+    return hash_password(DEMO_PASSWORD)
 
 # Order matters: children before parents.
 _WIPE = """
@@ -51,7 +66,7 @@ def _user(cur: psycopg.Cursor, org: str, email: str, role: str) -> str:
         cur,
         "insert into users (org_id, email, password_hash, role)"
         " values (%s, %s, %s, %s) returning id",
-        (org, email, hash_password(DEMO_PASSWORD), role),
+        (org, email, _demo_hash(), role),
     )
 
 
