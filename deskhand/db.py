@@ -7,6 +7,7 @@ them, not here.
 
 from __future__ import annotations
 
+import atexit
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -34,6 +35,11 @@ def pool() -> ConnectionPool:
             kwargs={"row_factory": dict_row},
             open=True,
         )
+        # The pool runs worker threads that outlive the interpreter's own
+        # shutdown, which makes every short-lived script (seed, migrate, a
+        # one-off query) end in a wall of "couldn't stop thread" warnings.
+        # Closing it at exit is the whole fix.
+        atexit.register(close_pool)
     return _pool
 
 
