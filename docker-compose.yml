@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:17
+    container_name: deskhand-pg
+    environment:
+      POSTGRES_USER: deskhand
+      POSTGRES_PASSWORD: deskhand
+      POSTGRES_DB: deskhand
+    # 5437 rather than 5432 so this never fights a local Postgres, or the
+    # sibling knowledge-desk stack on 5436.
+    ports:
+      - "5437:5432"
+    volumes:
+      - deskhand-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deskhand -d deskhand"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  deskhand-pgdata:
