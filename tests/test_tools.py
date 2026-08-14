@@ -20,6 +20,8 @@ from deskhand.tools import RiskClass, ToolError, args_hash, requires_approval
 from deskhand.tools.invoke import idempotency_key, invoke
 from deskhand.tools.reversible import apply_inverse
 
+pytestmark = pytest.mark.usefixtures("fresh")
+
 
 @pytest.fixture
 def cur():
@@ -38,12 +40,46 @@ def org(cur) -> str:
     return str(cur.fetchone()["id"])
 
 
+def _new_run(cur, org: str) -> str:
+    """A minimal run row. The ledger's foreign keys are real, so a tool
+    invocation has to belong to a run and a step that actually exist —
+    which is also how it works in production."""
+    cur.execute("select id from tickets where org_id = %s limit 1", (org,))
+    ticket = cur.fetchone()
+    cur.execute(
+        "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
+        "                  max_spend_micros, deadline_at)"
+        " values (%s, %s, 'tool test', 24, 400000, 2000000, now() + interval '15 minutes')"
+        " returning id",
+        (org, ticket["id"]),
+    )
+    return str(cur.fetchone()["id"])
+
+
+def _step(cur, run_id: str, seq: int) -> str:
+    """Get or create the step row for `seq`. Re-invoking the same seq is what a
+    resumed run does, so this must not blow up on the second call."""
+    cur.execute(
+        "insert into steps (run_id, seq, kind, content) values (%s, %s, 'tool_result', '{}')"
+        " on conflict (run_id, seq) do nothing",
+        (run_id, seq),
+    )
+    cur.execute("select id from steps where run_id = %s and seq = %s", (run_id, seq))
+    return str(cur.fetchone()["id"])
+
+
+@pytest.fixture
+def run_id(cur, org) -> str:
+    return _new_run(cur, org)
+
+
 def run_tool(cur, org: str, name: str, args: dict, seq: int = 1, run_id: str | None = None):
+    run_id = run_id or _new_run(cur, org)
     return invoke(
         cur,
         org_id=org,
-        run_id=run_id or str(uuid.uuid4()),
-        step_id=str(uuid.uuid4()),
+        run_id=run_id,
+        step_id=_step(cur, run_id, seq),
         seq=seq,
         tool_name=name,
         args=args,
@@ -260,11 +296,10 @@ def test_email_lands_on_the_thread_as_well_as_the_outbox(cur, org) -> None:
 # ------------------------------------------------------------ exactly once
 
 
-def test_the_same_step_executes_once_however_often_it_is_replayed(cur, org) -> None:
+def test_the_same_step_executes_once_however_often_it_is_replayed(cur, org, run_id) -> None:
     """This is invariant 1. A worker that dies after refunding but before
     recording progress resumes onto the same step number, and must not pay
     the customer twice."""
-    run_id = str(uuid.uuid4())
     args = {"order_reference": "NW-1042", "amount_cents": 1900, "reason": "stale beans"}
 
     first = run_tool(cur, org, "issue_refund", args, seq=4, run_id=run_id)
@@ -284,8 +319,7 @@ def test_a_different_step_of_the_same_run_is_a_different_key() -> None:
     assert idempotency_key(run_id, 4) != idempotency_key(run_id, 5)
 
 
-def test_a_failed_call_is_remembered_as_failed(cur, org) -> None:
-    run_id = str(uuid.uuid4())
+def test_a_failed_call_is_remembered_as_failed(cur, org, run_id) -> None:
     args = {"order_reference": "NOPE-1", "amount_cents": 100, "reason": "test"}
 
     first = run_tool(cur, org, "issue_refund", args, seq=1, run_id=run_id)

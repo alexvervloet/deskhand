@@ -3,8 +3,12 @@ asserting that it has the shape those tests assume."""
 
 from __future__ import annotations
 
+import pytest
+
 from deskhand.auth import hash_password, hash_token, new_session_token, verify_password
 from deskhand.db import fetch_all, fetch_one
+
+pytestmark = pytest.mark.usefixtures("fresh")
 
 
 def test_two_orgs_share_no_customers(northwind_id: str, lumen_id: str) -> None:
