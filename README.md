@@ -36,7 +36,7 @@ Everything in this repo serves one of these:
 ## Companion project
 
 Deskhand is the second half of a pair with
-[Knowledge Desk](https://github.com/ewokpanda/knowledge-desk), which argues
+[Knowledge Desk](https://github.com/alexvervloet/knowledge-desk), which argues
 that the hard part of a retrieval application is not the RAG. This one argues
 the sequel: the hard part of an agent is not the loop.
 
