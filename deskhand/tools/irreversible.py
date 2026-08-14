@@ -67,10 +67,12 @@ def _issue_refund(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             f" leaving {_money(remaining, order['currency'])}"
         )
 
+    # run_id is stamped on the row itself, so "which run paid this out, and
+    # therefore who approved it" is a join and not an investigation.
     ctx.cursor.execute(
-        "insert into refunds (org_id, order_id, amount_cents, currency, reason)"
-        " values (%s, %s, %s, %s, %s) returning id",
-        (ctx.org_id, order["id"], amount, order["currency"], args["reason"]),
+        "insert into refunds (org_id, order_id, amount_cents, currency, reason, run_id)"
+        " values (%s, %s, %s, %s, %s, %s) returning id",
+        (ctx.org_id, order["id"], amount, order["currency"], args["reason"], ctx.run_id),
     )
     created = ctx.cursor.fetchone()
     assert created is not None
@@ -133,9 +135,16 @@ def _send_customer_email(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
         raise ToolError(f"no ticket {args['reference']!r} for this merchant")
 
     ctx.cursor.execute(
-        "insert into customer_emails (org_id, customer_id, ticket_id, subject, body)"
-        " values (%s, %s, %s, %s, %s)",
-        (ctx.org_id, ticket["customer_id"], ticket["id"], args["subject"], args["body"]),
+        "insert into customer_emails (org_id, customer_id, ticket_id, subject, body, run_id)"
+        " values (%s, %s, %s, %s, %s, %s)",
+        (
+            ctx.org_id,
+            ticket["customer_id"],
+            ticket["id"],
+            args["subject"],
+            args["body"],
+            ctx.run_id,
+        ),
     )
     # The customer-visible reply is also part of the thread, so the next person
     # to open the ticket sees what was said rather than only that mail went out.
