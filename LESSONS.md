@@ -65,3 +65,33 @@ after the failure mode rather than the function.
 ask what happens when it returns nothing, and make sure the answer is
 "degrades" rather than "fails open". The general version: retrieval quality
 bugs stop being quality bugs the moment retrieval is what gates an action.
+
+---
+
+## 3. The runtime tests silently broke the tool tests, and the obvious fix was
+slow enough to be useless
+
+**Expected.** Each test module reads the seeded world, so one seed per session
+would do.
+
+**What happened.** The runtime tests issue real refunds and resolve real
+tickets. They run before `test_tools.py` alphabetically, so by the time the
+tool tests asked "how much of NW-1042 is refundable" the answer had changed.
+Fourteen failures, none of them in the code under test, and every one of them
+would have looked like a real regression to someone reading CI output.
+
+The obvious fix — reseed before every test that writes — was correct and took
+the suite from 2 seconds to 30. The cost was bcrypt: seeding hashes five demo
+accounts, bcrypt is deliberately slow, and that is per test rather than per
+session.
+
+**Fix.** Memoise the hash for the shared demo password once per process
+(`_demo_hash()` in [deskhand/seed.py](deskhand/seed.py)). All five demo
+accounts share one published password, so they can share one hash; real signup
+still hashes per user. Suite back to 2.6 seconds, and now order-independent.
+
+**Next time.** Two things. Order-dependence between test modules is invisible
+until the second module that writes shows up, so establish per-test isolation
+when the *first* one does. And when a correctness fix makes the suite slow
+enough that people will start skipping it, that is a bug in the fix — find the
+one expensive thing inside it rather than accepting the tradeoff.
