@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     # --- Approvals ---
     approval_ttl_seconds: int = 86_400
 
+    # --- Deployment ---
+    # Behind a proxy the socket peer is the proxy, so the login throttle would
+    # see every visitor as one caller. Name the header the proxy sets *and
+    # overwrites* (Fly-Client-IP, X-Real-IP) — never one a client can forge.
+    client_ip_header: str | None = None
+    # Run the agent inside the API process instead of as its own service. Wrong
+    # for production, where they scale and fail independently; right for a demo
+    # machine that should be allowed to sleep when nobody is looking at it.
+    run_worker_inline: bool = False
+
     # --- Observability ---
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
