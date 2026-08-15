@@ -12,10 +12,12 @@ stop, waiting for you.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import threading
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -29,16 +31,54 @@ from deskhand.auth import new_session_token, session_expiry, verify_password
 from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.deps import ApproverDep, CallerDep
+from deskhand.providers import get_provider
 from deskhand.ratelimit import auth_limiter
 from deskhand.runtime import approvals, runs
 from deskhand.tools import all_tools
 
 log = logging.getLogger("deskhand")
 
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Optionally run the agent inside this process.
+
+    In production the worker is its own service: it scales separately, and a
+    crash in one must not take the other down. The demo deployment sets
+    `RUN_WORKER_INLINE=1` so a single machine can be allowed to sleep when
+    nobody is looking at it and wake on the next request — which a permanently
+    running worker process would prevent.
+    """
+    stop = threading.Event()
+    thread: threading.Thread | None = None
+
+    if settings.run_worker_inline:
+        from deskhand import worker
+
+        def drive() -> None:
+            me, provider = worker.worker_id(), get_provider()
+            log.info("inline worker %s up (provider=%s)", me, provider.name)
+            while not stop.wait(0.5):
+                try:
+                    worker.work_once(me, provider)
+                except Exception:  # noqa: BLE001
+                    log.exception("inline worker error; continuing")
+
+        thread = threading.Thread(target=drive, daemon=True, name="deskhand-worker")
+        thread.start()
+
+    yield
+
+    stop.set()
+    if thread is not None:
+        thread.join(timeout=5)
+
+
 app = FastAPI(
     title="Deskhand",
     description="A durable agent runtime for support operations.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -83,10 +123,25 @@ def list_tools(caller: CallerDep) -> list[dict[str, Any]]:
 # ----------------------------------------------------------------------- auth
 
 
+def _throttle_key(request: Request) -> str:
+    """Who to count login attempts against.
+
+    Behind a proxy the socket peer is the proxy, so without this every visitor
+    shares one bucket and the first person to fat-finger a password locks out
+    everyone else. Only a header the proxy *overwrites* is trustworthy here —
+    an `X-Forwarded-For` a client can append to would let an attacker mint a
+    fresh bucket per attempt and defeat the throttle entirely.
+    """
+    if settings.client_ip_header:
+        forwarded = request.headers.get(settings.client_ip_header)
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @app.post("/auth/login", response_model=schemas.LoginResponse)
 def login(body: schemas.LoginRequest, request: Request) -> Any:
-    client = request.client.host if request.client else "unknown"
-    if not auth_limiter.allow(client):
+    if not auth_limiter.allow(_throttle_key(request)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS, "too many login attempts; wait a minute"
         )
