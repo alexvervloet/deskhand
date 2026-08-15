@@ -8,6 +8,24 @@ This is a portfolio project about the machinery that makes letting an agent do
 that defensible, not about the agent loop. The loop is about a hundred lines and
 is the least interesting file here.
 
+## Live demo
+
+**https://deskhand.fly.dev**
+
+Sign in as `owner@northwind.test` (password `demo-password-123`), open **NW-1**,
+and press *Run the agent*. Watch it read the ticket, read the order, check the
+refund policy — and then stop, because the next thing it wants to do moves
+money. Approve it and it finishes; deny it and watch it adapt.
+
+Then sign in as `viewer@northwind.test` and try the same thing. That role can
+watch a run spend money and cannot authorise a penny of it.
+
+Running against the scripted provider, so nothing here costs anything and every
+screen says so. The machinery being demonstrated — the approval gate, the
+bounds, the fence, the durable step log — is identical either way; only the
+thing choosing the tool calls is different. The machine sleeps when idle, so
+the first request after a quiet spell pays a cold start.
+
 ## The sentence the project exists for
 
 *Step 7 of 12 fails after step 6 already sent the email.*
