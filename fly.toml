@@ -1,0 +1,65 @@
+# Fly.io config. Two process groups from one image: `app` serves the API and
+# the built UI, `worker` drives runs. Migrations and the first seed run once per
+# deploy via the release command, so the two never race.
+#
+# The deployment runs **keyless**: with no ANTHROPIC_API_KEY the runtime uses
+# the scripted provider, which exercises every part of the machinery this
+# project is about — the approval gate, crash resume, the bounds, the fence —
+# at no cost, and says `provider=mock` on every screen and in every API
+# response. Setting the key as a secret switches it to real Claude; the budget
+# numbers below are already sized for that case.
+
+app = "deskhand"
+primary_region = "lhr"
+
+[build]
+
+[deploy]
+  release_command = "sh -c 'RUN_MIGRATIONS=1 ./entrypoint.sh true'"
+
+[env]
+  # The demo logins are published in the README, so anyone can start a run.
+  # These caps are sized for an open demo rather than for a paying tenant.
+  MAX_STEPS_PER_RUN = "20"
+  MAX_SPEND_USD_PER_RUN = "0.25"
+  DAILY_BUDGET_USD_PER_ORG = "1.00"
+
+  # The per-org number above bounds one merchant. There are two seeded
+  # merchants and a visitor can use both, so this is the number that actually
+  # caps a day's bill.
+  PLATFORM_DAILY_BUDGET_USD = "2.00"
+
+  # An approval nobody answers should not pin a demo run open for a day.
+  APPROVAL_TTL_SECONDS = "1800"
+
+  # Behind Fly's proxy the socket peer is the proxy, so the login throttle would
+  # otherwise see every visitor as one caller. Fly sets and overwrites this
+  # header on the way in, so a client cannot forge it.
+  CLIENT_IP_HEADER = "Fly-Client-IP"
+
+  # One machine runs both the API and the agent, so the demo can scale to zero
+  # and wake on a request. A separate worker process group is the right shape
+  # in production (they scale and fail independently) and would keep a machine
+  # awake around the clock for no reason here.
+  RUN_WORKER_INLINE = "1"
+
+[processes]
+  app = "uvicorn deskhand.main:app --host 0.0.0.0 --port 8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
