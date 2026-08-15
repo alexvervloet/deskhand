@@ -50,14 +50,39 @@ A worker that dies is not resuming a computation, it is reading a database. Any
 worker, on any machine, at any later time, computes the same next action from the
 same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
+## Evals that assert on the path, not the answer
+
+`python -m evals.run` — 19 trajectory evals across the five invariants, wired
+as a required CI job. They drive the real loop, the real tools and a real
+Postgres; only the model is scripted, so a scenario can say "now it asks for a
+refund" deterministically.
+
+The distinction that makes them worth having:
+
+* A unit test can check that `issue_refund` inserts a row.
+* Only a trajectory eval can check that across a worker crash, a human denial
+  and an injected instruction, the agent's *sequence of actions* never once
+  moved money without a person saying yes.
+
+A [fault injector](deskhand/tools/faults.py) makes tools fail on purpose —
+error, crash, latency, garbage, and hostile text arriving through a tool
+result. It is off unless a test turns it on and has no environment switch, and
+it found a real crash on its first run (see LESSONS entry 5).
+
+**The gate has teeth.** Deliberately removing the approval check fails 11 of 19
+evals across four invariants. Deliberately deleting the fence around untrusted
+content fails only 1 — which turns out to be the more interesting result, and
+is written up as LESSONS entry 6.
+
 ## Status
 
 Working end to end: schema, tool registry, durable runtime, approval gate, HTTP
-API with a live trajectory stream, and a React UI. Green in CI on a clean
-checkout — tests, ruff, mypy, and a frontend type-check and build.
+API with a live trajectory stream, a React UI, fault injection, and the eval
+gate. Green in CI on a clean checkout — tests, evals, ruff, mypy, and a
+frontend type-check and build.
 
-Still to come: fault injection, Langfuse tracing, trajectory evals as a required
-CI job, deterministic replay, the written exercises, and a deployed demo.
+Still to come: Langfuse tracing, deterministic replay, the written exercises,
+and a deployed demo.
 
 ## Run it
 
