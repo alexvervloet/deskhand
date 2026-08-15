@@ -33,6 +33,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import DictRow
 
+from deskhand.tools import faults
 from deskhand.tools.base import ToolContext, ToolError, args_hash, get
 
 log = logging.getLogger("deskhand")
@@ -51,6 +52,22 @@ class Invocation:
     replayed: bool
     duration_ms: int
     inverse: dict[str, Any] | None = None
+
+
+def sanitise(text: str) -> str:
+    """Make a tool result storable.
+
+    Postgres `text` and `jsonb` cannot hold a NUL byte, and a tool that returns
+    one takes the whole run down with a `DataError` raised from the ledger
+    write — after the side effect has already happened. That is the worst
+    possible place to fail: the money moved and the record of it did not.
+
+    Found by the garbage fault in the evals on its first run, which is
+    precisely what that fault is for. Real tools return NUL bytes more often
+    than you would like: binary payloads mislabelled as text, truncated UTF-8,
+    a C library's buffer handed over intact.
+    """
+    return text.replace("\x00", "�")
 
 
 def idempotency_key(run_id: str, seq: int) -> str:
@@ -129,10 +146,14 @@ def invoke(
         # still need in order to record that the call failed.
         with cur.connection.transaction():
             tool.validate(args)
-            outcome = tool.handler(ctx, args)
-        ok, result, inverse = True, outcome.result, outcome.inverse
+            # Fault injection sits inside the savepoint so an injected crash
+            # rolls back exactly what a real one would. It is a no-op unless a
+            # test installed something.
+            faults.before(tool_name)
+            outcome = faults.after(tool_name, tool.handler(ctx, args))
+        ok, result, inverse = True, sanitise(outcome.result), outcome.inverse
     except ToolError as exc:
-        ok, result, inverse = False, str(exc), None
+        ok, result, inverse = False, sanitise(str(exc)), None
 
     duration_ms = int((time.monotonic() - started) * 1000)
 
