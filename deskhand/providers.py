@@ -221,9 +221,23 @@ _TICKET_REF = re.compile(r"\b([A-Z]{2}-\d{1,2})\b")
 _TOTAL = re.compile(r"total: ([\d,]+)\.(\d{2}) ")
 
 
-def _transcript(messages: list[dict[str, Any]]) -> str:
-    """Every piece of text the conversation has seen so far, flattened."""
+def _brief(messages: list[dict[str, Any]]) -> str:
+    """The opening prompt plus the first tool result, and nothing after it.
+
+    Deliberately *not* the whole conversation. The plan below is recomputed
+    from scratch on every turn — it has to be, because the provider is
+    stateless so that a resumed run reaches the same decision — and reading the
+    growing transcript made that recomputation unstable: the agent would set
+    off down the "where is my order" path, a knowledge-base search would return
+    an article that happens to contain the word *refund*, and the next turn
+    would decide it had been working a refund all along.
+
+    That is not a hypothetical. It happened, and produced a demo in which the
+    agent asked to refund a customer who only wanted a tracking number. The
+    ticket is what the plan is about, so the plan reads the ticket and stops.
+    """
     parts: list[str] = []
+    seen_result = False
     for message in messages:
         content = message.get("content")
         if isinstance(content, str):
@@ -232,9 +246,12 @@ def _transcript(messages: list[dict[str, Any]]) -> str:
         for block in content or []:
             if block.get("type") == "text":
                 parts.append(block.get("text", ""))
-            elif block.get("type") == "tool_result":
+            elif block.get("type") == "tool_result" and not seen_result:
                 inner = block.get("content")
                 parts.append(inner if isinstance(inner, str) else str(inner))
+                seen_result = True
+        if seen_result:
+            break
     return "\n".join(parts)
 
 
@@ -261,7 +278,7 @@ class DefaultMockProvider(ScriptedProvider):
         return super().complete(system, messages, tools)
 
     def _plan(self, messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-        seen = _transcript(messages)
+        seen = _brief(messages)
         ticket = _TICKET_REF.search(seen)
         ticket_ref = ticket.group(1) if ticket else "NW-1"
 
