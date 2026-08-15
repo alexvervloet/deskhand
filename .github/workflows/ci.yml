@@ -43,6 +43,12 @@ jobs:
       - name: Tests
         run: python -m pytest -q
 
+      # The merge gate. Asserts properties of the agent's *path* — that no
+      # irreversible tool ran without consent, that a crash never double-pays,
+      # that every run terminates — against the real loop and a real database.
+      - name: Trajectory evals
+        run: python -m evals.run
+
   frontend:
     runs-on: ubuntu-latest
     steps:
