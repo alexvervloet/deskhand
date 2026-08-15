@@ -204,3 +204,42 @@ would otherwise look redundant next to the injection and crash-resume evals.
 They are not redundant; they are the only thing standing between a silent
 removal and production. (The companion project reaches the same conclusion from
 the other direction, in its exercise on removing an invisible layer.)
+
+---
+
+## 7. Two correct decisions that combined into an incoherent demo
+
+**Expected.** The keyless mock provider picks one of a few fixed trajectories
+by keyword. Boring, deterministic, nothing to think about.
+
+**What happened.** A smoke test of the built container drove the "where is my
+order" ticket and the run stopped at the approval gate asking to refund the
+customer 19.00 USD. Nobody had asked for a refund.
+
+Two earlier decisions, each right on its own, produced it:
+
+1. **Lesson 2** made knowledge-base search OR its terms and rank, so a policy
+   lookup degrades instead of failing open. Correct — and it means a search for
+   *"shipping times tracking delay"* now also returns the **Refund policy**
+   article, because that article contains "delivery" and "days".
+2. **The provider is stateless by design**, so a resumed run reaches the same
+   decision as the worker that died. Correct — and it means the mock recomputes
+   its plan from the transcript on *every* turn.
+
+Compose them: turn 1 reads the ticket, sees no refund language, sets off down
+the shipping path. Turn 2's knowledge-base result now contains the word
+*refund*. Turn 3 recomputes the plan, concludes it has been working a refund
+all along, and asks to move money.
+
+**Fix.** The plan is derived from the opening prompt and the *first* tool
+result only, and stops there — `_brief()` in
+[deskhand/providers.py](deskhand/providers.py). The ticket is what the plan is
+about, so the plan reads the ticket and stops reading.
+
+**Next time.** Neither decision was wrong and neither review would have caught
+this, because the interaction lives in the space between two files that never
+mention each other. The thing that found it was running the actual product on
+data I had not hand-picked — the same move that found the bugs in lesson 4.
+Worth generalising: for anything that recomputes a decision from accumulating
+context, ask what happens when the context grows to contain a word that changes
+the decision. "Stateless" and "reads everything" are a bad pair.
