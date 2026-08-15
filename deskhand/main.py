@@ -31,6 +31,7 @@ from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.deps import ApproverDep, CallerDep
 from deskhand.ratelimit import auth_limiter
 from deskhand.runtime import approvals, runs
+from deskhand.tools import all_tools
 
 log = logging.getLogger("deskhand")
 
@@ -62,6 +63,21 @@ def healthz() -> dict[str, Any]:
         "provider": "claude" if settings.has_model_key else "mock",
         "model": settings.model_id if settings.has_model_key else "mock",
     }
+
+
+@app.get("/tools")
+def list_tools(caller: CallerDep) -> list[dict[str, Any]]:
+    """The registry, so the UI can colour a trajectory by risk.
+
+    Exposed rather than duplicated in TypeScript. A second copy of "which tools
+    are irreversible" is a copy that will eventually disagree with the first,
+    and the disagreement would be silent and in the direction of showing a
+    money-moving call as routine.
+    """
+    return [
+        {"name": t.name, "risk": str(t.risk), "description": t.description}
+        for t in all_tools()
+    ]
 
 
 # ----------------------------------------------------------------------- auth
@@ -329,24 +345,34 @@ def stream_run(run_id: str, caller: CallerDep) -> StreamingResponse:
                 sent = step["seq"]
                 yield _sse("step", _step_view(step))
 
-            run = fetch_one("select * from runs where id = %s", (run_id,))
+            # The ticket join matters: the client merges each status event into
+            # the run it is displaying, so a summary with a null reference here
+            # would blank the header the moment the run changed state.
+            run = fetch_one(
+                "select r.*, t.reference as ticket_reference from runs r"
+                "  join tickets t on t.id = r.ticket_id where r.id = %s",
+                (run_id,),
+            )
             if run is None:
                 yield _sse("error", {"message": "run disappeared"})
                 return
 
             if run["status"] != last_status:
                 last_status = run["status"]
-                yield _sse("status", _run_summary(run | {"ticket_reference": None}))
+                yield _sse("status", _run_summary(run))
 
             if run["status"] == "awaiting_approval":
                 waiting = fetch_all(
-                    "select * from approvals where run_id = %s and status = 'pending'",
+                    "select a.*, t.reference as ticket_reference from approvals a"
+                    "  join runs r on r.id = a.run_id"
+                    "  join tickets t on t.id = r.ticket_id"
+                    " where a.run_id = %s and a.status = 'pending'",
                     (run_id,),
                 )
                 yield _sse("approval", [_approval_view(a) for a in waiting])
 
             if run["status"] in ("succeeded", "failed", "exhausted", "cancelled"):
-                yield _sse("done", _run_summary(run | {"ticket_reference": None}))
+                yield _sse("done", _run_summary(run))
                 return
 
             time.sleep(0.5)
