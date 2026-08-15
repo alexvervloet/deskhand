@@ -95,3 +95,31 @@ until the second module that writes shows up, so establish per-test isolation
 when the *first* one does. And when a correctness fix makes the suite slow
 enough that people will start skipping it, that is a bug in the fix — find the
 one expensive thing inside it rather than accepting the tradeoff.
+
+---
+
+## 4. A green test suite and a broken screen
+
+**Expected.** The stream endpoint had a passing test. It asserted that steps
+arrive, that a `done` event closes the stream, and that the count was right.
+
+**What happened.** Running the real thing found a bug the test could not: the
+`status` and `done` events were built with `_run_summary(run | {"ticket_reference": None})`,
+because the query behind them did not join `tickets` and the field had to be
+filled with *something*. The client merges each status event into the run it is
+displaying, so the run header would show `NW-1` until the first status arrived
+and then go blank — for the rest of the run.
+
+The test asserted that events were *emitted*. It said nothing about whether
+they were *complete*. Both bugs on this screen were of that shape: the pending
+approvals in the stream had the same missing join.
+
+**Fix.** Join the ticket in both queries, and add a test that walks every
+summary the stream emits and asserts the reference is present on each one —
+which is the assertion the original test should have made.
+
+**Next time.** For an endpoint whose output a client merges into existing
+state, "did it emit" is the weak version of the question. The useful one is
+"is every field on every message correct", because a partial message does not
+fail — it overwrites. And running the product end to end catches a class of
+thing that no unit test was ever going to; the first real click found two.
