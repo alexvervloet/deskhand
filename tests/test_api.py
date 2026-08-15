@@ -7,6 +7,8 @@ can watch a run spend money but cannot authorise it.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -343,3 +345,47 @@ def test_the_stream_replays_the_trajectory_and_closes() -> None:
     assert "event: step" in body
     assert "event: done" in body
     assert body.count("event: step") == 4
+
+
+def test_every_streamed_summary_carries_the_ticket_reference() -> None:
+    """Regression. The client merges each status event into the run it is
+    displaying, so a summary with a null reference blanked the run header the
+    moment the run changed state."""
+    headers = login()
+    run_id = client.post(
+        "/runs", json={"ticket_reference": "NW-2"}, headers=headers
+    ).json()["id"]
+    drive_run(run_id, ScriptedProvider(script=[text("Nothing due.")]))
+
+    with client.stream("GET", f"/runs/{run_id}/stream", headers=headers) as response:
+        body = "".join(response.iter_text())
+
+    payloads = [
+        json.loads(line[6:])
+        for line in body.splitlines()
+        if line.startswith("data: ")
+    ]
+    summaries = [p for p in payloads if isinstance(p, dict) and "status" in p]
+    assert summaries, "the stream emitted no run summaries"
+    for summary in summaries:
+        assert summary["ticket_reference"] == "NW-2"
+
+
+# ----------------------------------------------------------------------- tools
+
+
+def test_the_registry_is_exposed_so_the_ui_need_not_restate_it() -> None:
+    """A second copy of "which tools are irreversible" would eventually
+    disagree with the first, silently, in the unsafe direction."""
+    tools = client.get("/tools", headers=login()).json()
+    by_risk: dict[str, set[str]] = {}
+    for tool in tools:
+        by_risk.setdefault(tool["risk"], set()).add(tool["name"])
+
+    assert by_risk["irreversible"] == {
+        "issue_refund",
+        "send_customer_email",
+        "cancel_order",
+    }
+    assert "search_kb" in by_risk["read"]
+    assert all(t["description"].strip() for t in tools)
