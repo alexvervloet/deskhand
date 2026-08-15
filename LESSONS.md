@@ -123,3 +123,84 @@ state, "did it emit" is the weak version of the question. The useful one is
 "is every field on every message correct", because a partial message does not
 fail — it overwrites. And running the product end to end catches a class of
 thing that no unit test was ever going to; the first real click found two.
+
+---
+
+## 5. The fault injector found a real crash on its first run
+
+**Expected.** The `garbage` fault — a tool returning binary noise — was written
+to check that the agent survives nonsense. A box to tick.
+
+**What happened.** It never got as far as the agent:
+
+```
+psycopg.DataError: PostgreSQL text fields cannot contain NUL (0x00) bytes
+```
+
+Postgres `text` and `jsonb` cannot hold a NUL byte. The exception came from the
+*ledger write* in `invoke()` — which happens **after** the handler has already
+run. So the failure mode was: the refund is issued, the write recording that it
+was issued blows up, the transaction rolls back, and the run dies. On a real
+external side effect that would be money moved with no record of moving it. It
+is difficult to design a worse place for a crash.
+
+Real tools return NUL bytes more often than is comfortable: binary payloads
+mislabelled as text, truncated UTF-8, a C library handing over its buffer
+intact.
+
+**Fix.** `sanitise()` in [deskhand/tools/invoke.py](deskhand/tools/invoke.py),
+replacing NUL with U+FFFD rather than dropping it — a result that had a NUL in
+it should look like it had a NUL in it.
+
+**Next time.** Nothing here is subtle in hindsight, and I would not have found
+it by thinking harder about the code. The lesson is about the *order of work*:
+the fault injector was on the plan as scaffolding for the evals, so it felt
+like tooling rather than testing. It paid for itself before the first eval it
+was built to support even ran. Build the thing that makes failures happen
+early, not once everything else is finished.
+
+---
+
+## 6. Defence in depth means most of your evals keep passing when you break something
+
+**Expected.** Nineteen trajectory evals across five invariants. Deliberately
+break a safety mechanism and watch the gate light up.
+
+**What happened.** It depends entirely on *which* mechanism, and the pattern is
+worth staring at. Removing the approval gate (`requires_approval` → `False`):
+
+```
+8/19 passed   — 11 failures across durability, consent, integrity, accountability
+```
+
+Good. But deleting the fence around untrusted tool output:
+
+```
+3/4 integrity evals still passed
+```
+
+Only the eval written specifically to assert *the fence exists* caught it. Both
+prompt-injection evals passed with the fence gone — because the fence is not
+what actually stops the attack. The risk class does. The fence removes
+structural ambiguity; the registry removes authority. Kill the fence and a
+fully obedient model still cannot escalate, so the outcome-shaped evals see
+nothing wrong.
+
+Same shape for the idempotency ledger. Disable it and `crash-resume-pays-once`
+still passes, because an orderly resume is caught by the step log; the ledger
+only covers the disorderly case (a leasing bug, an approval firing twice). One
+eval failed — the one written for that layer specifically.
+
+**What this means.** Redundancy is the point, and redundancy makes each
+individual layer *invisible to outcome testing*. If every eval asks "did the
+right thing happen", a system with three defences will keep answering yes after
+you delete two of them — and you will find out which one was load-bearing
+during an incident.
+
+**Next time.** Write one eval per layer that asserts *the layer is present*,
+separately from the evals that assert the outcome is right. `every-tool-result-is-fenced`
+and `the-ledger-catches-a-double-execution` exist for exactly this reason and
+would otherwise look redundant next to the injection and crash-resume evals.
+They are not redundant; they are the only thing standing between a silent
+removal and production. (The companion project reaches the same conclusion from
+the other direction, in its exercise on removing an invisible layer.)
