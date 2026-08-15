@@ -1,15 +1,21 @@
 import type { Step } from "../api";
 
-// Rendering rule: untrusted content looks untrusted. Tool results arrive
-// wrapped in the run's fence, and rather than stripping the markers and
-// showing the text as if it were ordinary output, the viewer strips them and
-// then *says so* with a red rule down the side. Somebody reading a trajectory
-// should be able to see at a glance which text came from outside.
+// Rendering rule: untrusted content looks untrusted.
+//
+// *Every* tool result is untrusted — that is what a tool result is. It is a
+// ticket somebody typed, a record somebody else's system returned, text from
+// outside this program. So the viewer marks all of them, rather than trying to
+// detect which ones are dangerous, which would be the same losing game the
+// approval gate exists to avoid playing.
+//
+// The run's fence is a mechanism for the *model*, applied when the conversation
+// is rebuilt; the step log stores the raw result. Stripping the markers here
+// too keeps the display honest if that ever changes.
 const FENCE = /^<<<untrusted:[0-9a-f]{12}>>>\n?([\s\S]*?)\n?<<<\/untrusted:[0-9a-f]{12}>>>$/;
 
-function unfence(text: string): { body: string; fenced: boolean } {
+function unfence(text: string): string {
   const match = FENCE.exec(text.trim());
-  return match ? { body: match[1], fenced: true } : { body: text, fenced: false };
+  return match ? match[1] : text;
 }
 
 type Block = { type: string; text?: string; thinking?: string; name?: string; input?: unknown };
@@ -101,17 +107,18 @@ function body(step: Step) {
 
   if (step.kind === "tool_result") {
     const args = step.content.args as unknown;
-    const result = String(step.content.result ?? "");
     const ok = step.content.ok !== false;
-    const { body: text, fenced } = unfence(result);
+    const text = unfence(String(step.content.result ?? ""));
 
     return (
       <>
         {args != null && Object.keys(args as object).length > 0 && (
           <pre>{JSON.stringify(args, null, 2)}</pre>
         )}
-        <div className={fenced ? "fenced" : undefined}>
-          {fenced && <div className="fence-label">untrusted · quoted from outside</div>}
+        <div className="fenced">
+          <div className="fence-label">
+            {ok ? "untrusted · from outside this program" : "tool failed"}
+          </div>
           <pre style={ok ? undefined : { color: "var(--bad)" }}>{text}</pre>
         </div>
       </>
