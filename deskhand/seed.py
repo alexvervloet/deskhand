@@ -19,6 +19,7 @@ than to look plausible in a screenshot:
 from __future__ import annotations
 
 import functools
+import sys
 
 import psycopg
 
@@ -326,7 +327,19 @@ def seed(cur: psycopg.Cursor) -> None:
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = argv if argv is not None else sys.argv[1:]
+
+    if "--if-empty" in args:
+        # Deploys run this on every release. Reseeding an existing demo would
+        # discard whatever a visitor was in the middle of, so an already-seeded
+        # database is left exactly as it is.
+        with psycopg.connect(settings.database_url) as conn:
+            existing = conn.execute("select count(*) from orgs").fetchone()
+        if existing and existing[0]:
+            print(f"already seeded ({existing[0]} orgs) — leaving it alone")
+            return 0
+
     with psycopg.connect(settings.database_url) as conn, conn.cursor() as cur:
         seed(cur)
         conn.commit()
