@@ -156,7 +156,9 @@ def the_ledger_catches_a_double_execution() -> None:
             " values (%s, 999, 'tool_result', '{}') returning id",
             (run_id,),
         )
-        step_id = str(cur.fetchone()["id"])
+        created = cur.fetchone()
+        assert created is not None
+        step_id = str(created["id"])
 
         first = invoke(cur, org_id=org_id, run_id=run_id, step_id=step_id, seq=999,
                        tool_name="issue_refund", args=args)

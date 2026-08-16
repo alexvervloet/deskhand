@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from deskhand.db import connection, fetch_all, fetch_one  # noqa: E402
+from deskhand.db import connection, fetch_all, one  # noqa: E402
 from deskhand.providers import ScriptedProvider, call, text  # noqa: E402
 from deskhand.runtime import approvals, loop, runs  # noqa: E402
 
@@ -89,13 +89,15 @@ def main() -> int:
     from deskhand import seed
     from deskhand.config import settings
 
-    with psycopg.connect(settings.database_url) as conn:
-        with conn.cursor() as cur:
+    # Named distinctly from the pooled `conn` used below: this one is a plain
+    # tuple-row connection for the seed helpers, and reusing the name would give
+    # one variable two row types in one function.
+    with psycopg.connect(settings.database_url) as seeding:
+        with seeding.cursor() as cur:
             seed.seed(cur)
-        conn.commit()
+        seeding.commit()
 
-    ticket = fetch_one("select id, org_id from tickets where reference = 'NW-1'")
-    assert ticket is not None
+    ticket = one("select id, org_id from tickets where reference = 'NW-1'")
 
     say()
     say(f"{BOLD}Deskhand — a worker dies mid-run. Nobody gets refunded twice.{RESET}")
@@ -116,8 +118,7 @@ def main() -> int:
             say(f"  {row['seq']:>2}  {BLUE}{row['tool_name']}{RESET}", 0.28)
 
     say()
-    approval = fetch_one("select id, preview from approvals where run_id = %s", (run_id,))
-    assert approval is not None
+    approval = one("select id, preview from approvals where run_id = %s", (run_id,))
     say(f"{AMBER}  ┌─ the run has stopped ─────────────────────────────────┐{RESET}")
     say(f"{AMBER}  │{RESET} {approval['preview']}")
     say(f"{AMBER}  └───────────────────────────────────────────────────────┘{RESET}")
@@ -131,7 +132,7 @@ def main() -> int:
             approval_id=str(approval["id"]),
             org_id=str(ticket["org_id"]),
             decision="approved",
-            decided_by=str(fetch_one("select id from users where role = 'owner' limit 1")["id"]),
+            decided_by=str(one("select id from users where role = 'owner' limit 1")["id"]),
         )
         conn.commit()
     say()
@@ -142,7 +143,7 @@ def main() -> int:
     except RuntimeError as exc:
         say(f"  {RED}✗ {exc}{RESET}")
 
-    run = fetch_one("select status::text from runs where id = %s", (run_id,))
+    run = one("select status::text from runs where id = %s", (run_id,))
     say(f"  refunds issued: {BOLD}{refund_count()}{RESET}   run status: {run['status']}")
     say(f"  {DIM}the run is marked running and nobody is running it{RESET}")
     say()
@@ -159,6 +160,7 @@ def main() -> int:
     with connection() as conn, conn.cursor() as cur:
         claimed = runs.claim_next(cur, "worker-b")
         conn.commit()
+    assert claimed is not None, "the run should have been claimable"
     say(f"  {GREEN}✓ claimed{RESET} {str(claimed['id'])[:8]} — attempt {claimed['attempt']}")
     say()
 

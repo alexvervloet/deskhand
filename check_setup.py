@@ -43,7 +43,8 @@ def main() -> int:
 
     try:
         with psycopg.connect(settings.database_url, connect_timeout=5) as conn:
-            version = conn.execute("select version()").fetchone()[0]
+            found = conn.execute("select version()").fetchone()
+            version = found[0] if found else "unknown"
         line(OK, "database", version.split(",")[0])
     except Exception as exc:  # noqa: BLE001
         line(FAIL, "database", f"{type(exc).__name__}: {exc}")
@@ -52,10 +53,11 @@ def main() -> int:
     else:
         try:
             with psycopg.connect(settings.database_url) as conn:
-                n = conn.execute(
+                counted = conn.execute(
                     "select count(*) from information_schema.tables"
                     " where table_schema = 'public'"
-                ).fetchone()[0]
+                ).fetchone()
+            n = counted[0] if counted else 0
             if n:
                 line(OK, "schema", f"{n} table(s)")
             else:
