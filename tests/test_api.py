@@ -389,3 +389,35 @@ def test_the_registry_is_exposed_so_the_ui_need_not_restate_it() -> None:
     }
     assert "search_kb" in by_risk["read"]
     assert all(t["description"].strip() for t in tools)
+
+
+# ---------------------------------------------------------------------- replay
+
+
+def test_the_conversation_before_a_step_is_readable_back(fresh) -> None:
+    headers = login()
+    run_id = client.post(
+        "/runs", json={"ticket_reference": "NW-2"}, headers=headers
+    ).json()["id"]
+    drive_run(run_id, ScriptedProvider(script=[
+        [call("get_ticket", reference="NW-2")],
+        text("Nothing due."),
+    ]))
+
+    before_first = client.get(f"/runs/{run_id}/replay?at=1", headers=headers).json()
+    assert [m["role"] for m in before_first["messages"]] == ["user"]
+    assert before_first["system"], "the system prompt is part of what the model saw"
+
+    before_third = client.get(f"/runs/{run_id}/replay?at=3", headers=headers).json()
+    assert len(before_third["messages"]) > len(before_first["messages"])
+    # The ticket the agent had read by then, fenced exactly as the model got it.
+    assert "Where is my order" in str(before_third["messages"])
+    assert "<<<untrusted:" in str(before_third["messages"])
+
+
+def test_another_merchants_run_cannot_be_replayed() -> None:
+    lumen = login(OTHER_ORG)
+    run_id = client.post(
+        "/runs", json={"ticket_reference": "LU-1"}, headers=lumen
+    ).json()["id"]
+    assert client.get(f"/runs/{run_id}/replay", headers=login()).status_code == 404

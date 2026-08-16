@@ -33,7 +33,8 @@ from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.deps import ApproverDep, CallerDep
 from deskhand.providers import get_provider
 from deskhand.ratelimit import auth_limiter
-from deskhand.runtime import approvals, runs
+from deskhand.runtime import approvals, runs, transcript
+from deskhand.runtime.loop import SYSTEM_PROMPT
 from deskhand.tools import all_tools
 
 log = logging.getLogger("deskhand")
@@ -371,6 +372,26 @@ def cancel_run(run_id: str, caller: CallerDep) -> Any:
         conn.commit()
 
     return _run_summary(_require_run(run_id, caller.org_id))
+
+
+@app.get("/runs/{run_id}/replay")
+def replay_run(run_id: str, caller: CallerDep, at: int | None = None) -> dict[str, Any]:
+    """The conversation exactly as it stood before step `at`.
+
+    Reconstructed from the step log, which is a pure function of rows — so this
+    answers "what did the model actually see when it decided to refund?" with
+    the same bytes today and in a year. Nothing is executed and no model is
+    called; this endpoint only reads.
+    """
+    run = _require_run(run_id, caller.org_id)
+    with connection() as conn, conn.cursor() as cur:
+        messages = transcript.rebuild(cur, run_id, run["prompt"], before_seq=at)
+    return {
+        "run_id": run_id,
+        "before_seq": at,
+        "system": SYSTEM_PROMPT,
+        "messages": messages,
+    }
 
 
 @app.get("/runs/{run_id}/stream")
