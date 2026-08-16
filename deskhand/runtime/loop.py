@@ -24,7 +24,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import DictRow
 
-from deskhand import pricing
+from deskhand import pricing, tracing
 from deskhand.config import settings
 from deskhand.providers import ModelReply, Provider
 from deskhand.runtime import approvals, runs, transcript
@@ -284,6 +284,16 @@ def _record_reply(
         provider=reply.provider,
         model=reply.model,
     )
+    tracing.model_call(
+        run_id,
+        seq,
+        input_tokens=reply.input_tokens,
+        output_tokens=reply.output_tokens,
+        cost_micros=reply.cost_micros,
+        latency_ms=reply.latency_ms,
+        stop_reason=reply.stop_reason,
+        tool_calls=len(reply.tool_uses),
+    )
 
     run = runs.get(cur, run_id)
 
@@ -423,6 +433,12 @@ def _settle(
                 action="approval.granted",
                 detail={"tool": name, "preview": decision["preview"]},
             )
+            tracing.approval_decided(
+                run_id,
+                tool=name,
+                decision="approved",
+                decided_by=str(decision["decided_by"]) if decision["decided_by"] else None,
+            )
 
         seq = runs.next_seq(cur, run_id)
         step_id = runs.append_step(
@@ -458,8 +474,24 @@ def _settle(
             " where id = %s",
             (result.result, result.ok, result.replayed, result.duration_ms, step_id),
         )
+        tracing.tool_call(
+            run_id,
+            seq,
+            tool=name,
+            risk=result.risk,
+            ok=result.ok,
+            replayed=result.replayed,
+            duration_ms=result.duration_ms,
+        )
 
     if suspend:
+        for tool_use in pending:
+            if requires_approval(tool_use["name"]):
+                tracing.approval_requested(
+                    run_id,
+                    tool=tool_use["name"],
+                    args_hash=args_hash(tool_use["name"], tool_use.get("input") or {}),
+                )
         runs.suspend_for_approval(cur, run_id)
         runs.audit(
             cur, org_id=org_id, run_id=run_id, action="run.awaiting_approval"
@@ -484,5 +516,14 @@ def _end(
         run_id=str(run["id"]),
         action=f"run.{status}",
         detail={"stop_reason": reason, "stop_detail": detail},
+    )
+    cur.execute("select count(*) as n from steps where run_id = %s", (run["id"],))
+    counted = cur.fetchone()
+    tracing.run_finished(
+        str(run["id"]),
+        status=status,
+        stop_reason=reason,
+        steps=int(counted["n"]) if counted else 0,
+        cost_micros=int(run["cost_micros"]),
     )
     log.info("run %s finished: %s (%s)", run["id"], status, reason)
