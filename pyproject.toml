@@ -46,10 +46,23 @@ ignore = [
 "tests/*" = ["E402"]
 "evals/*" = ["E402"]
 
+[tool.pyright]
+# Pylance uses this. Everything is checked — including tests, evals and demo,
+# which mypy's `files` setting had been quietly skipping, and which is where
+# most of the first run's 30 errors turned out to be.
+include = ["deskhand", "evals", "tests", "demo", "check_setup.py"]
+typeCheckingMode = "standard"
+# jsonschema ships no stubs. That is a fact about the package, not a defect
+# here, and the alternative is a blanket suppression that would hide real ones.
+reportMissingModuleSource = "none"
+
 [tool.mypy]
 # No python_version pin: it must match the interpreter in use, or mypy rejects
 # dependency stubs written with newer syntax.
-files = ["deskhand"]
+# Kept alongside pyright rather than replaced by it: they disagree often
+# enough to be worth both, and the disagreements have been real (see
+# LiteralString in deskhand/migrate.py).
+files = ["deskhand", "evals", "tests", "demo", "check_setup.py"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_redundant_casts = true
