@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import functools
 import sys
+from typing import LiteralString
 
 import psycopg
 
@@ -49,7 +50,7 @@ truncate ticket_messages, tickets, customer_emails, refunds, order_items,
 """
 
 
-def _one(cur: psycopg.Cursor, sql: str, params: tuple) -> str:
+def _one(cur: psycopg.Cursor, sql: LiteralString, params: tuple) -> str:
     cur.execute(sql, params)
     row = cur.fetchone()
     assert row is not None

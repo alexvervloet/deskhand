@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import LiteralString, cast
 
 import psycopg
 
@@ -48,7 +49,16 @@ def run() -> int:
         for path in todo:
             print(f"applying {path.name} ... ", end="", flush=True)
             try:
-                conn.execute(path.read_text())
+                # The one place SQL is not a literal. These are .sql files
+                # committed to this repository and applied in filename order —
+                # not input, and not reachable from a request. Everywhere else
+                # the LiteralString requirement stands; see deskhand/db.py.
+                # The cast is redundant to mypy and required by pyright: they
+                # model LiteralString differently. Kept for the stricter of the
+                # two, with the other silenced on this line only.
+                conn.execute(
+                    cast("LiteralString", path.read_text())  # type: ignore[redundant-cast]
+                )
                 conn.execute(
                     "insert into schema_migrations (filename) values (%s)", (path.name,)
                 )
