@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -33,6 +34,31 @@ from typing import Any
 # application's own logging configuration can silence them without silencing
 # anything that matters.
 log = logging.getLogger("deskhand.events")
+
+
+def _configure() -> None:
+    """Give the event stream its own handler, once.
+
+    Normally a library has no business configuring logging. This is not a
+    library, and the alternative was worse: under uvicorn the root logger has no
+    handler and sits at WARNING, so every event emitted here was silently
+    dropped in the deployed app while appearing perfectly in local scripts that
+    happened to call `basicConfig`. An event stream that only works when
+    somebody remembered to configure it is not an event stream.
+
+    `propagate = False` so that an application which *does* configure the root
+    logger gets one copy of each line rather than two.
+    """
+    if log.handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    log.addHandler(handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+
+
+_configure()
 
 
 def emit(event: str, **fields: Any) -> None:
