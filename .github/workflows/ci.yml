@@ -79,8 +79,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install ruff mypy
+          pip install ruff mypy pyright
       - name: Ruff
         run: ruff check .
       - name: Mypy
         run: mypy
+      # Pyright is what Pylance runs, so without it in CI an editor can be full
+      # of red on a build that passed. The two checkers disagree often enough
+      # that running both has caught things neither found alone.
+      - name: Pyright
+        run: pyright
