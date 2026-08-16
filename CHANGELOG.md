@@ -17,6 +17,21 @@ rather than by version number.
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.
 
+## Type checking
+
+- **Pyright (what Pylance runs) added to CI**, alongside mypy. It had 30 errors
+  on a tree mypy called clean.
+- **mypy's scope widened** from `deskhand` to the whole tree. `tests/`,
+  `evals/`, `demo/` and `check_setup.py` — about 2,400 lines — had never been
+  checked by anything.
+- **SQL is typed `LiteralString`** throughout, which is psycopg's own
+  constraint and worth keeping: a query can no longer be assembled from a
+  variable without failing the build. The one genuinely dynamic query now
+  composes with `psycopg.sql.Identifier` instead of an f-string.
+- `db.one()` fetches exactly one row or raises, replacing twenty
+  `fetch_one(...)["id"]` sites where a missing row is a bug rather than a
+  branch.
+
 ## Replay and divergence
 
 - **`python -m deskhand.replay <run_id>`** — the trajectory as recorded, with

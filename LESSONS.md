@@ -280,3 +280,42 @@ a thing work: `caplog` attaching a handler is convenient and it silently removed
 the exact failure mode from the suite. A test that passes because the harness
 configured something the product does not configure itself is testing the
 harness.
+
+---
+
+## 9. The type checker I was not running had thirty things to say
+
+**Expected.** `mypy` clean on every commit, so the code is type-checked.
+
+**What happened.** Opening the project in an editor showed errors everywhere.
+Pylance runs Pyright, not mypy, and Pyright had **30 errors** on a tree mypy
+called clean.
+
+Two causes, and the first is embarrassing:
+
+**`files = ["deskhand"]`.** mypy had never looked at `tests/`, `evals/`,
+`demo/`, or `check_setup.py` — about 2,400 lines, a third of the project. I had
+written that line on day one to get a clean baseline and never revisited it.
+Twenty-two of the thirty errors were in files no checker had ever read.
+
+**Pyright is stricter, and was right.** The remaining eight were real. The best
+of them: psycopg 3.3 types its `query` parameter as `LiteralString`, not `str`
+— deliberately, so a query cannot be assembled from a variable that might hold
+request data. My `db.py` helpers took `str` and passed it straight through,
+which type-checked under mypy and quietly discarded the guarantee. Adopting
+`LiteralString` made one place fail: a test helper building an `UPDATE` from
+keyword arguments with an f-string. It was safe in context and it was also
+exactly the shape of an injection, so it now composes properly with
+`psycopg.sql.Identifier`.
+
+**Fix.** Both checkers over the whole tree, both in CI, and a `db.one()` helper
+for the twenty "row could be None" errors that came from `fetch_one(...)["id"]`
+— a missing row there is a bug, not a branch, and saying so once beats an
+`assert` at every call site.
+
+**Next time.** Two things. A type checker's scope is part of its configuration
+and deserves the same suspicion as its strictness — "mypy passes" meant much
+less than I thought it did, and nothing in the output said so. And if the
+editor and CI run different tools, the one CI does not run will drift until
+someone opens the project and finds it full of red. Run in CI what the editor
+runs.
