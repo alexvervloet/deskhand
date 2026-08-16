@@ -55,18 +55,14 @@ class Settings(BaseSettings):
     # machine that should be allowed to sleep when nobody is looking at it.
     run_worker_inline: bool = False
 
-    # --- Observability ---
-    langfuse_public_key: str | None = None
-    langfuse_secret_key: str | None = None
-    langfuse_host: str = "https://cloud.langfuse.com"
+    # No observability settings, deliberately. The step log is the trace —
+    # every model and tool call is a row with tokens, cost, latency, arguments
+    # and result — and deskhand/tracing.py emits a structured line per event for
+    # whatever collects your logs. Neither needs configuring.
 
     @property
     def has_model_key(self) -> bool:
         return bool(self.anthropic_api_key)
-
-    @property
-    def has_tracing(self) -> bool:
-        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
 
 settings = Settings()

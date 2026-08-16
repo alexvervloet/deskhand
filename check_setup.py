@@ -68,10 +68,7 @@ def main() -> int:
     else:
         line(WARN, "model", "no ANTHROPIC_API_KEY — runs will use the scripted mock")
 
-    if settings.has_tracing:
-        line(OK, "tracing", settings.langfuse_host)
-    else:
-        line(WARN, "tracing", "no LANGFUSE_* keys — tracing is a no-op")
+    line(OK, "tracing", "runs are traced in the step log; events go to stdout")
 
     print()
     if failures:
