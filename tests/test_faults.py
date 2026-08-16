@@ -9,18 +9,24 @@ from __future__ import annotations
 
 import psycopg
 import pytest
+from psycopg.rows import DictRow, dict_row
 
 from deskhand.config import settings
 from deskhand.tools import RiskClass, faults, get, requires_approval
 from deskhand.tools.invoke import invoke, sanitise
+from tests.conftest import row
 
 pytestmark = pytest.mark.usefixtures("fresh")
 
 
 @pytest.fixture
 def cur():
-    with psycopg.connect(settings.database_url) as conn:
-        conn.row_factory = psycopg.rows.dict_row
+    # Spelled with the type parameter so the connection really is a
+    # Connection[DictRow]; `psycopg.connect(...)` alone resolves to the
+    # tuple-row overload and rows come back as tuples to the checker.
+    with psycopg.Connection[DictRow].connect(
+        settings.database_url, row_factory=dict_row
+    ) as conn:
         with conn.cursor() as c:
             yield c
         conn.rollback()
@@ -29,9 +35,9 @@ def cur():
 @pytest.fixture
 def run(cur) -> tuple[str, str, str]:
     cur.execute("select id from orgs where slug = 'northwind'")
-    org = str(cur.fetchone()["id"])
+    org = str(row(cur)["id"])
     cur.execute("select id from tickets where reference = 'NW-1'")
-    ticket = str(cur.fetchone()["id"])
+    ticket = str(row(cur)["id"])
     cur.execute(
         "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
         "                  max_spend_micros, deadline_at)"
@@ -39,13 +45,13 @@ def run(cur) -> tuple[str, str, str]:
         " returning id",
         (org, ticket),
     )
-    run_id = str(cur.fetchone()["id"])
+    run_id = str(row(cur)["id"])
     cur.execute(
         "insert into steps (run_id, seq, kind, content) values (%s, 1, 'tool_result', '{}')"
         " returning id",
         (run_id,),
     )
-    return org, run_id, str(cur.fetchone()["id"])
+    return org, run_id, str(row(cur)["id"])
 
 
 def call_tool(cur, run, name: str, args: dict, seq: int = 1):
@@ -122,7 +128,7 @@ def test_a_crash_fault_is_not_the_models_business(cur, run) -> None:
         call_tool(cur, run, "get_ticket", {"reference": "NW-1"})
 
     cur.execute("select count(*) as n from tool_invocations")
-    assert cur.fetchone()["n"] == 0
+    assert row(cur)["n"] == 0
 
 
 def test_a_crash_rolls_back_what_the_handler_had_written(cur, run) -> None:
@@ -134,7 +140,7 @@ def test_a_crash_rolls_back_what_the_handler_had_written(cur, run) -> None:
             "order_reference": "NW-1042", "amount_cents": 1900, "reason": "test"
         })
     cur.execute("select count(*) as n from refunds")
-    assert cur.fetchone()["n"] == 0, "a crashed handler left a refund behind"
+    assert row(cur)["n"] == 0, "a crashed handler left a refund behind"
 
 
 def test_times_bounds_how_often_a_fault_fires(cur, run) -> None:

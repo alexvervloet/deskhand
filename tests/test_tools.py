@@ -13,12 +13,14 @@ import uuid
 
 import psycopg
 import pytest
+from psycopg.rows import DictRow, dict_row
 
 from deskhand import tools
 from deskhand.config import settings
 from deskhand.tools import RiskClass, ToolError, args_hash, requires_approval
 from deskhand.tools.invoke import idempotency_key, invoke
 from deskhand.tools.reversible import apply_inverse
+from tests.conftest import row
 
 pytestmark = pytest.mark.usefixtures("fresh")
 
@@ -27,8 +29,12 @@ pytestmark = pytest.mark.usefixtures("fresh")
 def cur():
     """A cursor in a transaction that is rolled back afterwards, so these tests
     can issue real refunds without leaving any behind."""
-    with psycopg.connect(settings.database_url) as conn:
-        conn.row_factory = psycopg.rows.dict_row
+    # Spelled with the type parameter so the connection really is a
+    # Connection[DictRow]; `psycopg.connect(...)` alone resolves to the
+    # tuple-row overload and rows come back as tuples to the checker.
+    with psycopg.Connection[DictRow].connect(
+        settings.database_url, row_factory=dict_row
+    ) as conn:
         with conn.cursor() as c:
             yield c
         conn.rollback()
@@ -37,7 +43,7 @@ def cur():
 @pytest.fixture
 def org(cur) -> str:
     cur.execute("select id from orgs where slug = 'northwind'")
-    return str(cur.fetchone()["id"])
+    return str(row(cur)["id"])
 
 
 def _new_run(cur, org: str) -> str:
@@ -45,7 +51,7 @@ def _new_run(cur, org: str) -> str:
     invocation has to belong to a run and a step that actually exist —
     which is also how it works in production."""
     cur.execute("select id from tickets where org_id = %s limit 1", (org,))
-    ticket = cur.fetchone()
+    ticket = row(cur)
     cur.execute(
         "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
         "                  max_spend_micros, deadline_at)"
@@ -53,7 +59,7 @@ def _new_run(cur, org: str) -> str:
         " returning id",
         (org, ticket["id"]),
     )
-    return str(cur.fetchone()["id"])
+    return str(row(cur)["id"])
 
 
 def _step(cur, run_id: str, seq: int) -> str:
@@ -65,7 +71,7 @@ def _step(cur, run_id: str, seq: int) -> str:
         (run_id, seq),
     )
     cur.execute("select id from steps where run_id = %s and seq = %s", (run_id, seq))
-    return str(cur.fetchone()["id"])
+    return str(row(cur)["id"])
 
 
 @pytest.fixture
@@ -206,6 +212,7 @@ def test_reversible_tools_record_a_usable_inverse(cur, org) -> None:
 
     changed = run_tool(cur, org, "set_priority", {"reference": "NW-2", "priority": "urgent"})
     assert changed.ok
+    assert changed.inverse is not None, "a reversible tool must record its inverse"
     assert changed.inverse == {
         "op": "set_priority",
         "ticket_id": changed.inverse["ticket_id"],
@@ -237,7 +244,7 @@ def test_internal_notes_are_not_customer_visible(cur, org) -> None:
     cur.execute(
         "select is_internal from ticket_messages where body like 'Checked the carrier%'"
     )
-    assert cur.fetchone()["is_internal"] is True
+    assert row(cur)["is_internal"] is True
 
 
 # ------------------------------------------------------ irreversible tools
@@ -285,12 +292,12 @@ def test_email_lands_on_the_thread_as_well_as_the_outbox(cur, org) -> None:
     })
     assert out.ok
     cur.execute("select count(*) as n from customer_emails")
-    assert cur.fetchone()["n"] == 1
+    assert row(cur)["n"] == 1
     cur.execute(
         "select count(*) as n from ticket_messages"
         " where author_kind = 'agent' and is_internal = false"
     )
-    assert cur.fetchone()["n"] == 1
+    assert row(cur)["n"] == 1
 
 
 # ------------------------------------------------------------ exactly once
@@ -311,7 +318,7 @@ def test_the_same_step_executes_once_however_often_it_is_replayed(cur, org, run_
         assert again.result == first.result
 
     cur.execute("select count(*) as n from refunds")
-    assert cur.fetchone()["n"] == 1, "the customer was refunded more than once"
+    assert row(cur)["n"] == 1, "the customer was refunded more than once"
 
 
 def test_a_different_step_of_the_same_run_is_a_different_key() -> None:

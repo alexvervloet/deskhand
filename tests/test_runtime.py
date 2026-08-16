@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from deskhand.db import connection, fetch_all, fetch_one
+from deskhand.db import connection, fetch_all, fetch_one, one
 from deskhand.providers import ScriptedProvider, call, text
 from deskhand.runtime import approvals, loop, runs, transcript
 
@@ -158,7 +158,7 @@ def test_approving_lets_the_run_finish_and_pays_exactly_once() -> None:
 
     assert drive(run_id, provider()) == "awaiting_approval"
 
-    approval = fetch_one("select * from approvals where run_id = %s", (run_id,))
+    approval = one("select * from approvals where run_id = %s", (run_id,))
     assert approval is not None
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
@@ -196,7 +196,7 @@ def test_denial_comes_back_to_the_agent_as_something_it_can_react_to() -> None:
 
     assert drive(run_id, ScriptedProvider(script=script)) == "awaiting_approval"
 
-    approval = fetch_one("select * from approvals where run_id = %s", (run_id,))
+    approval = one("select * from approvals where run_id = %s", (run_id,))
     assert approval is not None
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
@@ -212,7 +212,7 @@ def test_denial_comes_back_to_the_agent_as_something_it_can_react_to() -> None:
     assert drive(run_id, ScriptedProvider(script=script)) == "succeeded"
 
     assert fetch_all("select id from refunds") == []
-    assert fetch_one("select status::text from tickets where reference = 'NW-3'")["status"] == (
+    assert one("select status::text from tickets where reference = 'NW-3'")["status"] == (
         "escalated"
     )
 
@@ -234,7 +234,7 @@ def test_consent_is_bound_to_the_exact_arguments() -> None:
     ]
     assert drive(run_id, ScriptedProvider(script=small)) == "awaiting_approval"
 
-    approval = fetch_one("select * from approvals where run_id = %s", (run_id,))
+    approval = one("select * from approvals where run_id = %s", (run_id,))
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
             cur,
@@ -315,7 +315,7 @@ def test_a_run_resumes_on_another_worker_without_repeating_side_effects() -> Non
     assert drive(run_id, ScriptedProvider(script=script), worker="worker-a") == (
         "awaiting_approval"
     )
-    approval = fetch_one("select * from approvals where run_id = %s", (run_id,))
+    approval = one("select * from approvals where run_id = %s", (run_id,))
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
             cur, approval_id=str(approval["id"]), org_id=org_id(),
@@ -494,6 +494,6 @@ def test_an_injected_instruction_cannot_escape_the_approval_gate() -> None:
 
     assert drive(run_id, obedient) == "awaiting_approval"
     assert fetch_all("select id from refunds") == []
-    assert fetch_one(
+    assert one(
         "select status::text from approvals where run_id = %s", (run_id,)
     )["status"] == "pending"

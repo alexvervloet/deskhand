@@ -49,3 +49,14 @@ def lumen_id() -> str:
     row = fetch_one("select id from orgs where slug = 'lumen'")
     assert row is not None
     return str(row["id"])
+
+
+def row(cur) -> dict:
+    """`cur.fetchone()`, asserted present.
+
+    A test that fetches a row it just inserted and gets None has a broken
+    fixture, not a branch to handle. Saying so here keeps the assertion out of
+    every call site and stops the type checker flagging each one."""
+    fetched = cur.fetchone()
+    assert fetched is not None, "expected a row"
+    return fetched

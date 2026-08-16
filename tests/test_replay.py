@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from deskhand import replay
-from deskhand.db import connection, fetch_all, fetch_one
+from deskhand.db import connection, fetch_all, fetch_one, one
 from deskhand.providers import ScriptedProvider, call, text
 from deskhand.runtime import approvals, loop, runs, transcript
 from deskhand.runtime.loop import SYSTEM_PROMPT
@@ -34,8 +34,7 @@ def provider() -> ScriptedProvider:
 @pytest.fixture
 def finished_run() -> str:
     """A completed run that issued a refund with a human's approval."""
-    ticket = fetch_one("select id, org_id from tickets where reference = 'NW-1'")
-    assert ticket is not None
+    ticket = one("select id, org_id from tickets where reference = 'NW-1'")
     with connection() as conn, conn.cursor() as cur:
         run_id = runs.create(cur, org_id=str(ticket["org_id"]), ticket_id=str(ticket["id"]))
         conn.commit()
@@ -52,8 +51,8 @@ def finished_run() -> str:
             loop.advance(conn, run_id, "test", provider())
 
     drive()
-    approval = fetch_one("select id, org_id from approvals where run_id = %s", (run_id,))
-    owner = fetch_one("select id from users where role = 'owner' limit 1")
+    approval = one("select id, org_id from approvals where run_id = %s", (run_id,))
+    owner = one("select id from users where role = 'owner' limit 1")
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
             cur, approval_id=str(approval["id"]), org_id=str(approval["org_id"]),
@@ -68,7 +67,7 @@ def finished_run() -> str:
 
 
 def test_the_conversation_before_a_step_is_reconstructible(finished_run) -> None:
-    run = fetch_one("select prompt from runs where id = %s", (finished_run,))
+    run = one("select prompt from runs where id = %s", (finished_run,))
     with connection() as conn, conn.cursor() as cur:
         before_first = transcript.rebuild(cur, finished_run, run["prompt"], before_seq=1)
         before_refund = transcript.rebuild(cur, finished_run, run["prompt"], before_seq=5)
@@ -88,7 +87,7 @@ def test_the_conversation_before_a_step_is_reconstructible(finished_run) -> None
 def test_reconstruction_is_deterministic(finished_run) -> None:
     """Same rows in, same bytes out — months later, on another machine. That is
     the whole reason a trajectory is auditable rather than merely logged."""
-    run = fetch_one("select prompt from runs where id = %s", (finished_run,))
+    run = one("select prompt from runs where id = %s", (finished_run,))
     with connection() as conn, conn.cursor() as cur:
         first = transcript.rebuild(cur, finished_run, run["prompt"])
         second = transcript.rebuild(cur, finished_run, run["prompt"])
