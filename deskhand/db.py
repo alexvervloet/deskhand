@@ -11,7 +11,7 @@ import atexit
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, cast
+from typing import Any, LiteralString, cast
 
 import psycopg
 from psycopg.rows import DictRow, dict_row
@@ -73,21 +73,47 @@ def cursor() -> Iterator[psycopg.Cursor[DictRow]]:
         yield cur
 
 
+# `sql` is typed LiteralString rather than str throughout. That is psycopg's own
+# constraint and it is worth keeping rather than casting away: a LiteralString
+# is provably written in the source, so a query can never be assembled from
+# request data by accident. Building SQL from a variable now fails type-checking
+# instead of failing a security review. Where a query genuinely must be composed
+# at runtime, use psycopg.sql.SQL/Identifier — see evals/harness.py.
+#
 # The pool is built with row_factory=dict_row, so every row really is a dict.
-# mypy cannot see that through the pool's constructor kwargs, hence the casts.
-def fetch_one(sql: str, params: tuple[Any, ...] | dict[str, Any] = ()) -> dict | None:
+# Neither checker can see that through the pool's constructor kwargs, hence the
+# casts.
+def fetch_one(
+    sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()
+) -> dict | None:
     with cursor() as cur:
         cur.execute(sql, params)
         return cast(dict | None, cur.fetchone())
 
 
-def fetch_all(sql: str, params: tuple[Any, ...] | dict[str, Any] = ()) -> list[dict]:
+def one(sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()) -> dict:
+    """Fetch exactly one row, or raise.
+
+    The overwhelmingly common case: a lookup by primary key or unique reference
+    where a missing row is a bug, not a branch. Without this every caller either
+    writes `assert row is not None` or subscripts an Optional and gets a
+    `TypeError` somewhere less informative than here.
+    """
+    row = fetch_one(sql, params)
+    if row is None:
+        raise LookupError(f"expected one row, got none: {sql.split(chr(10))[0][:80]}")
+    return row
+
+
+def fetch_all(
+    sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()
+) -> list[dict]:
     with cursor() as cur:
         cur.execute(sql, params)
         return cast(list[dict], cur.fetchall())
 
 
-def execute(sql: str, params: tuple[Any, ...] | dict[str, Any] = ()) -> int:
+def execute(sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()) -> int:
     with cursor() as cur:
         cur.execute(sql, params)
         return cur.rowcount
