@@ -115,15 +115,29 @@ evals across four invariants. Deliberately deleting the fence around untrusted
 content fails only 1 — which turns out to be the more interesting result, and
 is written up as LESSONS entry 6.
 
+## Read the argument, then break it
+
+The repository is an argument; [docs/](docs/) is the order it makes sense in.
+
+- **[The thesis](docs/01-thesis.md)** — why the loop is 3% of the code
+- **[Concept index](docs/02-concept-index.md)** — where every idea lives
+- **[Exactly once](docs/03-exactly-once.md)** — and the assumption it rests on
+- **[Evals](docs/04-evals.md)** — asserting a path, not an answer
+
+Then the [exercises](docs/exercises/), which are the point. Each is a one-line
+change with a verified result. If you do one, do
+**[02 — remove the invisible layer](docs/exercises/02-remove-the-invisible-layer.md)**:
+delete the most visible anti-injection defence in the project and watch 18 of 19
+evals keep passing.
+
 ## Status
 
-Working end to end: schema, tool registry, durable runtime, approval gate, HTTP
-API with a live trajectory stream, a React UI, fault injection, and the eval
-gate. Green in CI on a clean checkout — tests, evals, ruff, mypy, and a
-frontend type-check and build.
+Working end to end and deployed: schema, tool registry, durable runtime,
+approval gate, HTTP API with a live trajectory stream, React UI, fault
+injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
+ruff, mypy, and a frontend type-check and build.
 
-Still to come: Langfuse tracing, deterministic replay, the written exercises,
-and a deployed demo.
+Still to come: Langfuse tracing and deterministic replay.
 
 ## Run it
 
@@ -186,9 +200,13 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — including a full-text search that failed *open* on a
-policy lookup (an agent reading "no such policy" reasonably concludes it is
-unconstrained), and a green test suite that shipped a broken screen.
+[LESSONS.md](LESSONS.md) — seven entries, written while the detail was fresh.
+A full-text search that failed *open* on a policy lookup, so an agent reading
+"no such policy" would reasonably conclude it was unconstrained. A green test
+suite that shipped a broken screen. A fault injector that found a real crash
+before the first eval it was built for had even run. And two individually
+correct decisions that composed into a demo asking to refund a customer who
+only wanted a tracking number.
 
 ## License
 
