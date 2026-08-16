@@ -56,17 +56,31 @@ def quarantine(run_id: str, body: str) -> str:
     return f"{opener}\n{cleaned}\n{closer}"
 
 
-def rebuild(cur: psycopg.Cursor[DictRow], run_id: str, prompt: str) -> list[dict[str, Any]]:
+def rebuild(
+    cur: psycopg.Cursor[DictRow],
+    run_id: str,
+    prompt: str,
+    *,
+    before_seq: int | None = None,
+) -> list[dict[str, Any]]:
     """Replay the step log into a messages array for the next model call.
 
     Consecutive tool results are gathered into a single user message. That is
     an API requirement when a turn asked for several tools at once, and getting
     it wrong is subtle: splitting them across messages does not error, it just
     quietly teaches the model to stop making parallel calls.
+
+    `before_seq` truncates the replay, returning the conversation exactly as it
+    stood *before* that step ran. This function is a pure function of the rows
+    and the prompt — no clock, no randomness, no ambient state — which is what
+    makes "what did the model see when it decided to refund?" a question with
+    one reproducible answer, months later. See deskhand/replay.py.
     """
     cur.execute(
-        "select seq, kind::text, content from steps where run_id = %s order by seq",
-        (run_id,),
+        "select seq, kind::text, content from steps"
+        " where run_id = %s and (%s::int is null or seq < %s::int)"
+        " order by seq",
+        (run_id, before_seq, before_seq),
     )
     steps = cur.fetchall()
 
