@@ -65,6 +65,8 @@ Where each idea lives in the code. Ordered by how likely you are to want it.
 | Which run paid for what | `run_id` on `refunds` and `customer_emails` |
 | Who approved it | `approvals.decided_by`, plus `audit_log` |
 | The audit trail | `runs.audit()` |
+| Structured events for a log collector | [tracing.py](../deskhand/tracing.py) |
+| Why the tracer cannot raise | [tests/test_tracing.py](../tests/test_tracing.py) |
 
 ## Tools
 

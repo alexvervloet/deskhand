@@ -137,7 +137,7 @@ approval gate, HTTP API with a live trajectory stream, React UI, fault
 injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
 ruff, mypy, and a frontend type-check and build.
 
-Still to come: Langfuse tracing and deterministic replay.
+Still to come: deterministic replay of a persisted run.
 
 ## Run it
 
@@ -185,6 +185,14 @@ project is not about retrieval; the companion project is.
 
 **No float touches money.** Currency is integer cents, model cost is integer
 nanodollars rounded once to micros, and spend caps compare integers.
+
+**The step log is the trace.** Every model and tool call is already a row with
+tokens, cost, latency, arguments and result, joined to a run that knows who
+started it — so there is no second copy of that in a third-party product, and
+no tracing keys to configure. What a database is bad at is being *watched*, so
+[tracing.py](deskhand/tracing.py) emits one structured JSON line per event for a
+log collector. It carries identifiers and numbers, never content, and it cannot
+raise: a tracer that throws turns a successful refund into a failed run.
 
 ## Companion project
 

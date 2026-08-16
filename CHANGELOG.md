@@ -17,6 +17,20 @@ rather than by version number.
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.
 
+## Observability
+
+- **The step log is the trace.** Removed the unused Langfuse dependency, its
+  configuration, and the preflight line that reported on it — none of it was
+  wired to anything. Every model and tool call was already a row carrying
+  tokens, cost, latency, arguments and result.
+- **[tracing.py](deskhand/tracing.py)** emits one structured JSON line per
+  event — run started, model call, tool call with its risk class, approval
+  requested and decided, run finished — for whatever collects your logs.
+  Identifiers and numbers only, never content.
+- The tracer cannot raise, cannot block, and does not care whether its arguments
+  are serialisable. Asserted rather than assumed: a tracer that throws turns a
+  successful refund into a failed run.
+
 ## Trajectory evals and fault injection
 
 - **19 trajectory evals** across the five invariants, wired into CI as a
