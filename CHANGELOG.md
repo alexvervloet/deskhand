@@ -17,6 +17,24 @@ rather than by version number.
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.
 
+## Replay and divergence
+
+- **`python -m deskhand.replay <run_id>`** — the trajectory as recorded, with
+  approvals interleaved by the step they gated (a granted approval writes no
+  step, so it would otherwise be invisible).
+- **`--at N`** reconstructs the conversation exactly as it stood before step N,
+  fence markers and all. Also available per step in the run viewer, and over the
+  API at `GET /runs/{id}/replay?at=N`.
+- **`--diverge`** replays a recorded run against a changed system prompt or
+  model and reports the first decision that differs — a prompt-regression tool
+  built out of production traffic.
+- Divergence **never executes a tool**: recorded results are handed back
+  instead. Asserted by a test that replays an agent trying to issue a refund the
+  original run never made, then checks the refunds table, ticket messages, step
+  log and run row are all unchanged.
+- Decisions are compared on tool name plus canonical arguments, so rewording is
+  not a divergence and a changed refund amount is.
+
 ## Observability
 
 - **The step log is the trace.** Removed the unused Langfuse dependency, its

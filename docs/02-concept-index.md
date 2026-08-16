@@ -79,6 +79,16 @@ Where each idea lives in the code. Ordered by how likely you are to want it.
 | Policy enforced in code, not the prompt | the `remaining` check in `_issue_refund` |
 | Knowledge-base search, and why it ORs | `_or_query()` in read.py — plus [LESSONS](../LESSONS.md) #2 |
 
+## Replay
+
+| Concept | Where |
+|---|---|
+| Reading a run back | [replay.py](../deskhand/replay.py) — and [05-replay.md](05-replay.md) |
+| The conversation before any step | `transcript.rebuild(..., before_seq=N)` |
+| Divergence against a changed prompt | `replay.diverge()` |
+| Why divergence cannot execute a tool | `test_divergence_never_executes_a_tool` |
+| Time travel in the UI | [StepPrompt.tsx](../frontend/src/components/StepPrompt.tsx) |
+
 ## Testing and evals
 
 | Concept | Where |

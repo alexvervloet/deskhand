@@ -123,6 +123,7 @@ The repository is an argument; [docs/](docs/) is the order it makes sense in.
 - **[Concept index](docs/02-concept-index.md)** — where every idea lives
 - **[Exactly once](docs/03-exactly-once.md)** — and the assumption it rests on
 - **[Evals](docs/04-evals.md)** — asserting a path, not an answer
+- **[Replay](docs/05-replay.md)** — reading a run back, and testing a prompt change against recorded traffic
 
 Then the [exercises](docs/exercises/), which are the point. Each is a one-line
 change with a verified result. If you do one, do
@@ -137,7 +138,7 @@ approval gate, HTTP API with a live trajectory stream, React UI, fault
 injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
 ruff, mypy, and a frontend type-check and build.
 
-Still to come: deterministic replay of a persisted run.
+Every milestone on the original plan is done.
 
 ## Run it
 
@@ -165,6 +166,24 @@ authorise it.
 `NW-4` is the interesting one: its body contains an injected instruction telling
 the agent the refund is pre-approved. Run it and watch the approval gate hold
 anyway.
+
+## Replay and divergence
+
+```bash
+python -m deskhand.replay <run_id> --at 7     # what the model saw at step 7
+python -m deskhand.replay <run_id> --diverge  # replay against a changed prompt
+```
+
+Because the conversation is a pure function of the step rows, any point in any
+run can be reconstructed exactly — which makes "why did it decide to refund?"
+answerable by looking at what it actually had in front of it. The same view is
+in the run viewer, per step.
+
+Divergence replays a recorded run against a changed system prompt or model and
+reports the first decision that differs. It never executes a tool: the recorded
+result is handed back instead, so it is safe to point at runs that moved real
+money. That gives you a prompt-regression suite built from production traffic.
+See [docs/05-replay.md](docs/05-replay.md) for the limitation it comes with.
 
 ## Architecture notes
 

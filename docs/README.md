@@ -13,6 +13,8 @@ The repository is an argument, and this is the order it makes sense in.
    completed side effect" is true, and the single assumption it rests on.
 4. **[04-evals.md](04-evals.md)** — asserting properties of a *path* rather than
    an answer, and what happened when each safety layer was deliberately deleted.
+5. **[05-replay.md](05-replay.md)** — reading a run back exactly as it happened,
+   and asking what a changed prompt would have done to it.
 
 ## Then break it
 
