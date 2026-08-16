@@ -10,6 +10,7 @@ say "now the agent asks for a refund" without paying for a token or hoping.
 from __future__ import annotations
 
 import psycopg
+from psycopg import sql
 
 from deskhand import seed
 from deskhand.config import settings
@@ -112,10 +113,24 @@ def expire_approvals(run_id: str) -> None:
 
 
 def shrink(run_id: str, **columns: object) -> None:
-    """Tighten a bound on a live run, so a scenario need not burn 24 steps."""
-    sets = ", ".join(f"{k} = %s" for k in columns)
+    """Tighten a bound on a live run, so a scenario need not burn 24 steps.
+
+    The column names come from keyword arguments rather than a literal, so this
+    is the one query in the project that has to be *composed* rather than
+    written. `psycopg.sql` is how that is done safely: identifiers are quoted by
+    the driver and values stay placeholders, so neither can be confused for the
+    other. An f-string here would work and would also be the exact shape of an
+    injection, which is why the LiteralString requirement rejects it.
+    """
+    statement = sql.SQL("update runs set {assignments} where id = {run_id}").format(
+        assignments=sql.SQL(", ").join(
+            sql.SQL("{} = {}").format(sql.Identifier(column), sql.Placeholder())
+            for column in columns
+        ),
+        run_id=sql.Placeholder(),
+    )
     with connection() as conn, conn.cursor() as cur:
-        cur.execute(f"update runs set {sets} where id = %s", (*columns.values(), run_id))  # noqa: S608
+        cur.execute(statement, (*columns.values(), run_id))
         conn.commit()
 
 
