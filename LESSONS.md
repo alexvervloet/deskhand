@@ -243,3 +243,40 @@ data I had not hand-picked — the same move that found the bugs in lesson 4.
 Worth generalising: for anything that recomputes a decision from accumulating
 context, ask what happens when the context grows to contain a word that changes
 the decision. "Stateless" and "reads everything" are a bad pair.
+
+---
+
+## 8. The tracer worked perfectly everywhere except production
+
+**Expected.** `deskhand/tracing.py` emits a structured JSON line per event. I
+watched a full run print fourteen of them locally, checked the fields, wrote
+seven tests covering the awkward cases, and moved on.
+
+**What happened.** After deploying, I grepped Fly's log stream for the events
+and got nothing. Not malformed, not truncated — absent.
+
+The local run printed them because I had called `logging.basicConfig()` in the
+throwaway script I used to watch them. Under uvicorn nobody calls it: the root
+logger has no handler and sits at WARNING, so every `log.info()` from a logger
+with no level of its own is discarded. The tests passed throughout, because
+pytest's `caplog` attaches its own handler and sets the level for you.
+
+So the feature was dead in the only environment that mattered, and all three
+places I had looked — the local run, the test suite, the code itself — agreed it
+was fine.
+
+**Fix.** `_configure()` in [deskhand/tracing.py](deskhand/tracing.py): the event
+stream gets its own stdout handler and its own level at import, with
+`propagate = False` so an application that *does* configure the root logger gets
+one copy of each line rather than two. A library has no business doing this. An
+application's dedicated event stream does, because the alternative is a stream
+that only works when somebody remembered to configure it.
+
+**Next time.** Two things I will actually change. Logging is configuration, not
+code, so "it printed on my machine" is evidence about my machine — verify
+observability *in the deployed environment*, which took one `flyctl logs` and
+would have taken one at any point. And be suspicious of test helpers that make
+a thing work: `caplog` attaching a handler is convenient and it silently removed
+the exact failure mode from the suite. A test that passes because the harness
+configured something the product does not configure itself is testing the
+harness.
