@@ -115,7 +115,7 @@ export default function RunView({
         />
       ))}
 
-      <Trajectory steps={steps} riskOf={riskOf} />
+      <Trajectory runId={runId} steps={steps} riskOf={riskOf} />
     </div>
   );
 }

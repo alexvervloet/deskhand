@@ -54,6 +54,17 @@ export type Step = {
   created_at: string;
 };
 
+export type ReplayBlock = {
+  type: string;
+  text?: string;
+  name?: string;
+  input?: unknown;
+  content?: string;
+  is_error?: boolean;
+};
+
+export type ReplayMessage = { role: string; content: string | ReplayBlock[] };
+
 export type Approval = {
   id: string;
   run_id: string;
@@ -174,6 +185,11 @@ export const api = {
       body: JSON.stringify({ ticket_reference: ticketReference }),
     }),
   cancelRun: (id: string) => request<Run>(`/runs/${id}/cancel`, { method: "POST" }),
+  // What the model saw before a given step. Reconstructed from the step log,
+  // which is a pure function of rows — so this is the same bytes today and in
+  // a year, and no model is called to produce it.
+  replay: (id: string, at: number) =>
+    request<{ system: string; messages: ReplayMessage[] }>(`/runs/${id}/replay?at=${at}`),
 
   approvals: () => request<Approval[]>("/approvals"),
   decide: (id: string, decision: "approved" | "denied", reason?: string) =>

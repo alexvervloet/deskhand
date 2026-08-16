@@ -1,4 +1,5 @@
 import type { Step } from "../api";
+import StepPrompt from "./StepPrompt";
 
 // Rendering rule: untrusted content looks untrusted.
 //
@@ -21,9 +22,11 @@ function unfence(text: string): string {
 type Block = { type: string; text?: string; thinking?: string; name?: string; input?: unknown };
 
 export default function Trajectory({
+  runId,
   steps,
   riskOf,
 }: {
+  runId: string;
   steps: Step[];
   riskOf: (tool: string | null) => string;
 }) {
@@ -33,13 +36,13 @@ export default function Trajectory({
   return (
     <div>
       {steps.map((step) => (
-        <StepRow key={step.seq} step={step} risk={riskOf(step.tool_name)} />
+        <StepRow key={step.seq} runId={runId} step={step} risk={riskOf(step.tool_name)} />
       ))}
     </div>
   );
 }
 
-function StepRow({ step, risk }: { step: Step; risk: string }) {
+function StepRow({ runId, step, risk }: { runId: string; step: Step; risk: string }) {
   const kindClass = step.kind === "tool_result" ? risk : step.kind;
   return (
     <div className={`step ${kindClass}`}>
@@ -57,7 +60,10 @@ function StepRow({ step, risk }: { step: Step; risk: string }) {
           {step.cost_micros > 0 && ` · ${step.cost_display}`}
         </span>
       </div>
-      <div className="step-body">{body(step)}</div>
+      <div className="step-body">
+        {body(step)}
+        {step.kind === "model_call" && <StepPrompt runId={runId} seq={step.seq} />}
+      </div>
     </div>
   );
 }

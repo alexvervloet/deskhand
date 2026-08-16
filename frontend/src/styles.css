@@ -508,3 +508,55 @@ pre {
 .banner strong {
   color: var(--accent);
 }
+
+/* ------------------------------------------------------- time travel */
+
+button.peek {
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--text-faint);
+  border-radius: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  padding: 0;
+  margin-top: 8px;
+}
+button.peek:hover {
+  color: var(--read);
+  border-bottom-color: var(--read);
+}
+
+.prompt-view {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  padding: 12px 14px;
+  max-height: 460px;
+  overflow-y: auto;
+}
+.prompt-view details summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.prompt-turn {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.prompt-role {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--read);
+  margin-bottom: 4px;
+}
+.prompt-view pre {
+  background: none;
+  border: none;
+  padding: 0;
+  max-height: none;
+  color: var(--text-dim);
+}
