@@ -4,12 +4,32 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## Teaching the system, and a bug that fell out of it
+
+- **[Five levels of difficulty](docs/education/five-levels/)** — the whole
+  system explained five times over, to an intro-CS teenager, a second-year
+  undergraduate, a CS graduate learning AI, an engineering manager interviewing
+  for an AI role, and a senior AI engineer. Each is a complete pass at its own
+  depth rather than a summary of the one above, and each ends by naming what it
+  deliberately skipped.
+- **The reading path moved to [docs/education/](docs/education/)**, and every
+  relative link that the move broke was repointed. Two docstrings had been
+  citing `docs/04-idempotency.md`, a file that has never existed in this
+  repository; they now cite the exactly-once doc they meant.
+- **Fixed: untrusted content could close its own fence.** The strip in
+  `quarantine()` was a single `str.replace`, and removing a forged delimiter
+  joined the text either side of it into the delimiter just removed. Forged
+  markers are now substituted rather than deleted, which keeps the two halves
+  apart, makes one pass provably sufficient, and leaves the forgery visible in
+  the transcript instead of quietly erasing it. Found while writing the level 5
+  review; written up as LESSONS entry 10.
+
 ## Docs and deployment
 
 - **Live demo** at [deskhand.fly.dev](https://deskhand.fly.dev) — one Fly
   machine that scales to zero, backed by Neon Postgres, running keyless against
   the scripted provider so it costs nothing and says so on every screen.
-- **[docs/](docs/education/)** — the thesis, a concept index, the exactly-once story with
+- **[docs/education/](docs/education/)** — the thesis, a concept index, the exactly-once story with
   its assumption stated plainly, and how the evals work.
 - **Four exercises**, each a one-line change with a verified result. Exercise 02
   deletes the fence and watches 18 of 19 evals keep passing.
