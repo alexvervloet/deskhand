@@ -117,7 +117,7 @@ is written up as LESSONS entry 6.
 
 ## Read the argument, then break it
 
-The repository is an argument; [docs/](docs/education/) is the order it makes sense in.
+The repository is an argument; [docs/education/](docs/education/) is the order it makes sense in.
 
 - **[The thesis](docs/education/01-thesis.md)** — why the loop is 3% of the code
 - **[Concept index](docs/education/02-concept-index.md)** — where every idea lives
