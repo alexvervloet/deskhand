@@ -227,13 +227,14 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — seven entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — ten entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
-before the first eval it was built for had even run. And two individually
-correct decisions that composed into a demo asking to refund a customer who
-only wanted a tracking number.
+before the first eval it was built for had even run. Two individually correct
+decisions that composed into a demo asking to refund a customer who only wanted
+a tracking number. And a sanitiser that reassembled the delimiter it was
+deleting, under a test that had passed since the day the defence was written.
 
 ## License
 
