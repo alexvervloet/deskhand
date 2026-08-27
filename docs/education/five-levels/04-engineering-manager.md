@@ -183,11 +183,11 @@ reconstructed exactly, so "why did it decide that" is answerable from evidence.
 This is my favourite thing in the project and it generalises well beyond agents.
 
 Deskhand has multiple overlapping safety layers. Someone measured what happens
-when you delete each one, by running all 20 evals against each sabotaged version:
+when you delete each one, by running all 21 evals against each sabotaged version:
 
 | Layer removed | Evals that fail |
 |---|---|
-| The approval gate | **12 of 20** |
+| The approval gate | **12 of 21** |
 | The delimiter around untrusted content | 1 |
 | The idempotency ledger | 1 |
 | Loop detection | 1 |

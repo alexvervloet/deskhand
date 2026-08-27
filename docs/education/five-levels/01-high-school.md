@@ -343,7 +343,7 @@ function. The promise is about a whole *sequence*:
 > the agent never once moved money without a person saying yes.
 
 There is no single function you can test to check that. You have to run the
-whole thing and then ask questions about the path it took. This project has 20
+whole thing and then ask questions about the path it took. This project has 21
 of these, and they all run automatically every time anyone changes the code.
 
 But my favourite part is the sabotage. There is a piece of code whose only job

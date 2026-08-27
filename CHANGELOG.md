@@ -29,6 +29,38 @@ rather than by version number.
   reached Postgres, which rejects it outright, so `/runs/nonsense` was an
   unhandled error rather than a 404. An id that cannot exist now gets the same
   answer as one that does not.
+- **Fixed: a hallucinated tool name killed the run.** Every question the runtime
+  asks about a tool is answered from the registry, and a name the model invented
+  has no answer to any of them — so the lookup raised straight past the loop and
+  failed the run, including runs that had already moved money and only needed to
+  write a summary. An unregistered name is now a failed tool result the agent
+  reads and recovers from. New eval `a-tool-that-does-not-exist-is-not-fatal`.
+- **Fixed: `--diverge` replayed a tidied-up history.** It built its own message
+  list instead of using `transcript.rebuild`, and the copy had drifted: tool
+  results lost their `is_error` flag and denial steps were dropped entirely, so
+  a denied call was handed to the replayed model as an *empty* observation. A
+  prompt tested against a run containing a failure or a human "no" was scored
+  against a run that had neither. Divergence now reads each turn's history back
+  through the same function the live loop uses, which is byte-identical by
+  construction rather than by maintenance.
+- **Fixed: `run.started` was defined and never emitted**, so runs appeared in the
+  event stream already in progress. Approval traces now carry `attempt`: a run
+  that crashes after acting on a decision traces it again, and while the audit
+  rows roll back with the transaction, the log line has already gone to stdout.
+  `tracing.py` now says plainly that its lines describe attempts and `audit_log`
+  describes outcomes.
+- **Said plainly: nothing calls `apply_inverse`.** Every reversible tool records
+  its inverse and the ledger stores it, but no runtime path or endpoint reverts a
+  failed run — the captured undo is real, the wiring is not. "Reversible" reads
+  like a promise, so the module now states which half exists.
+- **Said plainly: `/usage` discloses deployment-wide spend to every tenant.** It
+  is there because the platform ceiling, not the per-org one, is what actually
+  stops a run, and a visitor watching a demo halt should see the number that
+  stopped it. Sound for two seeded merchants, unsound for a real one, and now a
+  stated decision with the fix for a real deployment written next to it.
+- **Removed** an unread `calls` list on the scripted provider that grew without
+  bound in the inline worker, and **pinned** ruff, mypy and pyright in CI so an
+  upstream release cannot redden a pull request that changed nothing.
 - **Documented:** `CLIENT_IP_HEADER` and `RUN_WORKER_INLINE` were settings with
   real deployment consequences and no mention in `.env.example`. Several
   comments described things the code does not do — an open signup, a `worker`
@@ -68,7 +100,7 @@ rather than by version number.
 - **[docs/education/](docs/education/)** — the thesis, a concept index, the exactly-once story with
   its assumption stated plainly, and how the evals work.
 - **Four exercises**, each a one-line change with a verified result. Exercise 02
-  deletes the fence and watches 18 of 20 evals keep passing.
+  deletes the fence and watches 19 of 21 evals keep passing.
 - **Demo assets** — a terminal recording of a worker dying mid-run, and
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.

@@ -195,7 +195,7 @@ not the same as it being in front of the person clicking the button.
 ## Integrity, and a confirmed fence bypass
 
 The layering argument is correct and the project already knows which layer is
-load-bearing. Delete the fence, 18 of 20 evals pass. Delete the approval gate, 12
+load-bearing. Delete the fence, 19 of 21 evals pass. Delete the approval gate, 12
 fail. Authority is not reachable from content, so the worst case of total model
 compromise is a request a human still has to approve. That is the right floor and
 it is the thing to copy from this project.
@@ -361,7 +361,7 @@ test double has to be as stateless as the thing it doubles, or your durability
 suite is measuring your mock.
 
 **What the evals do not cover, and the docs should say so louder.** Because the
-model is scripted, the 20 evals verify the runtime completely and the model not at
+model is scripted, the 21 evals verify the runtime completely and the model not at
 all. Every claim of the form "the agent behaves sensibly" is unverified. The
 claims of the form "the runtime holds regardless of what the model does" are
 verified, and are strictly stronger, so this is the right place to spend. But
@@ -419,7 +419,7 @@ here:
 
 | Layer removed | Evals that fail |
 |---|---|
-| The approval gate | **12 of 20** |
+| The approval gate | **12 of 21** |
 | The fence | 1 |
 | The idempotency ledger | 1 |
 | Loop detection | 1 |

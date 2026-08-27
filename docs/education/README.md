@@ -23,8 +23,8 @@ and each takes five to ten minutes.
 
 | # | Exercise | What it shows |
 |---|---|---|
-| [01](exercises/01-remove-the-approval-gate.md) | Remove the approval gate | What a load-bearing mechanism looks like: 12 of 20 evals fail, across five invariants |
-| [02](exercises/02-remove-the-invisible-layer.md) | Remove the fence | **The one worth doing.** Delete the most visible anti-injection defence and 18 of 20 evals keep passing |
+| [01](exercises/01-remove-the-approval-gate.md) | Remove the approval gate | What a load-bearing mechanism looks like: 12 of 21 evals fail, across five invariants |
+| [02](exercises/02-remove-the-invisible-layer.md) | Remove the fence | **The one worth doing.** Delete the most visible anti-injection defence and 19 of 21 evals keep passing |
 | [03](exercises/03-make-the-key-random.md) | Make the idempotency key a uuid | A change that looks like an improvement and silently disables exactly-once |
 | [04](exercises/04-let-it-loop.md) | Remove loop detection | Why "it terminates eventually" is not the same as bounded |
 

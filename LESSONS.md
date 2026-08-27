@@ -163,20 +163,20 @@ early, not once everything else is finished.
 
 ## 6. Defence in depth means most of your evals keep passing when you break something
 
-**Expected.** Twenty trajectory evals across five invariants. Deliberately
+**Expected.** Twenty-one trajectory evals across five invariants. Deliberately
 break a safety mechanism and watch the gate light up.
 
 **What happened.** It depends entirely on *which* mechanism, and the pattern is
 worth staring at. Removing the approval gate (`requires_approval` → `False`):
 
 ```
-8/20 passed   — 12 failures across every invariant but one
+9/21 passed   — 12 failures across every invariant but one
 ```
 
 Good. But deleting the fence around untrusted tool output:
 
 ```
-18/20 passed  — 3 of the 4 integrity evals still passed
+19/21 passed  — 3 of the 4 integrity evals still passed
 ```
 
 Only evals written specifically to assert *the fence exists* caught it: the one

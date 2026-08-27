@@ -144,11 +144,11 @@ observe.** Delete the idempotency ledger and the crash-resume eval still passes,
 because the step log covers that path. Delete the fence and both prompt-injection
 evals still pass, because the registry is what stops the attack.
 
-Measured, on the 20 trajectory evals:
+Measured, on the 21 trajectory evals:
 
 | Layer removed | Evals that fail |
 |---|---|
-| The approval gate (`requires_approval` → `False`) | **12 of 20** |
+| The approval gate (`requires_approval` → `False`) | **12 of 21** |
 | The fence around untrusted tool output | 1 |
 | The idempotency ledger | 1 |
 | Loop detection | 1 |
@@ -167,7 +167,7 @@ removal.
 
 Decide which properties must survive every future change, then build something
 automated that fails loudly when one stops holding — **before** you build the
-feature. Here that is 20 trajectory evals wired into CI as a required step,
+feature. Here that is 21 trajectory evals wired into CI as a required step,
 and a fault injector that makes tools fail on purpose so those evals have
 something to be robust against.
 

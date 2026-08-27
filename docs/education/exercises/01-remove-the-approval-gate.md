@@ -7,7 +7,7 @@
 ```bash
 docker compose up -d db
 python -m deskhand.migrate
-python -m evals.run          # 20/20 should pass before you start
+python -m evals.run          # 21/21 should pass before you start
 ```
 
 ## The change
@@ -28,7 +28,7 @@ def requires_approval(name: str) -> bool:
 
 ## Predict first
 
-Write down, before running anything: how many of the 20 evals do you expect to
+Write down, before running anything: how many of the 21 evals do you expect to
 fail, and which invariants do they belong to?
 
 ## What happens
@@ -57,15 +57,17 @@ python -m evals.run
     FAIL  injection-in-a-tool-result-cannot-escape-the-gate
     FAIL  faults-cannot-change-a-risk-class
   resilience
+    ok    a-tool-that-does-not-exist-is-not-fatal
+    ok    a-tool-error-is-shown-to-the-agent
     FAIL  a-handler-crash-leaves-nothing-behind
+    ok    garbage-does-not-derail-the-run
   accountability
     FAIL  every-irreversible-act-names-a-run-and-a-person
 
-8/20 passed
+9/21 passed
 ```
 
-Twelve failures, across **five** invariants — every one of them except the
-part of `boundedness` that has nothing to do with people.
+Twelve failures, spread across every invariant in the project.
 
 ## What to take from it
 
@@ -88,5 +90,5 @@ that looks equally important and produces a completely different result.
 
 ```bash
 git checkout deskhand/tools/base.py
-python -m evals.run          # back to 20/20
+python -m evals.run          # back to 21/21
 ```

@@ -72,10 +72,10 @@ python -m evals.run
   resilience
     FAIL  garbage-does-not-derail-the-run
 
-18/20 passed
+19/21 passed
 ```
 
-Two failures in twenty. The second one lives in `resilience`, filed under a
+Two failures in twenty-one. The second one lives in `resilience`, filed under a
 scenario about a tool returning nonsense, and it fails for the same reason the
 first does — its last line asserts the result came back fenced. Two evals in two
 different categories, both of them assertions about the mechanism, and *neither*
@@ -111,8 +111,8 @@ You have now seen the same suite respond to two deletions:
 
 | Deleted | Evals failed |
 |---|---|
-| The approval gate | 12 of 20 |
-| The fence | 2 of 20 |
+| The approval gate | 12 of 21 |
+| The fence | 2 of 21 |
 
 If this repository's evals only asked *"did the right thing happen?"*, deleting
 the fence would have been completely silent. Every outcome is unchanged. No
