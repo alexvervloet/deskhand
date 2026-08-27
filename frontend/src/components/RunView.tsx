@@ -162,6 +162,19 @@ function ApprovalCard({
           bound to a hash of those exact arguments — so what is agreed to here
           is what runs, or nothing runs. */}
       <div className="preview">{approval.preview}</div>
+
+      {/* And every argument that hash covers, in full. The preview is a
+          summary by design, so anything shown only there is something a
+          person would be consenting to without reading it — which is how a
+          subject line came to stand in for the body of an email. */}
+      <dl className="args">
+        {Object.entries(approval.args).map(([name, value]) => (
+          <div key={name}>
+            <dt>{name}</dt>
+            <dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd>
+          </div>
+        ))}
+      </dl>
       <div className="tool">
         {approval.tool_name} · irreversible · expires{" "}
         {new Date(approval.expires_at).toLocaleString()}
