@@ -41,13 +41,16 @@ watch what gets added.
 
 ## And read what went wrong
 
-[LESSONS.md](../../LESSONS.md) — seven entries, written while the detail was fresh.
-The two most useful:
+[LESSONS.md](../../LESSONS.md) — ten entries, written while the detail was fresh.
+The three most useful:
 
 - **#2** — a full-text search that failed *open* on a policy lookup. An agent
   reading "no such policy" reasonably concludes it is unconstrained. A retrieval
   bug became a permissions bug.
 - **#6** — the mutation-testing result the exercises above are built on.
+- **#10** — the fence sanitiser rebuilding the marker it removed, and the test
+  that asserted the right property against the only payload its author had
+  imagined.
 
 ## Try it
 
