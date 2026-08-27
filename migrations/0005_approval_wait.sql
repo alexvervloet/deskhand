@@ -1,0 +1,12 @@
+-- When a run suspended on a human decision, so the wait can be given back.
+--
+-- `deadline_at` bounds how long the *agent* may work, not how long a person may
+-- think. Without this column the two were the same clock: a refund approved
+-- twenty minutes after it was requested executed, and the run then died on its
+-- wall-clock deadline with the money already gone and no summary written.
+--
+-- Recording the moment of suspension lets the decision hand the elapsed wait
+-- back to the deadline. The deadline stays absolute in the way that matters —
+-- only measured time spent waiting on a human is ever added, so a run that
+-- crash-loops still cannot earn itself a fresh clock.
+alter table runs add column suspended_at timestamptz;

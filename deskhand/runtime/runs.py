@@ -205,19 +205,41 @@ def add_usage(
 def suspend_for_approval(cur: psycopg.Cursor[DictRow], run_id: str) -> None:
     """Park the run. Note the lease is released at the same time — a run
     waiting on a human could be waiting for a day, and holding a 60-second
-    lease across that would make it look perpetually crashed."""
+    lease across that would make it look perpetually crashed.
+
+    `suspended_at` is stamped here so `requeue` can give the wait back to the
+    deadline. Without it the wall-clock budget runs while a person is reading
+    the approval screen, and they are penalised for taking it seriously.
+    """
     cur.execute(
         "update runs set status = 'awaiting_approval', lease_owner = null,"
-        "                lease_expires_at = null, updated_at = now()"
+        "                lease_expires_at = null, suspended_at = now(),"
+        "                updated_at = now()"
         " where id = %s",
         (run_id,),
     )
 
 
 def requeue(cur: psycopg.Cursor[DictRow], run_id: str) -> None:
-    """Make a suspended run claimable again, once a human has decided."""
+    """Make a suspended run claimable again, once a human has decided.
+
+    The deadline moves forward by exactly the time the run spent suspended.
+    That is not the deadline resetting: only *measured* wait on a human is ever
+    added, so a run that crash-loops still cannot earn itself a fresh clock,
+    and a run nobody answers still ends — on the approval's own TTL, which is
+    the bound that belongs to a person not answering.
+
+    Without this the deadline bounded human deliberation as well as agent work,
+    and the failure was the worst shape available: a refund approved after the
+    budget ran out executed, and the run then died on the deadline with the
+    money gone and no summary written.
+    """
     cur.execute(
-        "update runs set status = 'queued', updated_at = now()"
+        "update runs set status = 'queued',"
+        "                deadline_at = deadline_at"
+        "                              + (now() - coalesce(suspended_at, now())),"
+        "                suspended_at = null,"
+        "                updated_at = now()"
         " where id = %s and status = 'awaiting_approval'",
         (run_id,),
     )

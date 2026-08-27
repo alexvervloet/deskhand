@@ -24,6 +24,7 @@ import psycopg
 from psycopg.rows import DictRow
 
 from deskhand.config import settings
+from deskhand.runtime import runs
 from deskhand.tools import args_hash, get
 
 
@@ -120,11 +121,7 @@ def decide(
     if row is None:
         raise ValueError("approval is not pending, has expired, or does not exist")
 
-    cur.execute(
-        "update runs set status = 'queued', updated_at = now()"
-        " where id = %s and status = 'awaiting_approval'",
-        (row["run_id"],),
-    )
+    runs.requeue(cur, str(row["run_id"]))
     return dict(row)
 
 
@@ -141,9 +138,5 @@ def expire_stale(cur: psycopg.Cursor[DictRow]) -> int:
     )
     run_ids = [r["run_id"] for r in cur.fetchall()]
     for run_id in run_ids:
-        cur.execute(
-            "update runs set status = 'queued', updated_at = now()"
-            " where id = %s and status = 'awaiting_approval'",
-            (run_id,),
-        )
+        runs.requeue(cur, str(run_id))
     return len(run_ids)
