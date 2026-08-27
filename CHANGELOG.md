@@ -9,7 +9,7 @@ rather than by version number.
 - **Live demo** at [deskhand.fly.dev](https://deskhand.fly.dev) — one Fly
   machine that scales to zero, backed by Neon Postgres, running keyless against
   the scripted provider so it costs nothing and says so on every screen.
-- **[docs/](docs/)** — the thesis, a concept index, the exactly-once story with
+- **[docs/](docs/education/)** — the thesis, a concept index, the exactly-once story with
   its assumption stated plainly, and how the evals work.
 - **Four exercises**, each a one-line change with a verified result. Exercise 02
   deletes the fence and watches 18 of 19 evals keep passing.
