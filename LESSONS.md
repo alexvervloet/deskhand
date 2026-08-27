@@ -176,12 +176,13 @@ worth staring at. Removing the approval gate (`requires_approval` → `False`):
 Good. But deleting the fence around untrusted tool output:
 
 ```
-3/4 integrity evals still passed
+17/19 passed  — 3 of the 4 integrity evals still passed
 ```
 
-Only the eval written specifically to assert *the fence exists* caught it. Both
-prompt-injection evals passed with the fence gone — because the fence is not
-what actually stops the attack. The risk class does. The fence removes
+Only evals written specifically to assert *the fence exists* caught it: the one
+named for the job, and one line at the end of a `resilience` scenario about a
+tool returning garbage. Both prompt-injection evals passed with the fence gone,
+because the fence is not what actually stops the attack. The risk class does. The fence removes
 structural ambiguity; the registry removes authority. Kill the fence and a
 fully obedient model still cannot escalate, so the outcome-shaped evals see
 nothing wrong.

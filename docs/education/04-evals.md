@@ -90,7 +90,7 @@ things and count:
 | Layer removed | Result |
 |---|---|
 | The approval gate (`requires_approval` → `False`) | **8/19 passed** — 11 failures across four invariants |
-| The fence around untrusted tool output | 18/19 — one failure |
+| The fence around untrusted tool output | 17/19 — two failures |
 | The idempotency ledger | 18/19 — one failure |
 | Loop detection | 18/19 — one failure |
 

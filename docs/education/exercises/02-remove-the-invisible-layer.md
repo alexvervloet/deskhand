@@ -59,8 +59,27 @@ python -m evals.run integrity
 3/4 passed
 ```
 
-One failure. And it is not either of the injection evals — it is the eval whose
-entire job is to assert *that the fence exists*.
+One failure in this group. And it is not either of the injection evals — it is
+the eval whose entire job is to assert *that the fence exists*.
+
+Now run the whole suite, which is where the second half of the lesson is:
+
+```
+python -m evals.run
+
+  integrity
+    FAIL  every-tool-result-is-fenced
+  resilience
+    FAIL  garbage-does-not-derail-the-run
+
+17/19 passed
+```
+
+Two failures in nineteen. The second one lives in `resilience`, filed under a
+scenario about a tool returning nonsense, and it fails for the same reason the
+first does — its last line asserts the result came back fenced. Two evals in two
+different categories, both of them assertions about the mechanism, and *neither*
+of them an assertion about the outcome.
 
 ## Why
 
@@ -93,7 +112,7 @@ You have now seen the same suite respond to two deletions:
 | Deleted | Evals failed |
 |---|---|
 | The approval gate | 11 of 19 |
-| The fence | 1 of 19 |
+| The fence | 2 of 19 |
 
 If this repository's evals only asked *"did the right thing happen?"*, deleting
 the fence would have been completely silent. Every outcome is unchanged. No
@@ -106,7 +125,8 @@ That is not an argument against redundancy. It is an argument for writing, per
 layer, one eval that asserts the *mechanism* rather than the result.
 
 `every-tool-result-is-fenced` looks redundant sitting next to two injection
-evals. It is the only reason this exercise has a failing line at all.
+evals. It, and the one line at the end of `garbage-does-not-derail-the-run`, are
+the only reason this exercise has a failing line at all.
 
 ## Try one more thing
 

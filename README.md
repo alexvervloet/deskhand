@@ -112,8 +112,8 @@ it found a real crash on its first run (see LESSONS entry 5).
 
 **The gate has teeth.** Deliberately removing the approval check fails 11 of 19
 evals across four invariants. Deliberately deleting the fence around untrusted
-content fails only 1 — which turns out to be the more interesting result, and
-is written up as LESSONS entry 6.
+content fails 2 — which turns out to be the more interesting result, and is
+written up as LESSONS entry 6.
 
 ## Read the argument, then break it
 
@@ -128,7 +128,7 @@ The repository is an argument; [docs/education/](docs/education/) is the order i
 Then the [exercises](docs/education/exercises/), which are the point. Each is a one-line
 change with a verified result. If you do one, do
 **[02 — remove the invisible layer](docs/education/exercises/02-remove-the-invisible-layer.md)**:
-delete the most visible anti-injection defence in the project and watch 18 of 19
+delete the most visible anti-injection defence in the project and watch 17 of 19
 evals keep passing.
 
 ## Status

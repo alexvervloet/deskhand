@@ -195,7 +195,7 @@ not the same as it being in front of the person clicking the button.
 ## Integrity, and a confirmed fence bypass
 
 The layering argument is correct and the project already knows which layer is
-load-bearing. Delete the fence, 18 of 19 evals pass. Delete the approval gate, 11
+load-bearing. Delete the fence, 17 of 19 evals pass. Delete the approval gate, 11
 fail. Authority is not reachable from content, so the worst case of total model
 compromise is a request a human still has to approve. That is the right floor and
 it is the thing to copy from this project.
