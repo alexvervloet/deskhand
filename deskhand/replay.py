@@ -274,52 +274,52 @@ def diverge(run_id: str, provider: Provider, system: str) -> Divergence:
         return Divergence(None, [], [], 0, 0, note="the run has no model calls to replay")
 
     tools = api_schemas()
-    messages: list[dict[str, Any]] = [{"role": "user", "content": run["prompt"]}]
 
-    for index, turn in enumerate(turns):
-        reply = provider.complete(system, messages, tools)
+    with connection() as conn, conn.cursor() as cur:
+        for index, turn in enumerate(turns):
+            # The conversation as it stood before this turn, built by the same
+            # function the live loop uses. Up to the first divergence the
+            # replayed decisions are identical to the recorded ones, so the
+            # recorded history *is* the replayed history — which means this can
+            # be read back rather than accumulated here.
+            #
+            # Reusing `rebuild` is the point. A second implementation of "what
+            # the model saw" drifts from the first, and it drifted: the copy
+            # this replaced dropped `is_error` from tool results and skipped
+            # denial steps entirely, so a prompt tested against a run containing
+            # a failure or a human "no" was tested against a run that never had
+            # one.
+            messages = transcript.rebuild(cur, run_id, run["prompt"], before_seq=turn.seq)
+            reply = provider.complete(system, messages, tools)
 
-        replayed_signature = [
-            (
-                block["name"],
-                json.dumps(
-                    block.get("input") or {}, sort_keys=True, separators=(",", ":"), default=str
-                ),
-            )
-            for block in reply.content
-            if block.get("type") == "tool_use"
-        ]
+            replayed_signature = [
+                (
+                    block["name"],
+                    json.dumps(
+                        block.get("input") or {},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        default=str,
+                    ),
+                )
+                for block in reply.content
+                if block.get("type") == "tool_use"
+            ]
 
-        if replayed_signature != turn.signature:
-            return Divergence(
-                step=turn.seq,
-                original=turn.signature,
-                replayed=replayed_signature,
-                matched_turns=index,
-                total_turns=len(turns),
-            )
+            if replayed_signature != turn.signature:
+                return Divergence(
+                    step=turn.seq,
+                    original=turn.signature,
+                    replayed=replayed_signature,
+                    matched_turns=index,
+                    total_turns=len(turns),
+                )
 
-        if not turn.calls:
-            # Both finished here, and agreed on finishing. Prose is not compared:
-            # two runs that both stop are not diverging because they worded the
-            # summary differently.
-            return Divergence(None, [], [], index + 1, len(turns))
-
-        # Same decision, so the original run's observations are still valid.
-        messages.append({"role": "assistant", "content": reply.content})
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use_id,
-                        "content": transcript.quarantine(run_id, turn.results.get(tool_use_id, "")),
-                    }
-                    for tool_use_id, _, _ in turn.calls
-                ],
-            }
-        )
+            if not turn.calls:
+                # Both finished here, and agreed on finishing. Prose is not
+                # compared: two runs that both stop are not diverging because
+                # they worded the summary differently.
+                return Divergence(None, [], [], index + 1, len(turns))
 
     return Divergence(None, [], [], len(turns), len(turns))
 

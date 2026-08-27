@@ -219,3 +219,70 @@ def test_replayed_observations_are_still_fenced(finished_run) -> None:
     ]
     assert results
     assert all(str(b["content"]).startswith(f"<<<untrusted:{token}>>>") for b in results)
+
+
+def test_a_replay_sees_the_failures_and_denials_the_original_saw() -> None:
+    """Divergence must show the replayed model the same history, not a tidied one.
+
+    A run that hit a failing tool and a human "no" is exactly the run worth
+    testing a prompt change against, and both of those reach the model as
+    tool results — one flagged `is_error`, one carrying the denial text. An
+    earlier version of `diverge` built its own message list and had neither, so
+    a prompt was scored against a run that had gone smoothly and never did.
+    """
+    ticket = one("select id, org_id from tickets where reference = 'NW-1'")
+    with connection() as conn, conn.cursor() as cur:
+        run_id = runs.create(cur, org_id=str(ticket["org_id"]), ticket_id=str(ticket["id"]))
+        conn.commit()
+
+    script = [
+        [call("get_order", reference="NO-SUCH-ORDER")],   # fails: no such order
+        [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
+              reason="Goodwill.")],                        # denied by a human
+        text("Understood — I will not refund."),
+    ]
+
+    def drive() -> None:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "update runs set status = 'running', lease_owner = 'test',"
+                "  lease_expires_at = now() + interval '60 seconds' where id = %s",
+                (run_id,),
+            )
+            conn.commit()
+        with connection() as conn:
+            loop.advance(conn, run_id, "test", ScriptedProvider(script=[list(t) for t in script]))
+
+    drive()
+    approval = one("select id, org_id from approvals where run_id = %s", (run_id,))
+    owner = one("select id from users where role = 'owner' limit 1")
+    with connection() as conn, conn.cursor() as cur:
+        approvals.decide(
+            cur, approval_id=str(approval["id"]), org_id=str(approval["org_id"]),
+            decision="denied", decided_by=str(owner["id"]),
+            reason="Not inside the window.",
+        )
+        conn.commit()
+    drive()
+
+    seen: list[list[dict]] = []
+
+    class Recording(ScriptedProvider):
+        def complete(self, system, messages, tools):
+            seen.append(messages)
+            return super().complete(system, messages, tools)
+
+    replay.diverge(run_id, Recording(script=[list(t) for t in script]), SYSTEM_PROMPT)
+
+    blocks = [
+        block
+        for messages in seen
+        for message in messages
+        if isinstance(message.get("content"), list)
+        for block in message["content"]
+        if block.get("type") == "tool_result"
+    ]
+    flat = str(blocks)
+    assert "no order 'NO-SUCH-ORDER'" in flat, "the replay hid a tool failure"
+    assert "Not inside the window." in flat, "the replay hid the human's denial"
+    assert any(b.get("is_error") for b in blocks), "nothing was marked as an error"
