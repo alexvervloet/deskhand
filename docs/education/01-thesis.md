@@ -10,7 +10,7 @@ the results back, repeat — is 150 lines in one file:
 
 | File | Lines | Job |
 |---|---|---|
-| [runtime/loop.py](../deskhand/runtime/loop.py) | ~150 | ask the model, resolve what it asked for, repeat |
+| [runtime/loop.py](../../deskhand/runtime/loop.py) | ~150 | ask the model, resolve what it asked for, repeat |
 
 Three and a half percent of the code. And it is the *easy* three and a half
 percent: it has no failure mode more interesting than a network timeout, and
@@ -86,7 +86,7 @@ There are two defences here and they are not equally important.
 The visible one is the **fence**: every tool result is wrapped in a delimiter
 derived from the run id, with any forged copy of that delimiter stripped from
 the content first, and the system prompt names the boundary so the model can
-locate it. See [runtime/transcript.py](../deskhand/runtime/transcript.py).
+locate it. See [runtime/transcript.py](../../deskhand/runtime/transcript.py).
 
 The one that actually holds is the **risk class**. The seeded ticket `NW-4`
 contains a forged `SYSTEM:` block ordering an unapproved refund. An eval drives

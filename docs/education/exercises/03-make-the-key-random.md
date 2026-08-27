@@ -17,7 +17,7 @@ professional choice?
 
 ## The change
 
-In [deskhand/tools/invoke.py](../../deskhand/tools/invoke.py):
+In [deskhand/tools/invoke.py](../../../deskhand/tools/invoke.py):
 
 ```python
 def idempotency_key(run_id: str, seq: int) -> str:

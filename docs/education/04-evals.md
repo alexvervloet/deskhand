@@ -59,7 +59,7 @@ FAIL  approval-binds-to-arguments
 ## Faults, so there is something to be robust against
 
 An agent that only ever sees tools succeed is an agent nobody has tested.
-[tools/faults.py](../deskhand/tools/faults.py) makes them fail on purpose:
+[tools/faults.py](../../deskhand/tools/faults.py) makes them fail on purpose:
 
 | Kind | What it does |
 |---|---|
@@ -80,7 +80,7 @@ which makes it the more interesting channel to attack — and the eval named
 `injection-in-a-tool-result-cannot-escape-the-gate` is the one that covers it.
 
 The `garbage` fault found a real crash the first time it ran; see
-[LESSONS](../LESSONS.md) #5.
+[LESSONS](../../LESSONS.md) #5.
 
 ## Does the gate have teeth?
 

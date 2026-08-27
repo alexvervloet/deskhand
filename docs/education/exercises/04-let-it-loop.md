@@ -11,7 +11,7 @@ Test that.
 
 ## The change
 
-In [deskhand/runtime/loop.py](../../deskhand/runtime/loop.py), make `_looping()`
+In [deskhand/runtime/loop.py](../../../deskhand/runtime/loop.py), make `_looping()`
 always report nothing:
 
 ```python

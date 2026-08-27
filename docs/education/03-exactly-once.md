@@ -76,7 +76,7 @@ provider or building a fake one — and the fake would prove nothing.
 
 What it does instead is state the boundary plainly, in the module that relies
 on it. The comment at the top of
-[tools/invoke.py](../deskhand/tools/invoke.py) says the same thing this page
+[tools/invoke.py](../../deskhand/tools/invoke.py) says the same thing this page
 does.
 
 ## The key

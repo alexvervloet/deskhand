@@ -20,7 +20,7 @@ Delete it and see what notices.
 
 ## The change
 
-In [deskhand/runtime/transcript.py](../../deskhand/runtime/transcript.py), the
+In [deskhand/runtime/transcript.py](../../../deskhand/runtime/transcript.py), the
 last line of `quarantine()`:
 
 ```python

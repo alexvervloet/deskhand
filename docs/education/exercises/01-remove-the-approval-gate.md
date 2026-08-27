@@ -12,7 +12,7 @@ python -m evals.run          # 19/19 should pass before you start
 
 ## The change
 
-One line in [deskhand/tools/base.py](../../deskhand/tools/base.py):
+One line in [deskhand/tools/base.py](../../../deskhand/tools/base.py):
 
 ```python
 def requires_approval(name: str) -> bool:

@@ -41,7 +41,7 @@ watch what gets added.
 
 ## And read what went wrong
 
-[LESSONS.md](../LESSONS.md) — seven entries, written while the detail was fresh.
+[LESSONS.md](../../LESSONS.md) — seven entries, written while the detail was fresh.
 The two most useful:
 
 - **#2** — a full-text search that failed *open* on a policy lookup. An agent
