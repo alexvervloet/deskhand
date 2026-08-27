@@ -340,6 +340,48 @@ def the_deadline_does_not_reset() -> None:
 
 @evaluates(
     "boundedness",
+    "the-deadline-does-not-run-while-a-human-thinks",
+    "time spent waiting on an approval is given back to the run's clock",
+)
+def the_deadline_does_not_run_while_a_human_thinks() -> None:
+    """The other half of `the-deadline-does-not-reset`.
+
+    Together the two say what the bound actually means: the deadline bounds how
+    long the *agent* may work, and a person reading an approval screen is not
+    the agent working. Getting only the first half right produced the worst
+    failure available — an approval answered after the budget ran out issued the
+    refund and *then* killed the run on the deadline, money gone and no summary.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from deskhand.db import fetch_one
+
+    run_id = h.start("NW-1")
+    assert h.drive(run_id, provider(REFUND_NW1)) == "awaiting_approval"
+
+    before = fetch_one("select deadline_at from runs where id = %s", (run_id,))
+    assert before is not None
+
+    # The approver takes longer to decide than the run's entire wall-clock budget.
+    h.shrink(run_id, suspended_at=datetime.now(UTC) - timedelta(minutes=20))
+    h.decide(run_id, "approved")
+
+    after = fetch_one("select deadline_at, suspended_at from runs where id = %s", (run_id,))
+    assert after is not None
+    waited = after["deadline_at"] - before["deadline_at"]
+    assert 19 * 60 <= waited.total_seconds() <= 21 * 60, waited
+    assert after["suspended_at"] is None, "the stamp is cleared, so it cannot be spent twice"
+
+    # And the consequence that matters: the refund the human authorised happens,
+    # and the run gets to finish saying so.
+    assert h.drive(run_id, provider(REFUND_NW1)) == "succeeded"
+    path = Trajectory.load(run_id)
+    assert path.stop_reason == runs.STOP_END_TURN
+    assert len(h.refunds()) == 1
+
+
+@evaluates(
+    "boundedness",
     "spend-is-capped-before-the-call",
     "a run over its spend ceiling stops before paying for another turn",
 )
