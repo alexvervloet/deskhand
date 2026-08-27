@@ -7,8 +7,10 @@ of that and cache writes are 1.25x, which is where whole micros stop being
 enough, so everything is held one thousand times finer and rounded once, at the
 end, when a step's cost is recorded.
 
-No float touches a price at any point. A run's spend cap is compared against
-integers, so "did this run exceed its budget" has exactly one answer.
+No float touches a price in arithmetic. A run's spend cap is compared against
+integers, so "did this run exceed its budget" has exactly one answer. The only
+float in this module is in `format_usd`, which produces a string for a human to
+read and is never fed back into a comparison.
 """
 
 from __future__ import annotations

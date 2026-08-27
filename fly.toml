@@ -1,6 +1,9 @@
-# Fly.io config. Two process groups from one image: `app` serves the API and
-# the built UI, `worker` drives runs. Migrations and the first seed run once per
-# deploy via the release command, so the two never race.
+# Fly.io config. One process group, `app`, serving the API and the built UI with
+# the agent running inside it (RUN_WORKER_INLINE below) so the machine can sleep
+# when nobody is looking. A separate `worker` group is the right production
+# shape and is what the Dockerfile is built for — same image, different command.
+# Migrations and the first seed run once per deploy via the release command, so
+# nothing races to migrate.
 #
 # The deployment runs **keyless**: with no ANTHROPIC_API_KEY the runtime uses
 # the scripted provider, which exercises every part of the machinery this

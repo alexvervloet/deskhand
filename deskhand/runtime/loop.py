@@ -109,8 +109,8 @@ def _bound_exceeded(cur: psycopg.Cursor[DictRow], run: dict[str, Any]) -> tuple[
         return runs.STOP_DEADLINE, "ran past its wall-clock deadline"
 
     # Per-org daily spend, then the ceiling that actually bounds the bill. The
-    # per-org cap bounds one tenant; it only bounds the deployment if tenants
-    # are scarce, and signing up is open.
+    # per-org cap bounds one tenant; it only bounds the deployment if the number
+    # of tenants is bounded too.
     cur.execute(
         "select coalesce(sum(cost_micros), 0) as spent from runs"
         " where org_id = %s and created_at >= date_trunc('day', now())",

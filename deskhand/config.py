@@ -37,9 +37,9 @@ class Settings(BaseSettings):
 
     # --- Spend ceilings ---
     daily_budget_usd_per_org: Decimal = Decimal("10.00")
-    # Per-org caps bound one tenant. They bound the bill only if tenants are
-    # scarce, and signup is open, so this is the number that actually caps
-    # what the deployment can spend in a day.
+    # Per-org caps bound one tenant, so they only bound the bill if the number
+    # of tenants is bounded too. This is the number that actually caps what the
+    # deployment can spend in a day, whatever the tenant count turns out to be.
     platform_daily_budget_usd: Decimal = Decimal("50.00")
 
     # --- Approvals ---
