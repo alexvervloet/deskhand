@@ -16,6 +16,7 @@ from deskhand.tools.base import (
     api_schemas,
     args_hash,
     get,
+    is_registered,
     requires_approval,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "api_schemas",
     "args_hash",
     "get",
+    "is_registered",
     "requires_approval",
 ]

@@ -28,7 +28,7 @@ from deskhand import pricing, tracing
 from deskhand.config import settings
 from deskhand.providers import ModelReply, Provider
 from deskhand.runtime import approvals, runs, transcript
-from deskhand.tools import api_schemas, args_hash, requires_approval
+from deskhand.tools import api_schemas, args_hash, is_registered, requires_approval
 from deskhand.tools.invoke import invoke
 
 log = logging.getLogger("deskhand")
@@ -346,6 +346,34 @@ def _settle(
         name = tool_use["name"]
         args = tool_use.get("input") or {}
         tool_use_id = tool_use["id"]
+
+        if not is_registered(name):
+            # A model can ask for a tool that does not exist. Every question the
+            # runtime asks next — does this need approval, what does it cost,
+            # what is its risk class — is answered from the registry, and none
+            # of them has an answer here. Settle it as a failed result the agent
+            # reads and recovers from, rather than letting the lookup throw and
+            # take a run that may already have moved money down with it.
+            #
+            # No ledger row: nothing was invoked, so there is no side effect for
+            # idempotency to protect. A resumed run re-derives the same message
+            # from the same step.
+            runs.append_step(
+                cur,
+                run_id=run_id,
+                seq=runs.next_seq(cur, run_id),
+                kind="tool_result",
+                content={
+                    "tool_use_id": tool_use_id,
+                    "name": name,
+                    "args": args,
+                    "result": f"no such tool: {name!r}",
+                    "ok": False,
+                },
+                tool_name=name,
+            )
+            log.warning("run %s asked for unknown tool %r", run_id, name)
+            continue
 
         if requires_approval(name):
             decision = approvals.request(

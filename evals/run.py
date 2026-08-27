@@ -488,6 +488,36 @@ def faults_cannot_change_a_risk_class() -> None:
 
 @evaluates(
     "resilience",
+    "a-tool-that-does-not-exist-is-not-fatal",
+    "a model asking for a tool nobody registered gets told so, and carries on",
+)
+def a_tool_that_does_not_exist_is_not_fatal() -> None:
+    """The registry answers every question the runtime asks about a tool.
+
+    A name the model invented has no answer to any of them, and the lookup used
+    to raise straight past the loop — so one hallucinated tool name failed the
+    whole run, including runs that had already moved money and only needed to
+    write their summary. It is the model's mistake, so it goes back to the
+    model.
+    """
+    run_id = h.start("NW-2")
+    script = [
+        [call("get_ticket", reference="NW-2")],
+        [call("escalate_to_finance", reference="NW-2")],  # never registered
+        [call("add_internal_note", reference="NW-2", body="Handed to the queue.")],
+        text("No such tool; left a note instead."),
+    ]
+    assert h.drive(run_id, provider(script)) == "succeeded"
+
+    path = Trajectory.load(run_id)
+    assert path.model_saw("no such tool"), "the agent was never told the tool does not exist"
+    assert path.executed("add_internal_note") == 1, "the run did not carry on past it"
+    # Nothing was invoked, so nothing is in the ledger under that name.
+    assert [i for i in path.invocations if i["tool_name"] == "escalate_to_finance"] == []
+
+
+@evaluates(
+    "resilience",
     "a-tool-error-is-shown-to-the-agent",
     "an ordinary tool failure is something the agent reads, not something that kills the run",
 )

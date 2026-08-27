@@ -138,6 +138,19 @@ def get(name: str) -> ToolDef:
         raise ToolError(f"no such tool: {name!r}") from None
 
 
+def is_registered(name: str) -> bool:
+    """Whether this name is a tool at all.
+
+    `get` raises for an unknown name and `requires_approval` inherits that,
+    which is right for every caller that has already established the tool
+    exists. The loop has not: the name came from a model, and a model can ask
+    for a tool that was never registered. That is the model's mistake to
+    correct, not a reason to end a run, so the loop needs to be able to ask the
+    question without being thrown out of.
+    """
+    return name in _REGISTRY
+
+
 def all_tools() -> list[ToolDef]:
     return sorted(_REGISTRY.values(), key=lambda t: t.name)
 
