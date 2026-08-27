@@ -117,17 +117,17 @@ is written up as LESSONS entry 6.
 
 ## Read the argument, then break it
 
-The repository is an argument; [docs/](docs/) is the order it makes sense in.
+The repository is an argument; [docs/](docs/education/) is the order it makes sense in.
 
-- **[The thesis](docs/01-thesis.md)** — why the loop is 3% of the code
-- **[Concept index](docs/02-concept-index.md)** — where every idea lives
-- **[Exactly once](docs/03-exactly-once.md)** — and the assumption it rests on
-- **[Evals](docs/04-evals.md)** — asserting a path, not an answer
-- **[Replay](docs/05-replay.md)** — reading a run back, and testing a prompt change against recorded traffic
+- **[The thesis](docs/education/01-thesis.md)** — why the loop is 3% of the code
+- **[Concept index](docs/education/02-concept-index.md)** — where every idea lives
+- **[Exactly once](docs/education/03-exactly-once.md)** — and the assumption it rests on
+- **[Evals](docs/education/04-evals.md)** — asserting a path, not an answer
+- **[Replay](docs/education/05-replay.md)** — reading a run back, and testing a prompt change against recorded traffic
 
-Then the [exercises](docs/exercises/), which are the point. Each is a one-line
+Then the [exercises](docs/education/exercises/), which are the point. Each is a one-line
 change with a verified result. If you do one, do
-**[02 — remove the invisible layer](docs/exercises/02-remove-the-invisible-layer.md)**:
+**[02 — remove the invisible layer](docs/education/exercises/02-remove-the-invisible-layer.md)**:
 delete the most visible anti-injection defence in the project and watch 18 of 19
 evals keep passing.
 
@@ -183,7 +183,7 @@ Divergence replays a recorded run against a changed system prompt or model and
 reports the first decision that differs. It never executes a tool: the recorded
 result is handed back instead, so it is safe to point at runs that moved real
 money. That gives you a prompt-regression suite built from production traffic.
-See [docs/05-replay.md](docs/05-replay.md) for the limitation it comes with.
+See [docs/05-replay.md](docs/education/05-replay.md) for the limitation it comes with.
 
 ## Architecture notes
 
