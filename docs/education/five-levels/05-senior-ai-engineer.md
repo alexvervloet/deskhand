@@ -166,19 +166,31 @@ suspension, so the gated call's eventual seq differs. The binding is
 explicitly somewhere, because `step_seq` sitting on the row looks load-bearing and
 is not.
 
-**Approval UX carries a real risk the code cannot fix.** `preview` is a
+**Consent is only as wide as the screen.** `preview` is a
 `Callable[[dict], str]` on the tool definition, never derived from a tool result,
-which is the right call. But `send_customer_email`'s preview is:
+which is the right call. But it is a *summary*, and `args_hash` is not:
 
 ```python
 preview=lambda a: f"Email the customer on {a['reference']}: {a['subject']!r}"
 ```
 
-The body is not shown. A human approving an email is approving a subject line
-while the hash binds a body they never read. Consent bound to arguments the
-approver did not see is consent in the technical sense only. For a refund, amount
-plus order plus reason is genuinely the whole decision. For an email, the body is
-the decision. I would render it.
+The body was not shown. A human approving an email was approving a subject line
+while the hash bound a body they had never read, which is consent in the
+technical sense only. For a refund, amount plus order plus reason genuinely is
+the whole decision, so the gap was invisible until you looked at the one tool
+where the payload is prose.
+
+The narrow fix is to inline the body into that lambda. The actual defect is
+wider: the screen showed a summary while the hash bound every argument, and any
+future irreversible tool would have inherited the same gap. So the approval
+screen now renders **every argument the hash covers**, underneath the
+one-line preview, and `preview` stays a single line because it is also the
+label in the queue and the summary written into the audit log.
+
+It needed no migration: `args` was already on the `ApprovalView` payload and
+already typed in the client. The screen simply had never rendered it. Worth
+checking your own equivalent, because the data being present in the response is
+not the same as it being in front of the person clicking the button.
 
 ## Integrity, and a confirmed fence bypass
 
