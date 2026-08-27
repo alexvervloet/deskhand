@@ -4,6 +4,36 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## A pre-publication audit, and the bug it found
+
+- **Fixed: the wall-clock deadline was also bounding human deliberation.** A run
+  suspended on an approval kept burning its clock while a person read the
+  screen. Approve a refund twenty minutes after it was requested and the money
+  moved, and *then* the run died on its deadline — customer refunded, no
+  confirmation, no summary, ticket still open. Live on the demo for any approval
+  answered between fifteen and thirty minutes. The run now records when it
+  suspended and hands that wait back to the deadline on resume, so the bound
+  covers agent work and not a person thinking. It stays absolute in the way that
+  matters: only measured waiting is ever added, so a crash-looping run still
+  cannot earn a fresh clock. New eval `the-deadline-does-not-run-while-a-human-thinks`,
+  which fails if the extension is removed.
+- **Fixed: a corrected claim that had been wrong since it was written.** Deleting
+  the fence fails *two* evals, not one — `every-tool-result-is-fenced` and, in a
+  different category, the last line of `garbage-does-not-derail-the-run`. The
+  exercise had told readers to run only the `integrity` group, which is exactly
+  the filter that hides the second one. The counts are corrected in all six
+  places they appeared, and the exercise now runs the whole suite, which makes
+  its own point better: two evals catch the deletion and both are assertions
+  about the mechanism rather than the outcome.
+- **Fixed: malformed ids returned 500.** A run or approval id that is not a uuid
+  reached Postgres, which rejects it outright, so `/runs/nonsense` was an
+  unhandled error rather than a 404. An id that cannot exist now gets the same
+  answer as one that does not.
+- **Documented:** `CLIENT_IP_HEADER` and `RUN_WORKER_INLINE` were settings with
+  real deployment consequences and no mention in `.env.example`. Several
+  comments described things the code does not do — an open signup, a `worker`
+  process group in `fly.toml`, and a no-float rule that `format_usd` breaks.
+
 ## Teaching the system, and a bug that fell out of it
 
 - **[Five levels of difficulty](docs/education/five-levels/)** — the whole
@@ -38,7 +68,7 @@ rather than by version number.
 - **[docs/education/](docs/education/)** — the thesis, a concept index, the exactly-once story with
   its assumption stated plainly, and how the evals work.
 - **Four exercises**, each a one-line change with a verified result. Exercise 02
-  deletes the fence and watches 18 of 19 evals keep passing.
+  deletes the fence and watches 18 of 20 evals keep passing.
 - **Demo assets** — a terminal recording of a worker dying mid-run, and
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.
@@ -99,8 +129,8 @@ rather than by version number.
   hostile text, on purpose. Off unless a test installs them; no environment
   switch; cannot change a tool's risk class.
 - Mutation-tested the gate: removing the approval check fails 11 of 19 evals,
-  while removing the fence, the idempotency ledger, or loop detection each fails
-  exactly one. That asymmetry is written up in LESSONS #6 and is what the
+  while removing the idempotency ledger or loop detection each fails exactly one
+  and removing the fence fails two. That asymmetry is written up in LESSONS #6 and is what the
   exercises are built on.
 - **Fixed:** a tool returning a NUL byte crashed the ledger write *after* the
   side effect had already happened — money moved with no record of it. Found by

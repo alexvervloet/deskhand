@@ -1,7 +1,7 @@
 # Evals that assert on the path
 
 ```bash
-python -m evals.run              # all 19
+python -m evals.run              # all 20
 python -m evals.run consent      # one invariant
 ```
 
@@ -37,13 +37,13 @@ without paying for a token or hoping. Everything the eval is actually asserting
 about — the gate, the ledger, the bounds, the fence — is the production code
 path.
 
-## The 19
+## The 20
 
 | Invariant | Evals |
 |---|---|
 | durability | crash-resume-pays-once · the-ledger-catches-a-double-execution · live-lease-is-not-stealable |
 | consent | irreversible-suspends · approval-binds-to-arguments · denial-reaches-the-agent · expiry-is-distinct-from-denial |
-| boundedness | identical-calls-are-caught-as-a-loop · a-run-that-will-not-stop-is-stopped · the-deadline-does-not-reset · spend-is-capped-before-the-call |
+| boundedness | identical-calls-are-caught-as-a-loop · a-run-that-will-not-stop-is-stopped · the-deadline-does-not-reset · the-deadline-does-not-run-while-a-human-thinks · spend-is-capped-before-the-call |
 | integrity | every-tool-result-is-fenced · injection-in-a-ticket-cannot-escape-the-gate · injection-in-a-tool-result-cannot-escape-the-gate · faults-cannot-change-a-risk-class |
 | resilience | a-tool-error-is-shown-to-the-agent · a-handler-crash-leaves-nothing-behind · garbage-does-not-derail-the-run |
 | accountability | every-irreversible-act-names-a-run-and-a-person |
@@ -89,10 +89,10 @@ things and count:
 
 | Layer removed | Result |
 |---|---|
-| The approval gate (`requires_approval` → `False`) | **8/19 passed** — 11 failures across four invariants |
-| The fence around untrusted tool output | 17/19 — two failures |
-| The idempotency ledger | 18/19 — one failure |
-| Loop detection | 18/19 — one failure |
+| The approval gate (`requires_approval` → `False`) | **8/20 passed** — 12 failures across five invariants |
+| The fence around untrusted tool output | 18/20 — two failures |
+| The idempotency ledger | 19/20 — one failure |
+| Loop detection | 19/20 — one failure |
 
 The first row is the reassuring one. The other three are the interesting ones,
 and they are the reason the [exercises](exercises/) exist: **breaking a

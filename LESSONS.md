@@ -163,20 +163,20 @@ early, not once everything else is finished.
 
 ## 6. Defence in depth means most of your evals keep passing when you break something
 
-**Expected.** Nineteen trajectory evals across five invariants. Deliberately
+**Expected.** Twenty trajectory evals across five invariants. Deliberately
 break a safety mechanism and watch the gate light up.
 
 **What happened.** It depends entirely on *which* mechanism, and the pattern is
 worth staring at. Removing the approval gate (`requires_approval` → `False`):
 
 ```
-8/19 passed   — 11 failures across durability, consent, integrity, accountability
+8/20 passed   — 12 failures across every invariant but one
 ```
 
 Good. But deleting the fence around untrusted tool output:
 
 ```
-17/19 passed  — 3 of the 4 integrity evals still passed
+18/20 passed  — 3 of the 4 integrity evals still passed
 ```
 
 Only evals written specifically to assert *the fence exists* caught it: the one
@@ -383,3 +383,53 @@ the fence was; the test underneath it checked one payload shape and stood
 unchallenged for the life of the project. When the claim is adversarial, the
 test needs the input a person trying to break it would pick, not the input the
 person who wrote the defence had in mind.
+
+---
+
+## 11. The clock that was bounding the wrong thing
+
+**Expected.** Four bounds — steps, tokens, spend, wall-clock — checked before
+every model call. Boundedness is the invariant I was least worried about,
+because it is the one made of arithmetic rather than judgement.
+
+**What happened.** A run that suspends on an approval keeps its wall-clock
+deadline running. That is fine right up until somebody takes longer to answer
+than the run's entire budget, and then it is the worst failure shape available:
+the resume settles the pending tool call *before* the loop re-checks its bounds,
+so the refund executes, and the very next iteration ends the run on the deadline.
+Money gone, no confirmation email, no summary, ticket still open, and a
+`stop_reason` of `deadline` that says nothing about a payment having just been
+made on the way out.
+
+The two numbers made it reachable rather than theoretical. The default deadline
+is 900 seconds; the demo sets an approval TTL of 1800. So the window is
+fifteen to thirty minutes, which is not an exotic amount of time for a person to
+take over a decision the whole product exists to make them take seriously. The
+README screenshot has both numbers on it — `DEADLINE 4:17:54 PM` next to
+`expires 8/28/2026, 4:02:54 PM` — and I had looked at that image many times.
+
+**What this means.** I had written the bound down as "every run terminates" and
+tested exactly that. It does terminate. The eval passes. What I never wrote down
+is what the clock is *for*, and the answer is that it bounds how long the agent
+may work — not how long a human may think. Those are the same number only while
+nothing ever waits on a person, which is the one thing this system is built to
+do. An invariant stated as a property of the system ("it stops") rather than as
+a property of the thing being measured ("agent work is bounded") will happily
+hold while measuring the wrong quantity.
+
+The check order is the other half. `_bound_exceeded` runs before a model call,
+which the docstring is proud of — "a cap you verify afterwards is not a cap, it
+is an invoice." True, and incomplete: resolving a pending tool call is also an
+action, and it was the only path in the loop with no bound in front of it.
+
+**Next time.** For every limit, write down the quantity it is supposed to
+measure, not just the condition it enforces. Then ask which parts of the elapsed
+time or spend belong to that quantity. Anywhere a run can be suspended waiting
+on something outside itself, the clock for the work almost certainly should not
+be the clock for the wait — and the fix is to record the suspension, not to make
+the number bigger.
+
+And: when two configured durations govern one flow, put them next to each other
+and read them as a pair. `MAX_WALLCLOCK_SECONDS_PER_RUN` and
+`APPROVAL_TTL_SECONDS` were set in different files, months apart, each sensible
+alone.

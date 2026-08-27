@@ -93,7 +93,7 @@ same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
 ## Evals that assert on the path, not the answer
 
-`python -m evals.run` — 19 trajectory evals across the five invariants, wired
+`python -m evals.run` — 20 trajectory evals across the five invariants, wired
 as a required CI job. They drive the real loop, the real tools and a real
 Postgres; only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically.
@@ -110,8 +110,8 @@ error, crash, latency, garbage, and hostile text arriving through a tool
 result. It is off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
-**The gate has teeth.** Deliberately removing the approval check fails 11 of 19
-evals across four invariants. Deliberately deleting the fence around untrusted
+**The gate has teeth.** Deliberately removing the approval check fails 12 of 20
+evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 2 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
 
@@ -128,7 +128,7 @@ The repository is an argument; [docs/education/](docs/education/) is the order i
 Then the [exercises](docs/education/exercises/), which are the point. Each is a one-line
 change with a verified result. If you do one, do
 **[02 — remove the invisible layer](docs/education/exercises/02-remove-the-invisible-layer.md)**:
-delete the most visible anti-injection defence in the project and watch 17 of 19
+delete the most visible anti-injection defence in the project and watch 18 of 20
 evals keep passing.
 
 ## Status
@@ -228,7 +228,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — ten entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — eleven entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
