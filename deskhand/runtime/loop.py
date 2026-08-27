@@ -466,6 +466,7 @@ def _settle(
                 tool=name,
                 decision="approved",
                 decided_by=str(decision["decided_by"]) if decision["decided_by"] else None,
+                attempt=int(run["attempt"]),
             )
 
         seq = runs.next_seq(cur, run_id)

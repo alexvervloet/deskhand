@@ -13,6 +13,16 @@ structured line per interesting event, for a log collector to pick up and alert
 on. It is a companion to the step log, not a second copy of it: the line carries
 identifiers and numbers, never the content.
 
+One consequence of being a log rather than a table, worth stating because it
+looks like a bug the first time you see it: these lines are emitted inside the
+transaction that is doing the work, and they are not rolled back with it. A step
+that crashes after tracing leaves its line behind and its rows do not survive, so
+a retried attempt traces twice while the audit log records once. That is the
+right trade — a tracer that waited for a commit would miss exactly the events
+worth alerting on, which are the ones where the commit never came — but it means
+these lines describe *attempts*, and `audit_log` is what describes outcomes.
+Events carry `attempt` where a repeat is expected, so the two can be told apart.
+
 The only real engineering requirement here is negative.
 
 **Observability must never take the product down.** A tracer that raises turns a
@@ -79,7 +89,9 @@ def emit(event: str, **fields: Any) -> None:
         pass
 
 
-def run_started(run_id: str, org_id: str, ticket: str, provider: str, model: str) -> None:
+def run_started(
+    run_id: str, *, org_id: str, ticket: str, provider: str, model: str
+) -> None:
     emit(
         "run.started",
         run_id=run_id,
@@ -130,7 +142,7 @@ def approval_requested(run_id: str, *, tool: str, args_hash: str) -> None:
 
 
 def approval_decided(
-    run_id: str, *, tool: str, decision: str, decided_by: str | None
+    run_id: str, *, tool: str, decision: str, decided_by: str | None, attempt: int = 1
 ) -> None:
     emit(
         "approval.decided",
@@ -138,6 +150,10 @@ def approval_decided(
         tool=tool,
         decision=decision,
         decided_by=decided_by,
+        # A run that crashed after acting on a decision retries and traces this
+        # again. One human said yes once; the attempt number is what stops a
+        # reader — or a counter — from believing they said it twice.
+        attempt=attempt,
     )
 
 

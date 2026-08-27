@@ -106,3 +106,34 @@ def test_events_carry_no_content(caplog) -> None:
     assert set(event) == {
         "event", "ts", "run_id", "seq", "tool", "risk", "ok", "replayed", "duration_ms"
     }
+
+
+def test_starting_a_run_is_traced(caplog) -> None:
+    """`run.started` is the opening line of a run's story in the log stream.
+
+    It was defined and never called for a while, which is the quiet way an event
+    stream develops a hole: nothing fails, and the runs simply appear in the log
+    already in progress.
+    """
+    with caplog.at_level(logging.INFO, logger="deskhand.events"):
+        tracing.run_started(
+            "run-1", org_id="org-1", ticket="NW-1", provider="mock", model="mock"
+        )
+    event = captured(caplog)[0]
+    assert event["event"] == "run.started"
+    assert event["ticket"] == "NW-1"
+    assert event["org_id"] == "org-1"
+
+
+def test_an_approval_trace_says_which_attempt_it_belongs_to(caplog) -> None:
+    """A run that crashes after acting on a decision traces it again.
+
+    The rows do not duplicate — the transaction takes them with it — but the log
+    line is already gone to stdout. The attempt number is what lets a reader
+    tell one decision retraced from two decisions made.
+    """
+    with caplog.at_level(logging.INFO, logger="deskhand.events"):
+        tracing.approval_decided(
+            "run-1", tool="issue_refund", decision="approved", decided_by="u1", attempt=2
+        )
+    assert captured(caplog)[0]["attempt"] == 2

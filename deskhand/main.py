@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from deskhand import pricing, schemas
+from deskhand import pricing, schemas, tracing
 from deskhand.auth import new_session_token, session_expiry, verify_password
 from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
@@ -306,6 +306,16 @@ def start_run(body: schemas.StartRunRequest, caller: CallerDep) -> Any:
         )
         conn.commit()
 
+    # Traced only after the commit: every other event in this system describes an
+    # attempt, but there is no attempt to describe here — either the run row
+    # exists or the request failed.
+    tracing.run_started(
+        run_id,
+        org_id=caller.org_id,
+        ticket=body.ticket_reference,
+        provider="claude" if settings.has_model_key else "mock",
+        model=settings.model_id if settings.has_model_key else "mock",
+    )
     return _run_summary(_require_run(run_id, caller.org_id))
 
 
