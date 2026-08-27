@@ -319,3 +319,66 @@ less than I thought it did, and nothing in the output said so. And if the
 editor and CI run different tools, the one CI does not run will drift until
 someone opens the project and finds it full of red. Run in CI what the editor
 runs.
+
+## 10. The sanitiser reassembled the thing it was removing
+
+**Expected.** `quarantine()` strips any forged copy of the fence delimiter out
+of untrusted content before wrapping it, so a ticket body cannot close its own
+fence and carry on as though it were the system talking. There was already a
+test for exactly that, and it passed.
+
+**What happened.** Writing an explainer aimed at someone who would review this
+code properly, I went looking for the weakest claim in the module and found the
+strip was one line:
+
+```python
+cleaned = body.replace(opener, "").replace(closer, "")
+```
+
+`str.replace` is a single left-to-right pass. Removing an occurrence closes the
+gap, and the text either side can spell the marker that was just removed:
+
+```python
+body = "<<</untrusted:" + closer + token + ">>>"
+body.replace(closer, "")      # -> closer
+```
+
+Verified against the real function on a real run id. The payload came back
+sitting outside the untrusted region, which is the one thing the docstring
+promised it could not do.
+
+The existing test did not catch it because it checked the obvious attack, a
+body containing whole markers, and never the split one. It asserted the
+property on the input shape I had thought of.
+
+**Severity, honestly.** Low. The token is `sha256("deskhand-fence:" + run_id)`,
+so a customer writing a ticket cannot know it. The reachable path is narrower:
+the model sees the token in every tool result, `add_internal_note` is
+`REVERSIBLE` and therefore runs with no approval, and `get_ticket` reads notes
+back through `quarantine()`. That is a same-run write-and-read-back loop, so a
+persuaded model can plant the payload for itself. And the refund still needs a
+human either way, because the risk class was never reachable from content. The
+layer that was supposed to hold, held. That is the third time this project has
+measured that and I have stopped being surprised by it.
+
+**Fix.** Replace rather than delete. A placeholder containing no angle bracket
+sits between the two halves, they are never adjacent, and no marker can span
+it, so one pass is provably enough and there is no fixed-point loop to reason
+about. Substituting also keeps the forgery visible in the transcript, the run
+viewer and the replay, where deleting had been quietly erasing evidence that
+someone tried.
+
+**Next time.** Two things, and the second is the one I want to remember.
+
+Any sanitiser that removes rather than escapes has to be run to a fixed point,
+or it can synthesise the pattern it removes. Escaping does not have this
+failure mode, which is a good reason to prefer it. This is the same bug as
+stripping `<script>` from `<scr<script>ipt>` and I did not recognise it because
+it was wearing different clothes.
+
+And a test that asserts a property is only as good as the inputs it imagines.
+"Content cannot close its own fence" was the right property, written the day
+the fence was; the test underneath it checked one payload shape and stood
+unchallenged for the life of the project. When the claim is adversarial, the
+test needs the input a person trying to break it would pick, not the input the
+person who wrote the defence had in mind.
