@@ -3,8 +3,17 @@ records how to undo itself at the moment it acts.
 
 The inverse is captured at execution time rather than derived later, because
 the prior value is knowable now and merely guessable afterwards. A run that
-fails at step 9 can be reverted precisely — set the priority back to `normal`,
+fails at step 9 *can* be reverted precisely — set the priority back to `normal`,
 not "back to whatever seems reasonable".
+
+**Nothing in the product calls `apply_inverse` yet.** Every reversible tool
+records its inverse, the ledger stores it, and `apply_inverse` is exercised by
+the test suite — but no runtime path, endpoint, or button reverts a failed run.
+What exists is the hard half: the information needed to undo, captured at the
+only moment it is knowable. What does not exist is the easy half: deciding which
+steps of which run to walk back, and who is allowed to ask for it. Said plainly
+here rather than left for a reader to discover, because "reversible" reads like
+a promise that something reverses.
 
 Undoing is not the same as never having acted. A reverted internal note was
 still readable by whoever was watching the queue. That is the honest limit of

@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from deskhand import pricing
@@ -161,7 +161,6 @@ class ScriptedProvider:
     script: list[list[dict[str, Any]]]
     name: str = "mock"
     model: str = "mock"
-    calls: list[int] = field(default_factory=list)
 
     @staticmethod
     def turn_index(messages: list[dict[str, Any]]) -> int:
@@ -174,7 +173,6 @@ class ScriptedProvider:
         tools: list[dict[str, Any]],
     ) -> ModelReply:
         index = self.turn_index(messages)
-        self.calls.append(index)
 
         if index < len(self.script):
             blocks = [dict(b) for b in self.script[index]]

@@ -137,6 +137,8 @@ class UsageResponse(BaseModel):
     org_spend_today_micros: int
     org_spend_today_display: str
     org_daily_budget_micros: int
+    # Deployment-wide, across every tenant, and therefore visible to all of
+    # them. A demo decision with a reason, explained on the endpoint.
     platform_spend_today_micros: int
     platform_daily_budget_micros: int
     runs_today: int

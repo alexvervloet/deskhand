@@ -15,6 +15,9 @@ The classes:
     read          no side effects, runs freely
     reversible    changes state, runs freely, records its own inverse
     irreversible  suspends the run until a human approves this exact call
+
+"Records its own inverse" is exactly what it says: the undo is captured, not
+wired up. See the note in deskhand/tools/reversible.py.
 """
 
 from __future__ import annotations

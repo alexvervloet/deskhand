@@ -175,7 +175,11 @@ export const api = {
   tools: () => request<{ name: string; risk: string; description: string }[]>("/tools"),
 
   tickets: () => request<Ticket[]>("/tickets"),
-  ticket: (reference: string) => request<TicketDetail>(`/tickets/${reference}`),
+  // Encoded rather than interpolated raw: a reference is server data today, and
+  // the first time one arrives with a slash or a `?` in it this would silently
+  // request a different endpoint.
+  ticket: (reference: string) =>
+    request<TicketDetail>(`/tickets/${encodeURIComponent(reference)}`),
 
   runs: () => request<Run[]>("/runs"),
   run: (id: string) => request<RunDetail>(`/runs/${id}`),

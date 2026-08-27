@@ -79,7 +79,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install ruff mypy pyright
+          # Pinned: an unpinned linter turns somebody else's release into a
+          # red build on a pull request that changed nothing.
+          pip install ruff==0.16.3 mypy==2.3.0 pyright==1.1.411
       - name: Ruff
         run: ruff check .
       - name: Mypy

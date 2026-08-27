@@ -532,6 +532,19 @@ def decide_approval(
 
 @app.get("/usage", response_model=schemas.UsageResponse)
 def usage(caller: CallerDep) -> Any:
+    """Today's spend, for this merchant and for the deployment.
+
+    The platform figure is deliberately not scoped to the caller's org, and that
+    is a real cross-tenant disclosure: any signed-in user can see what every
+    tenant together has spent today. It is here because the per-org cap is not
+    the cap that stops a run — the platform one is — and a visitor watching a
+    demo halt needs to see the ceiling that actually stopped it.
+
+    It is a sound trade for two seeded merchants and a published password, and
+    an unsound one for a real tenant. A multi-tenant deployment should drop the
+    two `platform_*` fields, or reduce them to a boolean saying whether the
+    service ceiling is exhausted, which is the only part a tenant needs.
+    """
     org = fetch_one(
         "select coalesce(sum(cost_micros), 0) as spend, count(*) as runs from runs"
         " where org_id = %s and created_at >= date_trunc('day', now())",
