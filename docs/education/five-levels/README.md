@@ -14,7 +14,7 @@ covers things the levels below it cannot reach.
 | [2](02-undergraduate.md) | A second-year CS undergraduate | It is a database problem. Append-only logs, leases, transactions, and why the idempotency key must not be random. |
 | [3](03-cs-grad-learning-ai.md) | A CS graduate learning AI | What actually goes over the wire, why cost grows with the square of the turns, and why prompt injection has no parameterised-query equivalent. |
 | [4](04-engineering-manager.md) | An engineering manager interviewing for an AI role | The 4%/96% ratio, the five questions to ask any agent design, and what a good answer sounds like. |
-| [5](05-senior-ai-engineer.md) | A senior AI engineer | A design review. Precise guarantees, where each stops, and a confirmed fence bypass found while writing it. |
+| [5](05-senior-ai-engineer.md) | A senior AI engineer | A design review. Precise guarantees, where each stops, and the fence bypass this document found and got fixed. |
 
 ## If you only read one
 

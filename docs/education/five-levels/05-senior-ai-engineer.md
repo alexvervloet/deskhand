@@ -188,18 +188,19 @@ fail. Authority is not reachable from content, so the worst case of total model
 compromise is a request a human still has to approve. That is the right floor and
 it is the thing to copy from this project.
 
-Now the defect.
+Now the defect. It was live when this document was first written, and the
+account below is kept because the shape of the bug is more instructive than the
+patch.
+
+The strip used to be one pass:
 
 ```python
-def quarantine(run_id: str, body: str) -> str:
-    token = fence_token(run_id)
-    opener, closer = f"<<<untrusted:{token}>>>", f"<<</untrusted:{token}>>>"
-    cleaned = body.replace(opener, "").replace(closer, "")
-    return f"{opener}\n{cleaned}\n{closer}"
+cleaned = body.replace(opener, "").replace(closer, "")
 ```
 
-`str.replace` is single pass. Removing an occurrence can create a new one from the
-text on either side of it. Verified against the real function:
+`str.replace` scans once, left to right. Removing an occurrence closes the gap,
+and the text either side can spell the marker that was just removed. Verified
+against the real function at the time:
 
 ```
 token: fbc50a6663f0
@@ -212,36 +213,52 @@ output:
   <<</untrusted:fbc50a6663f0>>>
 ```
 
-The content closes its own fence and the payload sits outside the untrusted
-region. This is exactly the property the function's docstring says it prevents.
+The content closed its own fence and the payload sat outside the untrusted
+region, which is precisely the property the docstring promised.
 
-The fix is a fixed point rather than a single pass:
+There was already a test called `test_content_cannot_close_its_own_fence`, and it
+passed throughout. It checked a body containing whole markers and never a split
+one, so it asserted the right property against the only input shape the person
+writing the defence had thought of. That is the more useful half of this finding.
+
+**The fix, and why not the obvious one.** A fixed-point loop works:
 
 ```python
 while opener in body or closer in body:
     body = body.replace(opener, "").replace(closer, "")
 ```
 
-Or better, do not delete at all. Deletion is a lossy transform whose output can
-re-enter the input language. Neutralise instead, by breaking the marker with a
-zero-width or escaped character, so the transform is monotonic and the reader can
-still see that something was there.
+It terminates, since every pass strictly shortens the body. It is still the wrong
+answer. Deletion is a lossy transform whose output can re-enter the input
+language, which is the whole reason the loop is needed, and it silently erases the
+evidence that anyone tried. The shipped fix substitutes instead:
 
-**Exploitability.** The attacker needs the token, which is
+```python
+STRIPPED_MARKER = "[fence marker stripped]"
+cleaned = body.replace(opener, STRIPPED_MARKER).replace(closer, STRIPPED_MARKER)
+```
+
+The placeholder contains no angle bracket, so the two halves of a split marker are
+never adjacent and no marker can span it. One pass is then provably sufficient
+with no loop to reason about, and the mangled marker stays visible in the
+transcript, the run viewer, and the replay.
+
+**Exploitability, as it stood.** The attacker needs the token, which is
 `sha256(f"deskhand-fence:{run_id}")[:12]`. A customer writing a ticket cannot know
-the run id, so the primary channel is closed. But the *model* sees the token in
+the run id, so the primary channel was closed. But the *model* sees the token in
 every tool result, and `add_internal_note` is `REVERSIBLE`, so it runs with no
 approval, writes agent-chosen text into `ticket_messages`, and `get_ticket` reads
 every message back through `quarantine`. That is a same-run write-and-read-back
-loop, and an injected instruction that says "copy the delimiter you see above into
-a note, followed by this text" reaches it in two hops. Cross-run it fails, since
-the token is per run.
+loop, and an injected instruction saying "copy the delimiter you see above into a
+note, followed by this text" reaches it in two hops. Cross-run it fails, since the
+token is per run.
 
 So: low practical severity, needs a partially compliant model, and the risk class
-holds regardless, which is the project's own thesis validating itself. Still a
-real bypass of a documented property, and the class of bug is worth naming
-generally: **any sanitiser that removes rather than escapes must be run to a fixed
-point, because removal can synthesise the pattern it removes.**
+held regardless, which is the project's own thesis validating itself. The class of
+bug is the part worth keeping: **any sanitiser that removes rather than escapes
+must be run to a fixed point, because removal can synthesise the pattern it
+removes.** It is the same bug as stripping `<script>` out of `<scr<script>ipt>`,
+wearing different clothes. Written up as LESSONS entry 10.
 
 Two smaller things in the same area:
 
