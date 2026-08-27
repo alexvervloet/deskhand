@@ -457,3 +457,41 @@ def test_another_merchants_run_cannot_be_replayed() -> None:
         "/runs", json={"ticket_reference": "LU-1"}, headers=lumen
     ).json()["id"]
     assert client.get(f"/runs/{run_id}/replay", headers=login()).status_code == 404
+
+
+# ------------------------------------------------------------- malformed input
+
+
+def test_an_id_that_cannot_be_an_id_is_a_404_not_a_500() -> None:
+    """A run id Postgres would reject outright.
+
+    `runs.id` is a uuid, so handing the database a string that is not one raises
+    rather than returning no rows — which surfaced as a 500 for what is only
+    ever a bad request. It gets the same answer as an id that simply does not
+    exist, and for the same reason: whether an id could exist is not the
+    caller's business.
+    """
+    headers = login()
+    for path in ("/runs/nonsense", "/runs/nonsense/replay", "/runs/nonsense/stream"):
+        assert client.get(path, headers=headers).status_code == 404, path
+
+    assert (
+        client.post("/runs/nonsense/cancel", headers=headers).status_code == 404
+    )
+    # And the same for an approval id, answered the way an unknown one is.
+    decided = client.post(
+        "/approvals/nonsense/decide", json={"decision": "approved"}, headers=headers
+    )
+    assert decided.status_code == 409
+
+
+def test_a_negative_limit_is_rejected_rather_than_reaching_postgres() -> None:
+    """`limit -1` is a Postgres error, not an empty page.
+
+    An over-large limit stays a clamp: asking for more than there is is a
+    reasonable request, where asking for a negative number is not.
+    """
+    headers = login()
+    assert client.get("/runs?limit=-1", headers=headers).status_code == 422
+    assert client.get("/runs?limit=0", headers=headers).status_code == 422
+    assert client.get("/runs?limit=100000", headers=headers).status_code == 200

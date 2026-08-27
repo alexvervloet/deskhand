@@ -17,11 +17,12 @@ import json
 import logging
 import threading
 import time
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -309,7 +310,12 @@ def start_run(body: schemas.StartRunRequest, caller: CallerDep) -> Any:
 
 
 @app.get("/runs", response_model=list[schemas.RunSummary])
-def list_runs(caller: CallerDep, limit: int = 50) -> Any:
+def list_runs(
+    # `ge=1` rather than a clamp at both ends: a negative limit is a bad
+    # request and Postgres rejects it outright, where an over-large one is a
+    # reasonable ask for "all of them" and is quietly capped.
+    caller: CallerDep, limit: Annotated[int, Query(ge=1)] = 50
+) -> Any:
     rows = fetch_all(
         "select r.*, t.reference as ticket_reference from runs r"
         "  join tickets t on t.id = r.ticket_id"
@@ -484,6 +490,12 @@ def list_approvals(caller: CallerDep) -> Any:
 def decide_approval(
     approval_id: str, body: schemas.DecideRequest, caller: ApproverDep
 ) -> Any:
+    if not _is_uuid(approval_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "approval is not pending, has expired, or does not exist",
+        )
+
     with connection() as conn, conn.cursor() as cur:
         try:
             row = approvals.decide(
@@ -542,6 +554,12 @@ def usage(caller: CallerDep) -> Any:
 
 
 def _require_run(run_id: str, org_id: str) -> dict[str, Any]:
+    # Postgres raises on a malformed uuid, which would surface as a 500 for what
+    # is only ever a bad request. A string that cannot be an id is not an id, so
+    # it gets the same answer as an id that does not exist.
+    if not _is_uuid(run_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run")
+
     row = fetch_one(
         "select r.*, t.reference as ticket_reference from runs r"
         "  join tickets t on t.id = r.ticket_id"
@@ -553,6 +571,14 @@ def _require_run(run_id: str, org_id: str) -> dict[str, Any]:
         # a given id exists elsewhere is not this caller's business.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run")
     return row
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _run_summary(row: dict[str, Any]) -> dict[str, Any]:
