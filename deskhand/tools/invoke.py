@@ -17,7 +17,7 @@ of it landed together, so the resumed run does it zero more times.
 
 The reason this is allowed to be so simple is that every side effect in this
 system is a row in this same Postgres. See the note in the module docstring of
-`deskhand/tools/base.py` and the honest version in docs/04-idempotency.md: a
+`deskhand/tools/base.py` and the honest version in docs/education/03-exactly-once.md: a
 tool that charged a real payment processor could not share a transaction with
 the ledger, and would need a third `claimed` state plus reconciliation.
 """
