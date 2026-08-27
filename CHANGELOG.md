@@ -16,6 +16,12 @@ rather than by version number.
   relative link that the move broke was repointed. Two docstrings had been
   citing `docs/04-idempotency.md`, a file that has never existed in this
   repository; they now cite the exactly-once doc they meant.
+- **Fixed: the approval screen showed less than the approval bound.** The
+  preview is a one-line summary, `args_hash` covers every argument, and
+  `send_customer_email` put only the subject in the preview — so a person
+  approved a subject line while consenting to a body they had never read. The
+  screen now renders every argument the hash covers, for every tool, which
+  closes the same gap for anything irreversible added later.
 - **Fixed: untrusted content could close its own fence.** The strip in
   `quarantine()` was a single `str.replace`, and removing a forged delimiter
   joined the text either side of it into the delimiter just removed. Forged
