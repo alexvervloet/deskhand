@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deskhand"
-version = "0.0.1"
+version = "0.1.0"
 description = "A durable agent runtime for support operations that can act irreversibly"
 requires-python = ">=3.11"
 license = { text = "MIT" }

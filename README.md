@@ -202,8 +202,9 @@ glossed over.
 **The knowledge-base tool uses Postgres full-text search, not embeddings.** This
 project is not about retrieval; the companion project is.
 
-**No float touches money.** Currency is integer cents, model cost is integer
-nanodollars rounded once to micros, and spend caps compare integers.
+**No float touches money in arithmetic.** Currency is integer cents, model cost
+is integer nanodollars rounded once to micros, and spend caps compare integers.
+A float appears only where a number becomes a string for a human to read.
 
 **The step log is the trace.** Every model and tool call is already a row with
 tokens, cost, latency, arguments and result, joined to a run that knows who
