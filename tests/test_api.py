@@ -17,6 +17,7 @@ from deskhand.main import app
 from deskhand.providers import ScriptedProvider, call, text
 from deskhand.ratelimit import auth_limiter
 from deskhand.runtime import loop
+from deskhand.tools import args_hash
 
 pytestmark = pytest.mark.usefixtures("fresh")
 
@@ -224,6 +225,41 @@ def test_the_approval_queue_shows_what_will_actually_happen() -> None:
     # The preview is the sentence a human approves, not a blob of JSON.
     assert "Refund 19.00 USD against order NW-1042" in queue[0]["preview"]
     assert queue[0]["args"]["amount_cents"] == 1900
+
+
+def test_an_approval_carries_every_argument_it_is_bound_to() -> None:
+    """The preview is a summary; the hash is not.
+
+    `args_hash` covers every argument, so anything the approval screen cannot
+    show is something a human would be consenting to unseen. An email is the
+    case that exposes it: the preview names the subject, and the body is the
+    part that actually reaches the customer.
+    """
+    headers = login()
+    run_id = client.post(
+        "/runs", json={"ticket_reference": "NW-1"}, headers=headers
+    ).json()["id"]
+    body = "We are sorry about the beans. A refund of 19.00 USD is on its way."
+    drive_run(run_id, ScriptedProvider(script=[
+        [call("send_customer_email", reference="NW-1",
+              subject="About your order", body=body)],
+        text("done"),
+    ]))
+
+    approval = client.get("/approvals", headers=headers).json()[0]
+    assert approval["tool_name"] == "send_customer_email"
+
+    # Every argument the runtime will hash is on the payload the screen renders.
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("select args, args_hash from approvals where run_id = %s", (run_id,))
+        row = cur.fetchone()
+    assert row is not None
+    assert approval["args"] == row["args"]
+    assert args_hash("send_customer_email", approval["args"]) == row["args_hash"]
+
+    # And the body in particular, which the one-line preview does not carry.
+    assert approval["args"]["body"] == body
+    assert body not in approval["preview"]
 
 
 def test_a_viewer_can_watch_a_run_but_not_approve_one() -> None:
