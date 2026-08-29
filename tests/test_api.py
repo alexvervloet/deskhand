@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.main import app
 from deskhand.providers import ScriptedProvider, call, text
-from deskhand.ratelimit import auth_limiter
+from deskhand.ratelimit import auth_limiter, run_limiter
 from deskhand.runtime import loop
 from deskhand.tools import args_hash
 
@@ -31,9 +31,11 @@ PASSWORD = "demo-password-123"
 
 @pytest.fixture(autouse=True)
 def _reset_limiter() -> None:
-    # The suite logs in far faster than any human, and a shared limiter would
-    # make later tests fail for reasons unrelated to what they assert.
+    # The suite logs in and starts runs far faster than any human, and a shared
+    # limiter would make later tests fail for reasons unrelated to what they
+    # assert.
     auth_limiter.reset()
+    run_limiter.reset()
 
 
 def login(email: str = OWNER) -> dict:
@@ -542,3 +544,25 @@ def test_the_policy_permits_no_inline_or_third_party_script() -> None:
     assert directives["base-uri"] == "'none'"
     # The one relaxation, asserted so that widening it is a deliberate edit.
     assert directives["style-src"] == "'self' 'unsafe-inline'"
+
+
+def test_starting_runs_is_throttled_per_merchant() -> None:
+    """The budget caps are the real ceiling; this stops a cheaper nuisance.
+
+    Every queued run burns a little of a shared daily budget before it stops,
+    so a signed-in user looping this endpoint can exhaust the platform ceiling
+    for every other tenant on the deployment. Keyed by org, because the cost
+    lands on the merchant and not on whoever clicked.
+    """
+    headers = login()
+    run_limiter.reset()
+
+    # A ticket with a run already open answers 409, which is enough to show the
+    # request was let through to the handler.
+    seen = {
+        client.post(
+            "/runs", json={"ticket_reference": "NW-1"}, headers=headers
+        ).status_code
+        for _ in range(31)
+    }
+    assert 429 in seen, "an unbounded loop of run starts should eventually be refused"

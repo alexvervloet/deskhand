@@ -33,7 +33,7 @@ from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.deps import ApproverDep, CallerDep
 from deskhand.providers import get_provider
-from deskhand.ratelimit import auth_limiter
+from deskhand.ratelimit import auth_limiter, run_limiter
 from deskhand.runtime import approvals, runs, transcript
 from deskhand.runtime.loop import SYSTEM_PROMPT
 from deskhand.tools import all_tools
@@ -322,6 +322,12 @@ def _ticket_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 @app.post("/runs", response_model=schemas.RunSummary, status_code=status.HTTP_201_CREATED)
 def start_run(body: schemas.StartRunRequest, caller: CallerDep) -> Any:
+    if not run_limiter.allow(caller.org_id):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "too many runs started in the last minute; wait before starting another",
+        )
+
     ticket = fetch_one(
         "select id from tickets where org_id = %s and reference = %s",
         (caller.org_id, body.ticket_reference),

@@ -40,3 +40,14 @@ class FixedWindowLimiter:
 
 
 auth_limiter = FixedWindowLimiter(limit=10, window_seconds=60.0)
+
+# Starting runs. Keyed by org, because the cost lands on the merchant's budget
+# and not on the individual who clicked.
+#
+# The budget caps are the real ceiling and they are checked before every model
+# call, so this is not what stops a bill running away. It stops the cheaper
+# nuisance the budget caps handle badly: a signed-in user looping the endpoint
+# fills the queue with runs that each burn a little of a shared daily budget
+# before stopping, and every other tenant on the deployment finds the platform
+# ceiling exhausted by someone else's afternoon.
+run_limiter = FixedWindowLimiter(limit=30, window_seconds=60.0)
