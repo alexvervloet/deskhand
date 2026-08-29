@@ -57,11 +57,21 @@ class ToolContext:
     of the ticket that triggered the run. A handler acts on its arguments and
     the database, which keeps the blast radius of a bad argument to the
     argument itself.
+
+    `ticket_id` and `customer_id` are the run's *subject*, and they are here so
+    that a read tool can scope to it. `org_id` alone is a tenancy boundary, not
+    a need-to-know one: it says the agent may not read another merchant's data
+    and says nothing about whether a run working one customer's ticket may read
+    a different customer's history. Handlers that answer questions about a
+    person compare against `customer_id` rather than trusting an argument that
+    ultimately came from a model reading an untrusted ticket.
     """
 
     org_id: str
     run_id: str
     step_id: str
+    ticket_id: str
+    customer_id: str
     # Parameterised on DictRow because the pool sets row_factory=dict_row:
     # handlers index rows by column name, and the annotation is what lets the
     # type checker agree that they may.

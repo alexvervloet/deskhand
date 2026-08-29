@@ -136,7 +136,26 @@ def invoke(
 
     tool = get(tool_name)
     fingerprint = args_hash(tool_name, args)
-    ctx = ToolContext(org_id=org_id, run_id=run_id, step_id=step_id, cursor=cur)
+
+    # The run's subject, read here rather than passed in, so no caller can hand
+    # a handler a scope that disagrees with the run's own row.
+    cur.execute(
+        "select t.id as ticket_id, t.customer_id from runs r"
+        "  join tickets t on t.id = r.ticket_id where r.id = %s",
+        (run_id,),
+    )
+    subject = cur.fetchone()
+    if subject is None:  # pragma: no cover - the caller holds a lease on this run
+        raise RuntimeError(f"run {run_id} has no ticket")
+
+    ctx = ToolContext(
+        org_id=org_id,
+        run_id=run_id,
+        step_id=step_id,
+        ticket_id=str(subject["ticket_id"]),
+        customer_id=str(subject["customer_id"]),
+        cursor=cur,
+    )
 
     started = time.monotonic()
     try:
