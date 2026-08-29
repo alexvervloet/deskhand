@@ -260,9 +260,22 @@ function Usage() {
           }}
         />
       </div>
+      {/* Money out, against its ceiling. This one read as a plain figure for
+          a long time, which is how it went unnoticed that nothing was
+          comparing it to anything — the two bars above it were budgets and
+          this was a readout sitting between them. */}
       <div className="row">
         <span>refunded today</span>
-        <span>{usage.refunds_today_display}</span>
+        <span>
+          {usage.refunds_today_display} / {usage.refund_budget_today_display}
+        </span>
+      </div>
+      <div className="bar">
+        <span
+          style={{
+            width: pct(usage.refunds_today_cents, usage.refund_budget_today_cents),
+          }}
+        />
       </div>
     </div>
   );

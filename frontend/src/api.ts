@@ -116,6 +116,8 @@ export type Usage = {
   runs_today: number;
   refunds_today_cents: number;
   refunds_today_display: string;
+  refund_budget_today_cents: number;
+  refund_budget_today_display: string;
 };
 
 export class ApiError extends Error {
