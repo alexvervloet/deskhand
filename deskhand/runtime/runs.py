@@ -46,9 +46,18 @@ def create(
 
     Bounds are snapshotted here rather than read at each step: a config change
     mid-flight must not move the goalposts for a run already under way.
+
+    **The prompt names the ticket and quotes none of it.** The reference is an
+    identifier this system minted; the subject is a line a customer typed into
+    a form. Interpolating the subject here used to look harmless — it is one
+    short line, and it helps the agent know what it is picking up — but the
+    opening prompt is the one message `transcript.rebuild` does not fence, so
+    that line was the single piece of customer text reaching the model as
+    trusted narration. The subject is not lost: `get_ticket` returns it, inside
+    the fence, along with the body it belongs to.
     """
     cur.execute(
-        "select reference, subject from tickets where id = %s and org_id = %s",
+        "select reference from tickets where id = %s and org_id = %s",
         (ticket_id, org_id),
     )
     ticket = cur.fetchone()
@@ -56,7 +65,7 @@ def create(
         raise ValueError("no such ticket for this org")
 
     prompt = (
-        f"Work support ticket {ticket['reference']} (subject: {ticket['subject']}).\n\n"
+        f"Work support ticket {ticket['reference']}.\n\n"
         "Read the ticket, establish the facts from the order record and the knowledge "
         "base, and then do what is actually due. Finish by summarising what you did and "
         "why. If the right answer is that a human has to decide, say so and escalate "

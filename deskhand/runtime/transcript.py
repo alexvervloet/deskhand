@@ -96,6 +96,14 @@ def rebuild(
     and the prompt — no clock, no randomness, no ambient state — which is what
     makes "what did the model see when it decided to refund?" a question with
     one reproducible answer, months later. See deskhand/replay.py.
+
+    **`prompt` is the one message here that is not fenced**, which is only safe
+    because of what `runs.create` is careful to put in it: the ticket's
+    reference and nothing else the ticket contains. Every other byte in this
+    array either came from the model or went through `quarantine`. If a future
+    prompt grows a customer's words — a subject line, a name, a snippet "for
+    context" — this is the line that lets them in as narration, and the fence
+    below stops being a boundary the model can rely on.
     """
     cur.execute(
         "select seq, kind::text, content from steps"
