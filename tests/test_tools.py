@@ -309,9 +309,17 @@ def test_internal_notes_are_not_customer_visible(cur, org) -> None:
     })
     assert out.ok
     cur.execute(
-        "select is_internal from ticket_messages where body like 'Checked the carrier%'"
+        "select is_internal, author_kind::text as author_kind from ticket_messages"
+        " where body like 'Checked the carrier%'"
     )
-    assert row(cur)["is_internal"] is True
+    written = row(cur)
+    assert written["is_internal"] is True
+
+    # Authored as the agent, because that is what wrote it. Filing model prose
+    # under 'system' would hand a colleague reading the queue the platform's
+    # authority for a sentence the model composed after reading a stranger's
+    # ticket.
+    assert written["author_kind"] == "agent"
 
 
 # ------------------------------------------------------ irreversible tools

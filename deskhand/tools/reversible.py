@@ -266,9 +266,15 @@ register(
 
 def _add_internal_note(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     ticket = _ticket(ctx, args["reference"])
+    # Authored as 'agent', not 'system', and the difference is not cosmetic.
+    # This body is model output, and the model wrote it after reading a ticket
+    # somebody outside the company typed. 'system' is the most authoritative
+    # label in the vocabulary — it reads as the platform stating a fact — so
+    # filing model prose under it launders text that a customer influenced into
+    # text a colleague trusts. `send_customer_email` already writes 'agent'.
     ctx.cursor.execute(
         "insert into ticket_messages (ticket_id, author_kind, is_internal, body)"
-        " values (%s, 'system', true, %s) returning id",
+        " values (%s, 'agent', true, %s) returning id",
         (ticket["id"], args["body"]),
     )
     row = ctx.cursor.fetchone()
