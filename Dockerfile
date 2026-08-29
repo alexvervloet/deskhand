@@ -26,6 +26,13 @@ COPY check_setup.py entrypoint.sh ./
 COPY --from=web /web/dist ./frontend/dist
 RUN chmod +x entrypoint.sh
 
+# Drop root. Nothing in here needs it: the app binds 8000, which is above the
+# privileged range, and writes nothing to disk — every side effect it has is a
+# row in Postgres. The files are left owned by root and readable, so the
+# process cannot rewrite its own code or the migrations it is about to apply.
+RUN useradd --create-home --uid 10001 deskhand
+USER deskhand
+
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=10 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status==200 else 1)"
