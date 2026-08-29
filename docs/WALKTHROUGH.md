@@ -370,15 +370,28 @@ refuses.
 
 Then `invoke()` runs `_issue_refund`, which does its own work. It selects the
 order `for update`, sums existing refunds, and raises if the amount exceeds what
-remains refundable.
+remains refundable. Then `_ceilings()` checks two more limits: what this run may
+pay out in total, and what this merchant may pay out today.
 
 **Watch for.** That arithmetic is in the handler, not in the system prompt. The
 gate stops the agent acting unilaterally; it does not stop a human clicking
 Approve on a refund larger than the order. Policy that must always hold is a
 constraint in code. The prompt is advice.
 
+**Watch for.** Three limits, answering three different questions. The remaining
+balance stops one order being refunded twice. The run ceiling stops one run
+refunding four orders once each — which the balance check cannot see, because
+each of those four fits comfortably inside its own order. The daily ceiling
+stops four runs doing it in turn. Only the first existed until a security
+review; the bounds elsewhere in the project all measure what a run costs to
+operate, and none of them measured what it hands back.
+
 **Watch for.** The `for update` on the order row. Two runs working the same
-duplicate charge could otherwise both read "nothing refunded yet".
+duplicate charge could otherwise both read "nothing refunded yet". And note what
+that lock does *not* cover: two runs refunding two different orders of the same
+merchant are not serialised by it at all, so the daily ceiling takes a lock on
+the merchant row before it reads the day's total. A ceiling that holds only when
+nothing else is happening is not a ceiling.
 
 **Watch for.** `run_id` is stamped on the `refunds` row itself. "Which run paid
 this out, and therefore who approved it" is a join, not an investigation.
@@ -467,7 +480,10 @@ complaint about the wrong coffee:
 
 Run it. The agent reads the ticket, and the approval gate holds.
 
-There are two defences here and they are not equally important.
+There are two defences here and they are not equally important. There is also a
+precondition underneath both, which is easy to miss and was wrong for months:
+the opening prompt names the ticket reference and quotes nothing from the
+ticket. It has to, because it is the only message `rebuild()` cannot fence.
 
 The visible one is the fence. `quarantine()` in
 [transcript.py](../deskhand/runtime/transcript.py) wraps every tool result in a
@@ -497,12 +513,12 @@ against the only payload its author had imagined. It passed for months. See
 is evidence somebody tried, and it belongs in the transcript, the run viewer, and
 the replay.
 
-**Watch for, most of all.** Delete the fence entirely and 19 of 21 evals still
+**Watch for, most of all.** Delete the fence entirely and 22 of 25 evals still
 pass. That is [exercise
 02](education/exercises/02-remove-the-invisible-layer.md), and it is the one
 worth doing, because it is the uncomfortable consequence of defence in depth:
 removing a redundant layer changes almost nothing you can observe. Delete the
-approval gate instead and 12 of 21 fail. Only the load-bearing layer is loud.
+approval gate instead and 14 of 25 fail. Only the load-bearing layer is loud.
 
 ### 15. The worker dies at the worst moment
 
@@ -690,7 +706,13 @@ collected in one place:
 - **Exactly-once assumes one database.** Covered at stop 15.
 - **The `/usage` endpoint leaks across tenants**, on purpose, for the demo.
   Covered at stop 2.
-- **The login throttle is per-process.** Covered at stop 1.
+- **The login throttle is per-process,** and so is the throttle on starting
+  runs. Behind several replicas the effective limit multiplies by the replica
+  count. Covered at stop 1.
+- **`style-src` allows inline.** The UI sets style props on elements, which the
+  browser reads as inline styles, so the CSP cannot forbid them. `script-src`
+  stays strict, which is the half that matters for a token in localStorage, and
+  a test asserts the relaxation so widening it further has to be deliberate.
 - **The mock provider is not a small model.** It is a handful of fixed
   trajectories chosen by keyword. The $19.00 in the demo approval is a regex
   fallback, not a judgment about the ticket. It exists to walk the runtime

@@ -67,15 +67,22 @@ tries to break it:
    bound to that exact run, step, and argument hash. A test approves a $19.00
    refund, rewrites the pending call to $48.00 mid-flight, and asserts the
    runtime refuses rather than executing something nobody saw.
-3. **Boundedness** — every run terminates: step, token, wall-clock and spend
-   caps, all checked *before* each model call, plus loop detection on repeated
-   argument hashes. The deadline is absolute, so a crash-looping run cannot earn
-   itself a fresh clock.
-4. **Integrity** — content coming back from a tool is data, never instruction.
-   The seeded `NW-4` ticket contains a forged `SYSTEM:` block ordering an
-   unapproved refund; a test drives a *fully obedient* model against it and the
-   refund still only becomes a request, because risk class is read from a frozen
-   registry that no tool result can reach.
+3. **Boundedness** — every run terminates and every run is capped on what it
+   pays out. Step, token, wall-clock and spend caps are checked *before* each
+   model call, with loop detection on repeated argument hashes; the deadline is
+   absolute, so a crash-looping run cannot earn itself a fresh clock. Money has
+   its own ceilings, per run and per merchant per day, checked at the point of
+   payment so they hold even after a human clicks approve — a test approves a
+   refund and asserts the ceiling refuses it anyway.
+4. **Integrity** — content coming back from a tool is data, never instruction,
+   and a run reads only what its own ticket is about. The seeded `NW-4` ticket
+   contains a forged `SYSTEM:` block ordering an unapproved refund; a test
+   drives a *fully obedient* model against it and the refund still only becomes
+   a request, because risk class is read from a frozen registry that no tool
+   result can reach. The same device covers the other thing a ticket can ask
+   for: an obedient agent told to look up a different customer is refused by the
+   tool, because a read keyed by a person answers for the ticket's customer and
+   nobody else.
 5. **Accountability** — every step is attributable: who, which run, what it cost,
    what it changed, and how to replay it.
 
@@ -93,7 +100,7 @@ same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
 ## Evals that assert on the path, not the answer
 
-`python -m evals.run` — 21 trajectory evals across the five invariants, wired
+`python -m evals.run` — 25 trajectory evals across the five invariants, wired
 as a required CI job. They drive the real loop, the real tools and a real
 Postgres; only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically.
@@ -110,9 +117,9 @@ error, crash, latency, garbage, and hostile text arriving through a tool
 result. It is off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
-**The gate has teeth.** Deliberately removing the approval check fails 12 of 21
+**The gate has teeth.** Deliberately removing the approval check fails 14 of 25
 evals across five invariants. Deliberately deleting the fence around untrusted
-content fails 2 — which turns out to be the more interesting result, and is
+content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
 
 ## Read the argument, then break it
@@ -128,7 +135,7 @@ The repository is an argument; [docs/education/](docs/education/) is the order i
 Then the [exercises](docs/education/exercises/), which are the point. Each is a one-line
 change with a verified result. If you do one, do
 **[02 — remove the invisible layer](docs/education/exercises/02-remove-the-invisible-layer.md)**:
-delete the most visible anti-injection defence in the project and watch 19 of 21
+delete the most visible anti-injection defence in the project and watch 22 of 25
 evals keep passing.
 
 ## Status
@@ -228,14 +235,16 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — eleven entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — fourteen entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
 before the first eval it was built for had even run. Two individually correct
 decisions that composed into a demo asking to refund a customer who only wanted
-a tracking number. And a sanitiser that reassembled the delimiter it was
-deleting, under a test that had passed since the day the defence was written.
+a tracking number. A sanitiser that reassembled the delimiter it was deleting,
+under a test that had passed since the day the defence was written. And a schema
+comment asserting that the opening prompt held none of the customer's words,
+written by me, false on the day I wrote it, and believed by every reader since.
 
 ## License
 

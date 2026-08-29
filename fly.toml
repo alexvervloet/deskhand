@@ -31,6 +31,11 @@ primary_region = "lhr"
   # merchants and a visitor can use both, so this is the number that actually
   # caps a day's bill.
   PLATFORM_DAILY_BUDGET_USD = "2.00"
+  # What a visitor may hand back to a fictional customer. The seeded orders top
+  # out at 249.00, so one run can settle any single ticket in full and cannot
+  # work its way through the queue refunding everything.
+  MAX_REFUND_CENTS_PER_RUN = "25000"
+  DAILY_REFUND_CENTS_PER_ORG = "100000"
 
   # An approval nobody answers should not pin a demo run open for a day.
   APPROVAL_TTL_SECONDS = "1800"

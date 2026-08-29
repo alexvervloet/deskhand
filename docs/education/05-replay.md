@@ -23,7 +23,7 @@ what the model saw before step 7 of run ffc01386…
 reconstructed from the step log — no model was called
 
 ── user ──────────────────────────────────────────────────────────────
-Work support ticket NW-1 (subject: Beans arrived stale).
+Work support ticket NW-1.
 ...
 ── assistant ─────────────────────────────────────────────────────────
 get_ticket(reference=NW-1)
@@ -34,6 +34,11 @@ tool_result
 Ticket NW-1: Beans arrived stale
 ...
 ```
+
+Note where the subject appears and where it does not. The opening turn names
+the ticket and quotes nothing from it, because that turn is the only one with no
+fence around it; "Beans arrived stale" arrives two messages later, inside the
+markers. It used to be in both places, which is [LESSONS 12](../../LESSONS.md).
 
 "Why did it decide to refund?" is answerable by looking at exactly what it had
 in front of it when it decided — including whether the fence was where it

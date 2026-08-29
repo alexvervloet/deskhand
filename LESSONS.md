@@ -433,3 +433,110 @@ And: when two configured durations govern one flow, put them next to each other
 and read them as a pair. `MAX_WALLCLOCK_SECONDS_PER_RUN` and
 `APPROVAL_TTL_SECONDS` were set in different files, months apart, each sensible
 alone.
+
+---
+
+## 12. The comment was already correct. The code was not.
+
+**Expected.** A security review of my own project would turn up gaps in the
+places I had not thought about. The fence, the registry and the approval gate
+had all been designed deliberately, so I expected findings around the edges.
+
+**What happened.** The first real finding was inside the thing I had thought
+about most. `runs.create` built the opening prompt like this:
+
+```python
+f"Work support ticket {ticket['reference']} (subject: {ticket['subject']})."
+```
+
+The subject is a line a customer types into a form. `transcript.rebuild` fences
+every tool result and cannot fence the opening prompt, because the prompt is
+written before the run row exists and the fence token is derived from the run
+id. So the one message in the conversation with no fence around it was carrying
+the one field on the ticket that an attacker controls directly.
+
+The part that stings: `migrations/0004_runs.sql` already said, about that column,
+
+> Note what it does not contain — the customer's words.
+
+I wrote that sentence. It was false when I wrote it. The interpolation went in
+because a bare reference felt unhelpfully terse, and a subject line is one short
+line, and it makes the trajectory read better in the viewer.
+
+**What this means.** A comment stating a security property is not a test of that
+property, and writing it down makes it *less* likely to be checked, because
+every subsequent reader takes it as established. The fence had four evals; the
+property the fence depends on had none. Nothing in the suite asserted anything
+about the prompt's contents, so the guarantee that made the fence meaningful was
+the only part of the mechanism nobody was testing.
+
+**Next time.** When a defence has a precondition — "this is safe *because* that
+never contains X" — the precondition gets its own test, named after the
+precondition rather than after the defence. `the-opening-prompt-quotes-no-customer-text`
+is now that eval, and it fails if anyone ever finds the terse prompt unhelpful
+again.
+
+---
+
+## 13. Two ceilings on cost, none on the thing the project is about
+
+**Expected.** Boundedness was the invariant I considered finished. Steps,
+tokens, wall clock, per-run spend, per-org daily, platform daily. Six ceilings,
+all checked before the model call, an eval each.
+
+**What happened.** Every one of those six measures what a run costs *me* in
+inference. Not one of them measures what it hands back. `issue_refund` checked
+that a refund fits inside its own order's remaining balance and nothing else, so
+one run touching four orders could refund four times, and four runs could do it
+in turn all afternoon.
+
+The `/usage` endpoint had been reporting `refunds_today_cents` since early on. I
+had been looking at that number on the dashboard for weeks. It was never
+compared to anything — it was a readout, and I had been reading it as a budget
+because it sat in a row with two actual budgets either side of it.
+
+**What this means.** A README whose defining sentence is about money, six
+ceilings on the API bill, and none on the payouts. The asymmetry survived
+because the caps I wrote were the caps a runtime naturally has: they protect the
+operator, and the operator is the person writing them. Nobody in the loop was
+representing the merchant whose money it is. "Human approval" was doing that
+job, which is to say a person reading a screen was the only ceiling — and the
+whole argument of this project is that a person reading a screen is a control
+you design *around*, not one you lean on.
+
+The fix had a second surprise in it. Locking the order row, which `_issue_refund`
+already did, serialises two runs fighting over one order and does nothing about
+two runs refunding different orders of the same merchant. Both read a daily
+total that leaves room; both pay. The daily ceiling needed a lock on the
+merchant, not on the order, and I nearly shipped a comment claiming the existing
+lock covered it.
+
+**Next time.** For each resource a system can consume, ask whose it is. The ones
+belonging to whoever writes the code get bounded early and thoroughly. The ones
+belonging to somebody else get a dashboard.
+
+---
+
+## 14. Fail-closed found its own call sites
+
+**Expected.** Adding `max_refund_cents` to `runs` with `default 0` was a passing
+thought — 0 meaning "no payout authority" seemed like the obviously safe
+default, and `runs.create` sets the real value on every run.
+
+**What happened.** Two test fixtures immediately went red. Both hand-build a run
+row with an explicit column list, and neither knew about the new column, so both
+got a ceiling of zero and every refund in them was refused.
+
+That is the default working exactly as intended, and for about a minute I read
+it as a bug in the default and considered backfilling a permissive value into
+the column definition.
+
+**What this means.** A fail-closed default turns "every place that constructs
+this row" from a question you have to answer by grepping into a list the test
+suite hands you. Had the default been permissive, those two fixtures would have
+kept passing and would have quietly documented that a run row can be created
+with no payout ceiling at all — which is precisely the row a future bug would
+have used.
+
+**Next time.** When adding a column that limits something, pick the default that
+breaks the callers. The moment of annoyance is the audit.

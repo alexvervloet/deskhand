@@ -144,17 +144,19 @@ observe.** Delete the idempotency ledger and the crash-resume eval still passes,
 because the step log covers that path. Delete the fence and both prompt-injection
 evals still pass, because the registry is what stops the attack.
 
-Measured, on the 21 trajectory evals:
+Measured, on the 25 trajectory evals:
 
 | Layer removed | Evals that fail |
 |---|---|
-| The approval gate (`requires_approval` → `False`) | **12 of 21** |
-| The fence around untrusted tool output | 1 |
-| The idempotency ledger | 1 |
-| Loop detection | 1 |
+| The approval gate (`requires_approval` → `False`) | **14 of 25** |
+| The fence around untrusted tool output | 3 of 25 |
+| The idempotency ledger | 1 of 25 |
+| Loop detection | 1 of 25 |
 
-Only the load-bearing one shows up loudly. Each redundant layer fails exactly
-one eval — the one written specifically to assert *that layer exists*.
+Only the load-bearing one shows up loudly. Each redundant layer fails only the
+evals written specifically to assert *that layer exists* — one apiece for the
+ledger and loop detection, three for the fence, and every one of those three is
+a claim about the mechanism rather than about an outcome.
 
 If every eval asks "did the right thing happen", a system with three defences
 will keep answering yes after you have deleted two of them, and you find out
@@ -167,7 +169,7 @@ removal.
 
 Decide which properties must survive every future change, then build something
 automated that fails loudly when one stops holding — **before** you build the
-feature. Here that is 21 trajectory evals wired into CI as a required step,
+feature. Here that is 25 trajectory evals wired into CI as a required step,
 and a fault injector that makes tools fail on purpose so those evals have
 something to be robust against.
 

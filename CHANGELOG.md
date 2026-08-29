@@ -4,6 +4,77 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## A security review, and the six gaps it found
+
+A review of the whole surface for prompt injection and the usual web
+weaknesses. The defences that were designed deliberately held up — the fence
+strips forged markers correctly, risk class is unreachable from a tool result,
+an approval is bound to an argument hash, and an email's recipient comes from
+the database rather than from the model. The gaps were all in the space
+*around* those.
+
+- **Fixed: the ticket subject reached the model unfenced.** `runs.create`
+  interpolated `ticket['subject']` into the opening prompt, and that prompt is
+  the one message `transcript.rebuild` cannot fence — it is built before the run
+  row exists, and the fence token is derived from the run id. A subject is a
+  line a customer types into a form, so the single piece of untrusted text
+  arriving as trusted narration was the one attached to the ticket being worked.
+  The prompt now names the reference and quotes nothing else; the subject still
+  reaches the model through `get_ticket`, inside the fence. The schema comment on
+  that column had claimed this property since the day it was written, which is
+  [LESSONS 12](LESSONS.md). New eval `the-opening-prompt-quotes-no-customer-text`.
+- **Fixed: nothing capped what a run could pay out.** Six ceilings on what a run
+  costs in inference, none on what it hands back. `issue_refund` checked one
+  order's remaining balance, so a run touching four orders could refund four
+  times and four runs could do it in turn. Two ceilings now, per run and per
+  merchant per day, enforced at the point of payment so they hold even after a
+  human clicks approve — consent is for one payment, not a waiver of the limit.
+  The per-run figure is snapshotted onto the row like every other bound. The
+  merchant row is locked to check the daily one, because the existing lock is on
+  an order and does nothing about two runs refunding two different orders at
+  once. New evals `a-run-cannot-refund-past-its-ceiling` and
+  `the-ceiling-counts-across-orders`.
+- **Fixed: any ticket could read any customer's history.** `get_customer` took
+  any email at the merchant and `list_refunds` returned the merchant's whole
+  recent ledger. Org scope is a tenancy boundary, not a need-to-know one, and
+  the argument deciding whose data comes back originates with a model that has
+  just read a ticket written by a stranger — with `send_customer_email`
+  downstream of it. `ToolContext` now carries the run's ticket and customer, read
+  off the run's own row inside `invoke`, and both tools scope to it. `search_kb`,
+  `get_ticket` and `get_order` stay merchant-scoped; the line is drawn at tools
+  keyed by a person. New eval `a-ticket-cannot-pivot-to-another-customer`.
+- **Fixed: the approval preview was rendered from unvalidated arguments.**
+  `approvals.request` builds the sentence a human reads, and it built it before
+  anything validated what the model had sent — so an irreversible call missing a
+  required property raised a `KeyError` out of the preview lambda and failed the
+  run, before any of the code that knows how to report a bad argument ran. It is
+  now validated on the approval path and settled the way an unregistered tool
+  already is: a failed result the agent corrects, with no approval row asking
+  anyone to authorise a call that could never have executed.
+- **Fixed: no security headers.** The app serves the built SPA and the API from
+  one origin and keeps the session token in `localStorage`, so any script
+  executing in that origin reads it and acts as the signed-in user for a week.
+  React's escaping was the only thing between customer ticket bodies and that,
+  with nothing behind it. Full CSP, `nosniff`, `frame-ancestors 'none'`,
+  `Referrer-Policy` and `Permissions-Policy` on every response, set in middleware
+  because the static mount is not a route anyone could remember to decorate.
+  `script-src 'self'` is the load-bearing half; `style-src` has to allow inline
+  because the UI sets style props, and a test asserts that relaxation so widening
+  it further is deliberate.
+- **Fixed: agent notes were filed as `system`.** `add_internal_note` wrote
+  `author_kind = 'system'`, the most authoritative label in the vocabulary, for a
+  body the model composed after reading a stranger's ticket. The queue was
+  showing a colleague the platform's authority for model prose.
+  `send_customer_email` already wrote `'agent'`; now both do.
+- **Changed: the container drops root,** and run starts are throttled per
+  merchant. The budget caps remain the real ceiling on spend; the throttle stops
+  a signed-in user looping the endpoint and exhausting the shared platform budget
+  for every other tenant.
+- **Changed: the sabotage numbers, re-measured.** With 25 evals rather than 21,
+  deleting the approval gate fails 14 and deleting the fence fails 3. The shape
+  of the result is unchanged and is still the point: the fence is the visible
+  defence and the registry is the load-bearing one.
+
 ## A pre-publication audit, and the bug it found
 
 - **Fixed: the wall-clock deadline was also bounding human deliberation.** A run
@@ -100,7 +171,7 @@ rather than by version number.
 - **[docs/education/](docs/education/)** — the thesis, a concept index, the exactly-once story with
   its assumption stated plainly, and how the evals work.
 - **Four exercises**, each a one-line change with a verified result. Exercise 02
-  deletes the fence and watches 19 of 21 evals keep passing.
+  deletes the fence and watches 22 of 25 evals keep passing.
 - **Demo assets** — a terminal recording of a worker dying mid-run, and
   screenshots of the approval gate and of an injected instruction being quoted
   rather than obeyed.

@@ -275,7 +275,7 @@ being fooled is what keeps you safe. Treat the model as a component that will
 sometimes be wrong on adversarial input, because it is one.
 
 There is a mutation testing result in this repo that makes the point
-quantitatively. Delete the fence and 19 of the 21 evals still pass. Delete the
+quantitatively. Delete the fence and 22 of the 25 evals still pass. Delete the
 approval gate and 11 fail. Only one of those two is load-bearing, and it is not
 the one that looks like the security feature.
 

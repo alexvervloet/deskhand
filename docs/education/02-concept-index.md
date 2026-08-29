@@ -45,6 +45,11 @@ Where each idea lives in the code. Ordered by how likely you are to want it.
 | Bounds frozen at run creation | `runs.create()` |
 | The absolute deadline | `deadline_at` — a timestamp, not a duration |
 | Per-org and platform daily spend | the last two queries in `_bound_exceeded()` |
+| Ceilings on money paid out | `_ceilings()` in [tools/irreversible.py](../../deskhand/tools/irreversible.py) |
+| Why the payout cap is not in `_bound_exceeded` | it gates model calls; a cap before the *proposal* is not a cap on the payment |
+| Why the org row is locked to check it | the caller's lock is on one order, and two runs can refund two orders at once |
+| Fail-closed by default | `max_refund_cents default 0` in [0006_refund_ceiling.sql](../../migrations/0006_refund_ceiling.sql) |
+| Throttling how fast runs can be started | `run_limiter` in [ratelimit.py](../../deskhand/ratelimit.py) |
 
 ## Integrity
 
@@ -55,6 +60,12 @@ Where each idea lives in the code. Ordered by how likely you are to want it.
 | The attack, in the fixtures | ticket `NW-4` in [seed.py](../../deskhand/seed.py) |
 | The defence that actually holds | `requires_approval()` — see [01-thesis.md](01-thesis.md) |
 | Rendering untrusted content as untrusted | [Trajectory.tsx](../../frontend/src/components/Trajectory.tsx) |
+| Why the opening prompt holds no customer text | `runs.create()` — it is the one message `rebuild` cannot fence |
+| Scoping a read to the ticket's own customer | `ctx.customer_id` checks in [tools/read.py](../../deskhand/tools/read.py) |
+| Where that scope comes from | `invoke()` reads it off the run's row, so no caller can supply it |
+| Filing model prose as the agent, not the system | `author_kind` in `_add_internal_note` |
+| Validating an irreversible call before a human sees it | the `validate` branch in `_settle()` |
+| Stopping a stolen token being one XSS away | `_SECURITY_HEADERS` in [main.py](../../deskhand/main.py) |
 
 ## Accountability
 
