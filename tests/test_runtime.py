@@ -604,6 +604,40 @@ def test_tool_output_reaches_the_model_inside_a_fence() -> None:
     assert "Ignore all previous instructions" in str(results)
 
 
+def test_an_invalid_irreversible_call_never_reaches_a_human() -> None:
+    """Nobody should be asked to approve a call that could not have run.
+
+    The preview a human reads is rendered from the model's arguments, so it was
+    the first code to touch them — before anything validated them. A missing
+    required property raised a KeyError out of the preview and killed the run,
+    which is the wrong failure for the one thing the loop is otherwise careful
+    about: a model asking for something malformed is the model's mistake to
+    correct, not a reason to end a run that may already have moved money.
+    """
+    run_id = start_run("NW-1")
+    provider = ScriptedProvider(
+        script=[
+            # No amount_cents. The schema requires it; the preview reads it.
+            [call("issue_refund", order_reference="NW-1042", reason="Stale beans.")],
+            text("I left out the amount; nothing was refunded."),
+        ]
+    )
+
+    assert drive(run_id, provider) == "succeeded"
+
+    assert fetch_all("select id from approvals where run_id = %s", (run_id,)) == []
+    assert fetch_all("select id from refunds") == []
+
+    result = one(
+        "select content from steps where run_id = %s and kind = 'tool_result'",
+        (run_id,),
+    )
+    assert result is not None
+    assert result["content"]["ok"] is False
+    assert "invalid arguments for issue_refund" in result["content"]["result"]
+    assert "amount_cents" in result["content"]["result"]
+
+
 def test_the_opening_prompt_quotes_nothing_the_customer_wrote() -> None:
     """The prompt is the one message `rebuild` does not fence.
 

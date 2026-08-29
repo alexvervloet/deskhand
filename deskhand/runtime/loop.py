@@ -28,7 +28,14 @@ from deskhand import pricing, tracing
 from deskhand.config import settings
 from deskhand.providers import ModelReply, Provider
 from deskhand.runtime import approvals, runs, transcript
-from deskhand.tools import api_schemas, args_hash, is_registered, requires_approval
+from deskhand.tools import (
+    ToolError,
+    api_schemas,
+    args_hash,
+    get,
+    is_registered,
+    requires_approval,
+)
 from deskhand.tools.invoke import invoke
 
 log = logging.getLogger("deskhand")
@@ -376,6 +383,38 @@ def _settle(
             continue
 
         if requires_approval(name):
+            # Validate before asking anyone. `approvals.request` renders the
+            # preview a human reads, and it renders it from these arguments —
+            # so an irreversible call missing a required property used to raise
+            # a KeyError out of the preview lambda and kill the run, before any
+            # of the code that knows how to report a bad argument had run.
+            #
+            # Settled the way an unregistered tool is: a failed result the agent
+            # reads and corrects, with no approval row asking a person to
+            # authorise a call that could never have executed. Tools that need
+            # no approval are not checked here because `invoke` already
+            # validates them and records the failure in the ledger; the gap was
+            # only ever on the path that renders something for a human first.
+            try:
+                get(name).validate(args)
+            except ToolError as exc:
+                runs.append_step(
+                    cur,
+                    run_id=run_id,
+                    seq=runs.next_seq(cur, run_id),
+                    kind="tool_result",
+                    content={
+                        "tool_use_id": tool_use_id,
+                        "name": name,
+                        "args": args,
+                        "result": str(exc),
+                        "ok": False,
+                    },
+                    tool_name=name,
+                )
+                log.warning("run %s proposed an invalid %s call: %s", run_id, name, exc)
+                continue
+
             decision = approvals.request(
                 cur,
                 org_id=org_id,
