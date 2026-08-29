@@ -495,3 +495,50 @@ def test_a_negative_limit_is_rejected_rather_than_reaching_postgres() -> None:
     assert client.get("/runs?limit=-1", headers=headers).status_code == 422
     assert client.get("/runs?limit=0", headers=headers).status_code == 422
     assert client.get("/runs?limit=100000", headers=headers).status_code == 200
+
+
+# ------------------------------------------------------------------- headers
+
+
+def test_every_response_carries_the_security_headers() -> None:
+    """Including the ones nobody remembers to decorate.
+
+    The token lives in localStorage, so a script executing in this origin can
+    read it and act as the signed-in user until it expires. `script-src 'self'`
+    is what keeps that from being one XSS away, and it has to be on the error
+    responses and the static SPA too, not only on the routes that succeeded.
+    """
+    responses = [
+        client.get("/healthz"),                       # public, 200
+        client.get("/tickets"),                       # unauthenticated, 401
+        client.get("/runs/nonsense", headers=login()),  # authenticated, 404
+    ]
+    for response in responses:
+        csp = response.headers["Content-Security-Policy"]
+        assert "script-src 'self'" in csp
+        assert "frame-ancestors 'none'" in csp
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_the_policy_permits_no_inline_or_third_party_script() -> None:
+    """The two ways the SPA could be made to run somebody else's code.
+
+    `style-src` deliberately allows inline, because the UI sets style props and
+    the browser reads those as inline styles. Script does not, and that is the
+    half that matters: reading the token requires script execution.
+    """
+    csp = client.get("/healthz").headers["Content-Security-Policy"]
+    directives = dict(
+        (part.split(" ", 1) + [""])[:2]
+        for part in (p.strip() for p in csp.split(";"))
+        if part
+    )
+    assert directives["script-src"] == "'self'"
+    assert "unsafe-inline" not in directives["script-src"]
+    assert "unsafe-eval" not in directives["script-src"]
+    assert directives["object-src"] == "'none'"
+    assert directives["base-uri"] == "'none'"
+    # The one relaxation, asserted so that widening it is a deliberate edit.
+    assert directives["style-src"] == "'self' 'unsafe-inline'"

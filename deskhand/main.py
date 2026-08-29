@@ -92,6 +92,60 @@ app.add_middleware(
 )
 
 
+# `script-src 'self'` is the line that matters. This process serves the built
+# SPA as well as the API, and the session token lives in localStorage, so any
+# script that executes in this origin can read it and act as the signed-in user
+# for the week the token is good for. React escaping is what stops that today
+# and it is a single layer, on screens that render customer ticket bodies and
+# raw model output on every view.
+#
+# `style-src` has to allow inline: the UI sets style props on elements, which
+# the browser treats as inline styles. That is a real weakening and it is worth
+# being clear about which half of the policy is load-bearing — a stolen token
+# needs script execution, and script execution is what stays locked down.
+#
+# `connect-src 'self'` covers the SSE stream, which is same-origin in the
+# deployed app. In development Vite serves the UI on another port and these
+# headers never reach that page, so the split origin is unaffected.
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'none'; "
+        "form-action 'none'; "
+        "frame-ancestors 'none'"
+    ),
+    # An approval screen inside somebody else's iframe is a clickjacked
+    # approval. frame-ancestors above is the modern spelling; this is the one
+    # older browsers honour, and they disagree about nothing here.
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    # Run ids appear in the path. They are not secrets, but there is no reason
+    # to hand them to whatever a user clicks through to next.
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next: Any) -> Any:
+    """Set the headers on every response, including errors and the SPA.
+
+    Middleware rather than a per-route dependency for the boring reason: a
+    route that forgets is a route with no policy, and the static mount at the
+    bottom of this file is not a route anyone could remember to decorate.
+    """
+    response = await call_next(request)
+    for header, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
+
+
 # --------------------------------------------------------------------- health
 
 
