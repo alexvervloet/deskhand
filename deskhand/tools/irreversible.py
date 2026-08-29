@@ -13,6 +13,13 @@ Two things are true of every tool in this module:
    hold is a constraint here, not a sentence in the system prompt, because the
    prompt is advice and this is arithmetic.
 
+   `issue_refund` carries three such constraints, and they answer different
+   questions. The remaining balance stops one order being refunded twice. The
+   per-run ceiling stops one run refunding four orders once each. The daily
+   ceiling stops four runs doing it in turn. Only the first of those was here
+   originally, which left the total a busy afternoon could pay out bounded by
+   nothing but a person reading approval screens carefully.
+
 There is no `apply_inverse` for anything in this file. A refund can be answered
 by a charge in the other direction, but that is a new decision requiring its
 own approval, not an undo.
@@ -22,6 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from deskhand.config import settings
 from deskhand.tools.base import RiskClass, ToolContext, ToolDef, ToolError, ToolOutcome, register
 from deskhand.tools.read import schema
 
@@ -31,6 +39,66 @@ def _money(cents: int, currency: str = "USD") -> str:
 
 
 # ------------------------------------------------------------- issue_refund
+
+
+def _ceilings(ctx: ToolContext, amount: int, currency: str) -> None:
+    """Refuse a payout that breaches a ceiling, before any money moves.
+
+    Two ceilings, and neither is the per-order remaining balance — that one is
+    about a single order being refunded twice, and it says nothing about a run
+    that refunds four different orders once each.
+
+    The run ceiling is read off the run row, not from settings, because it was
+    snapshotted at creation. Raising the cap in a deploy must not retroactively
+    widen a run already in flight.
+
+    This is here rather than in the runtime's bounds check for the reason the
+    module docstring gives: `_bound_exceeded` gates model calls, and a ceiling
+    checked before the call that *proposes* a refund is not a ceiling on the
+    refund. It is checked here, at the point of payment, so it holds even when
+    a human has already clicked approve on the screen.
+
+    The org row is locked first, and that is not decoration. The caller holds a
+    lock on the *order*, which serialises two runs fighting over one order and
+    does nothing about two runs refunding different orders of the same
+    merchant — both would read a daily total that leaves room, and both would
+    pay. Locking the merchant serialises every payout it makes. Refunds are
+    rare enough that the contention costs nothing, and a ceiling that holds
+    only when nothing else is happening is not a ceiling.
+    """
+    ctx.cursor.execute("select id from orgs where id = %s for update", (ctx.org_id,))
+
+    ctx.cursor.execute(
+        "select r.max_refund_cents,"
+        "       coalesce((select sum(amount_cents) from refunds"
+        "                  where run_id = r.id), 0) as run_paid,"
+        "       coalesce((select sum(amount_cents) from refunds"
+        "                  where org_id = r.org_id"
+        "                    and created_at >= date_trunc('day', now())), 0) as org_paid"
+        "  from runs r where r.id = %s",
+        (ctx.run_id,),
+    )
+    row = ctx.cursor.fetchone()
+    assert row is not None
+
+    run_cap = int(row["max_refund_cents"])
+    run_paid = int(row["run_paid"])
+    if run_paid + amount > run_cap:
+        raise ToolError(
+            f"this run may refund {_money(run_cap, currency)} in total and has already"
+            f" refunded {_money(run_paid, currency)}, so it cannot also refund"
+            f" {_money(amount, currency)}. Do not split the payment into smaller"
+            " refunds to get under the ceiling — escalate to a human instead."
+        )
+
+    org_cap = settings.daily_refund_cents_per_org
+    org_paid = int(row["org_paid"])
+    if org_paid + amount > org_cap:
+        raise ToolError(
+            f"this merchant's daily refund ceiling of {_money(org_cap, currency)} would"
+            f" be breached: {_money(org_paid, currency)} has been refunded today."
+            " Escalate to a human rather than refunding."
+        )
 
 
 def _issue_refund(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
@@ -66,6 +134,8 @@ def _issue_refund(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
             f" {_money(order['total_cents'], order['currency'])} is already refunded,"
             f" leaving {_money(remaining, order['currency'])}"
         )
+
+    _ceilings(ctx, amount, order["currency"])
 
     # run_id is stamped on the row itself, so "which run paid this out, and
     # therefore who approved it" is a join and not an investigation.

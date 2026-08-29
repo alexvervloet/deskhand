@@ -54,8 +54,9 @@ def _new_run(cur, org: str) -> str:
     ticket = row(cur)
     cur.execute(
         "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
-        "                  max_spend_micros, deadline_at)"
-        " values (%s, %s, 'tool test', 24, 400000, 2000000, now() + interval '15 minutes')"
+        "                  max_spend_micros, max_refund_cents, deadline_at)"
+        " values (%s, %s, 'tool test', 24, 400000, 2000000, 100000,"
+        "         now() + interval '15 minutes')"
         " returning id",
         (org, ticket["id"]),
     )
@@ -274,6 +275,26 @@ def test_refunds_accumulate_against_the_order(cur, org) -> None:
         "order_reference": "NW-1042", "amount_cents": 3000, "reason": "the rest"
     }, seq=3)
     assert not too_much.ok
+
+
+def test_a_run_with_no_ceiling_on_its_row_refunds_nothing(cur, org) -> None:
+    """`max_refund_cents` defaults to 0, and 0 is no payout authority.
+
+    A run row inserted by a code path that has never heard of the column gets a
+    ceiling of zero rather than an assumed one. This is the direction a
+    forgotten field should fail in when the field is a limit on money.
+    """
+    run_id = _new_run(cur, org)
+    cur.execute("update runs set max_refund_cents = 0 where id = %s", (run_id,))
+
+    out = run_tool(cur, org, "issue_refund", {
+        "order_reference": "NW-1042", "amount_cents": 100, "reason": "a token amount"
+    }, run_id=run_id)
+
+    assert not out.ok
+    assert "may refund" in out.result
+    cur.execute("select count(*) as n from refunds")
+    assert row(cur)["n"] == 0
 
 
 def test_a_shipped_order_cannot_be_cancelled(cur, org) -> None:

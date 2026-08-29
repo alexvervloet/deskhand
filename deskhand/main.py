@@ -570,6 +570,8 @@ def usage(caller: CallerDep) -> Any:
         "runs_today": int(org["runs"]),
         "refunds_today_cents": int(refunded["cents"]),
         "refunds_today_display": f"${int(refunded['cents']) / 100:,.2f}",
+        "refund_budget_today_cents": settings.daily_refund_cents_per_org,
+        "refund_budget_today_display": f"${settings.daily_refund_cents_per_org / 100:,.2f}",
     }
 
 

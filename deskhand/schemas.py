@@ -144,6 +144,11 @@ class UsageResponse(BaseModel):
     runs_today: int
     refunds_today_cents: int
     refunds_today_display: str
+    # The ceiling the number above is measured against. Sent because a figure
+    # with no ceiling beside it reads as reporting; the two together read as a
+    # budget, which is what it is.
+    refund_budget_today_cents: int
+    refund_budget_today_display: str
 
 
 LoginResponse.model_rebuild()

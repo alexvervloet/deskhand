@@ -74,8 +74,8 @@ def create(
 
     cur.execute(
         "insert into runs (org_id, ticket_id, started_by, prompt, max_steps, max_tokens,"
-        "                  max_spend_micros, deadline_at)"
-        " values (%s, %s, %s, %s, %s, %s, %s, now() + make_interval(secs => %s))"
+        "                  max_spend_micros, max_refund_cents, deadline_at)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(secs => %s))"
         " returning id",
         (
             org_id,
@@ -85,6 +85,7 @@ def create(
             settings.max_steps_per_run,
             settings.max_tokens_per_run,
             int(settings.max_spend_usd_per_run * 1_000_000),
+            settings.max_refund_cents_per_run,
             settings.max_wallclock_seconds_per_run,
         ),
     )

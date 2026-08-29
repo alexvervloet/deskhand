@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     max_spend_usd_per_run: Decimal = Decimal("2.00")
     loop_detection_threshold: int = 3
 
+    # --- Payout ceilings ---
+    # What the agent may hand back to customers, as opposed to what it costs to
+    # run. These are the only bounds in this file denominated in the merchant's
+    # money rather than ours, and they are the ones that matter: a runaway run
+    # was always capped at a couple of dollars of inference, while the amount it
+    # could refund was capped only by a human reading approval screens.
+    # Cents, because money here is integer cents everywhere and a Decimal of
+    # dollars in this one place would invite a float on the way to a comparison.
+    max_refund_cents_per_run: int = 100_000
+    daily_refund_cents_per_org: int = 500_000
+
     # --- Spend ceilings ---
     daily_budget_usd_per_org: Decimal = Decimal("10.00")
     # Per-org caps bound one tenant, so they only bound the bill if the number

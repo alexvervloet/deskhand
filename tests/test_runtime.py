@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one, one
 from deskhand.providers import ScriptedProvider, call, text
 from deskhand.runtime import approvals, loop, runs, transcript
@@ -416,6 +417,159 @@ def test_the_deadline_survives_a_resume() -> None:
 
     assert drive(run_id, ScriptedProvider(script=[text("hi")])) == "exhausted"
     assert run_row(run_id)["stop_reason"] == runs.STOP_DEADLINE
+
+
+def _approve_everything(run_id: str) -> int:
+    """Approve every pending decision on a run. Returns how many there were."""
+    pending = fetch_all(
+        "select id from approvals where run_id = %s and status = 'pending'", (run_id,)
+    )
+    with connection() as conn, conn.cursor() as cur:
+        for row in pending:
+            approvals.decide(
+                cur,
+                approval_id=str(row["id"]),
+                org_id=org_id(),
+                decision="approved",
+                decided_by=user_id("owner@northwind.test"),
+            )
+        conn.commit()
+    return len(pending)
+
+
+def test_a_run_cannot_refund_past_its_ceiling_even_once_approved() -> None:
+    """The ceiling is arithmetic, not advice.
+
+    A human clicking approve is consent for *this* payment. It is not a waiver
+    of the limit on what one run may pay out in total, and the check therefore
+    lives at the point of payment rather than on the approval screen.
+    """
+    run_id = start_run("NW-1")
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "update runs set max_refund_cents = 1000 where id = %s", (run_id,)
+        )
+        conn.commit()
+
+    def provider() -> ScriptedProvider:
+        return ScriptedProvider(
+            script=[
+                [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
+                      reason="Stale beans.")],
+                text("Could not refund."),
+            ]
+        )
+
+    assert drive(run_id, provider()) == "awaiting_approval"
+    assert _approve_everything(run_id) == 1
+    assert drive(run_id, provider()) == "succeeded"
+
+    # Approved, attempted, and refused. No money moved.
+    assert fetch_all("select id from refunds") == []
+
+    result = one(
+        "select content from steps where run_id = %s and kind = 'tool_result'"
+        " order by seq desc limit 1",
+        (run_id,),
+    )
+    assert result is not None
+    assert result["content"]["ok"] is False
+    assert "may refund" in result["content"]["result"]
+    # And it is told not to route around the limit by splitting the payment.
+    assert "split the payment" in result["content"]["result"]
+
+
+def test_the_ceiling_counts_across_orders_not_within_one() -> None:
+    """The per-order remaining balance never saw this coming.
+
+    Two orders, one run, each refund comfortably inside its own order's total.
+    The only thing that stops the pair is a ceiling that counts them together.
+    """
+    run_id = start_run("NW-1")
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("update runs set max_refund_cents = 5000 where id = %s", (run_id,))
+        conn.commit()
+
+    def provider() -> ScriptedProvider:
+        return ScriptedProvider(
+            script=[
+                [call("issue_refund", order_reference="NW-1042", amount_cents=4800,
+                      reason="Stale beans.")],
+                [call("issue_refund", order_reference="NW-1077", amount_cents=3200,
+                      reason="Also stale.")],
+                text("Done what I could."),
+            ]
+        )
+
+    assert drive(run_id, provider()) == "awaiting_approval"
+    assert _approve_everything(run_id) == 1
+    assert drive(run_id, provider()) == "awaiting_approval"
+    assert _approve_everything(run_id) == 1
+    assert drive(run_id, provider()) == "succeeded"
+
+    # The first fits under 5000 and is paid. The second would take the run to
+    # 8000 and is refused, despite fitting inside its own order's 3200 total.
+    refunds = fetch_all("select amount_cents from refunds")
+    assert [r["amount_cents"] for r in refunds] == [4800]
+
+
+def test_the_merchants_daily_ceiling_bounds_what_many_runs_do_in_turn(
+    monkeypatch,
+) -> None:
+    """A per-run cap bounds one run. It bounds the day only if the number of
+    runs is bounded too, which it is not."""
+    monkeypatch.setattr(settings, "daily_refund_cents_per_org", 5000)
+
+    first, second = start_run("NW-1"), start_run("NW-2")
+
+    def provider(order: str, amount: int) -> ScriptedProvider:
+        return ScriptedProvider(
+            script=[
+                [call("issue_refund", order_reference=order, amount_cents=amount,
+                      reason="Quality problem.")],
+                text("Finished."),
+            ]
+        )
+
+    assert drive(first, provider("NW-1042", 4800)) == "awaiting_approval"
+    assert _approve_everything(first) == 1
+    assert drive(first, provider("NW-1042", 4800)) == "succeeded"
+
+    assert drive(second, provider("NW-1077", 3200)) == "awaiting_approval"
+    assert _approve_everything(second) == 1
+    assert drive(second, provider("NW-1077", 3200)) == "succeeded"
+
+    # Each run was inside its own ceiling. The merchant's day was not.
+    assert [r["amount_cents"] for r in fetch_all("select amount_cents from refunds")] == [4800]
+
+
+def test_raising_the_ceiling_does_not_widen_a_run_already_in_flight(
+    monkeypatch,
+) -> None:
+    """Snapshotted like every other bound. A deploy must not retroactively
+    permit a payout the run was created too small to make."""
+    monkeypatch.setattr(settings, "max_refund_cents_per_run", 1000)
+    run_id = start_run("NW-1")
+    assert run_row(run_id)["max_refund_cents"] == 1000
+
+    monkeypatch.setattr(settings, "max_refund_cents_per_run", 500_000)
+
+    provider = ScriptedProvider(
+        script=[
+            [call("issue_refund", order_reference="NW-1042", amount_cents=4800,
+                  reason="Stale beans.")],
+            text("Could not refund."),
+        ]
+    )
+    assert drive(run_id, provider) == "awaiting_approval"
+    _approve_everything(run_id)
+    assert drive(run_id, ScriptedProvider(script=[
+        [call("issue_refund", order_reference="NW-1042", amount_cents=4800,
+              reason="Stale beans.")],
+        text("Could not refund."),
+    ])) == "succeeded"
+
+    assert fetch_all("select id from refunds") == []
 
 
 # ----------------------------------------------------- invariant 4, integrity

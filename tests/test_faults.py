@@ -40,8 +40,9 @@ def run(cur) -> tuple[str, str, str]:
     ticket = str(row(cur)["id"])
     cur.execute(
         "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
-        "                  max_spend_micros, deadline_at)"
-        " values (%s, %s, 'fault test', 24, 400000, 2000000, now() + interval '15 min')"
+        "                  max_spend_micros, max_refund_cents, deadline_at)"
+        " values (%s, %s, 'fault test', 24, 400000, 2000000, 100000,"
+        "         now() + interval '15 min')"
         " returning id",
         (org, ticket),
     )
