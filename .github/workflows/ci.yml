@@ -67,6 +67,11 @@ jobs:
       - name: Audit dependencies
         run: npm audit --audit-level=high
         working-directory: frontend
+      # tsc has nothing to say about a promise handed to onClick or a hook
+      # called behind a condition, which is most of what breaks a React screen.
+      - name: ESLint
+        run: npm run lint
+        working-directory: frontend
       # `npm run build` runs tsc first, so a type error fails the build rather
       # than shipping a bundle that breaks at runtime.
       - name: Type-check and build
