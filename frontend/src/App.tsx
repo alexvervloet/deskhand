@@ -58,10 +58,13 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
 
   useEffect(() => {
     if (!selected) return;
-    api.ticket(selected).then((t) => {
-      setDetail(t);
-      setRunId(t.open_run_id);
-    });
+    api
+      .ticket(selected)
+      .then((t) => {
+        setDetail(t);
+        setRunId(t.open_run_id);
+      })
+      .catch((e) => setError((e as Error).message));
   }, [selected, tickets]);
 
   const riskOf = useCallback(
@@ -101,10 +104,12 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
             </span>
           </span>
           <button
-            onClick={async () => {
-              await api.logout().catch(() => undefined);
-              setToken(null);
-              onSignedOut();
+            onClick={() => {
+              void (async () => {
+                await api.logout().catch(() => undefined);
+                setToken(null);
+                onSignedOut();
+              })();
             }}
           >
             Sign out
@@ -167,7 +172,7 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
         )}
 
         {selected && detail && !runId && (
-          <TicketPane detail={detail} onRun={() => start(detail.reference)} />
+          <TicketPane detail={detail} onRun={() => void start(detail.reference)} />
         )}
 
         {runId && (
@@ -175,7 +180,7 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
             runId={runId}
             user={user}
             riskOf={riskOf}
-            onChanged={() => refresh().catch(() => undefined)}
+            onChanged={() => void refresh().catch(() => undefined)}
           />
         )}
 
@@ -229,7 +234,7 @@ function Usage() {
 
   useEffect(() => {
     const tick = () => api.usage().then(setUsage).catch(() => undefined);
-    tick();
+    void tick();
     const timer = setInterval(tick, 5000);
     return () => clearInterval(timer);
   }, []);

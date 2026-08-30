@@ -35,7 +35,7 @@ export default function StepPrompt({ runId, seq }: { runId: string; seq: number 
 
   return (
     <>
-      <button className="peek" onClick={toggle}>
+      <button className="peek" onClick={() => void toggle()}>
         {open ? "hide what the model saw" : "what the model saw here"}
       </button>
 

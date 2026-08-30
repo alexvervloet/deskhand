@@ -58,6 +58,22 @@ export default function RunView({
 
   const live = ["queued", "running", "awaiting_approval"].includes(run.status);
 
+  // Named rather than inline async handlers, so the JSX can hand React a
+  // void-returning function and the rejection has somewhere to land. The id is
+  // read out here because the narrowing above does not reach inside a closure.
+  const activeRun = run.id;
+
+  async function cancel() {
+    await api.cancelRun(activeRun);
+    await reload();
+    onChanged();
+  }
+
+  async function afterDecision() {
+    await reload();
+    onChanged();
+  }
+
   return (
     <div>
       <div className="run-head">
@@ -84,11 +100,7 @@ export default function RunView({
           {live && (
             <button
               className="danger"
-              onClick={async () => {
-                await api.cancelRun(run.id);
-                await reload();
-                onChanged();
-              }}
+              onClick={() => void cancel()}
             >
               Cancel run
             </button>
@@ -108,10 +120,7 @@ export default function RunView({
           key={approval.id}
           approval={approval}
           user={user}
-          onDecided={async () => {
-            await reload();
-            onChanged();
-          }}
+          onDecided={() => void afterDecision()}
         />
       ))}
 
@@ -188,10 +197,10 @@ function ApprovalCard({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
-            <button className="primary" disabled={busy} onClick={() => decide("approved")}>
+            <button className="primary" disabled={busy} onClick={() => void decide("approved")}>
               Approve
             </button>
-            <button className="danger" disabled={busy} onClick={() => decide("denied")}>
+            <button className="danger" disabled={busy} onClick={() => void decide("denied")}>
               Deny
             </button>
           </div>

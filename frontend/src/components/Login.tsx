@@ -30,7 +30,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: User) => void
 
   return (
     <div className="login-wrap">
-      <form className="login" onSubmit={submit}>
+      <form className="login" onSubmit={(event) => void submit(event)}>
         <h1>Deskhand</h1>
         <p className="lede">
           A support agent that can refund money. Sign in as someone who may approve
