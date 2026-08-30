@@ -41,6 +41,12 @@ ignore = [
     "B008",  # FastAPI's Depends() in defaults is the framework's idiom
 ]
 
+[tool.ruff.format]
+# Ruff formats Python inside Markdown fences too. The education docs align
+# their trailing comments into a column on purpose, and collapsing that to a
+# single space is what the reader loses. Prose keeps its own formatting.
+exclude = ["*.md"]
+
 [tool.ruff.lint.per-file-ignores]
 # Tests and evals reach into private helpers on purpose to assert on internals.
 "tests/*" = ["E402"]
