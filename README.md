@@ -143,9 +143,14 @@ evals keep passing.
 Working end to end and deployed: schema, tool registry, durable runtime,
 approval gate, HTTP API with a live trajectory stream, React UI, fault
 injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
-ruff, mypy, and a frontend type-check and build.
+ruff, mypy, pyright, a dependency audit, a secret scan of the full history, and
+an ESLint and type-check pass over the frontend.
 
 Every milestone on the original plan is done.
+
+The fast checks also run as git hooks. `pip install pre-commit && pre-commit
+install` once, and ruff, gitleaks and the file hygiene hooks run before each
+commit instead of on the pull request.
 
 ## Run it
 
