@@ -61,6 +61,12 @@ jobs:
       - name: Install
         run: npm ci
         working-directory: frontend
+      # High and above only. The moderate tier is mostly advisories against
+      # build-time packages that never reach a browser, and a gate that cries
+      # wolf gets switched off.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+        working-directory: frontend
       # `npm run build` runs tsc first, so a type error fails the build rather
       # than shipping a bundle that breaks at runtime.
       - name: Type-check and build
