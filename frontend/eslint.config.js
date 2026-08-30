@@ -31,6 +31,12 @@ export default tseslint.config(
       // tsc already reports unused locals and parameters, and two tools
       // reporting the same line twice trains people to skim both.
       "@typescript-eslint/no-unused-vars": "off",
+      // Off, and not as a shortcut. It fires on fetch-on-mount, which is how
+      // every screen here loads its data, and the rule's own fix is a data
+      // layer this app does not have. It is a performance advisory, not a
+      // correctness one. The rules that catch bugs, rules-of-hooks and
+      // exhaustive-deps, stay on.
+      "react-hooks/set-state-in-effect": "off",
     },
   },
 );
