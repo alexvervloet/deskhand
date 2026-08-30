@@ -68,6 +68,14 @@ function StepRow({ runId, step, risk }: { runId: string; step: Step; risk: strin
   );
 }
 
+// A step's content is Record<string, unknown> off the wire. String() on an
+// object renders "[object Object]", which looks like a frontend bug when it is
+// really a backend field that changed shape. Show the JSON and stay honest.
+function text(value: unknown): string {
+  if (value == null) return "";
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
 function label(step: Step): string {
   switch (step.kind) {
     case "model_call":
@@ -75,7 +83,7 @@ function label(step: Step): string {
     case "tool_result":
       return step.tool_name ?? "tool";
     case "approval":
-      return `approval ${String(step.content.decision ?? "")}`;
+      return `approval ${text(step.content.decision)}`;
     case "final":
       return "final";
     default:
@@ -112,20 +120,20 @@ function body(step: Step) {
   }
 
   if (step.kind === "tool_result") {
-    const args = step.content.args as unknown;
+    const args = step.content.args;
     const ok = step.content.ok !== false;
-    const text = unfence(String(step.content.result ?? ""));
+    const result = unfence(text(step.content.result));
 
     return (
       <>
-        {args != null && Object.keys(args as object).length > 0 && (
+        {args != null && Object.keys(args).length > 0 && (
           <pre>{JSON.stringify(args, null, 2)}</pre>
         )}
         <div className="fenced">
           <div className="fence-label">
             {ok ? "untrusted · from outside this program" : "tool failed"}
           </div>
-          <pre style={ok ? undefined : { color: "var(--bad)" }}>{text}</pre>
+          <pre style={ok ? undefined : { color: "var(--bad)" }}>{result}</pre>
         </div>
       </>
     );
@@ -134,14 +142,14 @@ function body(step: Step) {
   if (step.kind === "approval") {
     return (
       <p>
-        A human {String(step.content.decision)} <code>{String(step.content.tool_name)}</code>
-        {step.content.reason ? ` — ${String(step.content.reason)}` : ""}
+        A human {text(step.content.decision)} <code>{text(step.content.tool_name)}</code>
+        {step.content.reason ? ` — ${text(step.content.reason)}` : ""}
       </p>
     );
   }
 
   if (step.kind === "final") {
-    return <p>{String(step.content.summary ?? "")}</p>;
+    return <p>{text(step.content.summary)}</p>;
   }
 
   return <pre>{JSON.stringify(step.content, null, 2)}</pre>;
