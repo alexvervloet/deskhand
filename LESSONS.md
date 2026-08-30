@@ -540,3 +540,65 @@ have used.
 
 **Next time.** When adding a column that limits something, pick the default that
 breaks the callers. The moment of annoyance is the audit.
+
+---
+
+## 15. The formatter reached into the teaching docs
+
+**Expected.** Turning on `ruff format` would touch Python files. The `select`
+list already had every lint rule I wanted, and formatting looked like the
+mechanical half of the job.
+
+**What happened.** 30 files reformatted, and 7 of them were Markdown. Ruff
+formats Python inside fenced code blocks, and the education docs use aligned
+trailing comments to point at the interesting line:
+
+```python
+already = _recorded(cur, key)          # 1. has this key run before?
+if already is not None:
+    return already                     #    -> return what it did, touch nothing
+```
+
+Every one of those columns collapsed to a single space. The snippets still ran,
+and they stopped teaching. A formatter has no way to know that the alignment in
+a doc is the content.
+
+**Fix.** `exclude = ["*.md"]` under `[tool.ruff.format]` in
+[pyproject.toml](pyproject.toml). Lint rules still apply to source; prose keeps
+its own formatting.
+
+**Next time.** Read the file list a formatter prints before accepting the diff,
+not just the count. The interesting entries are the ones in a language you did
+not think you were formatting.
+
+---
+
+## 16. ESLint's type-checked rules found what tsc could not
+
+**Expected.** The frontend already ran `tsc` in `strict` with `noUnusedLocals`
+and `noUnusedParameters`, so ESLint would mostly be about style, and the
+`recommended-latest` react-hooks config would drop straight into flat config.
+
+**What happened.** Two surprises.
+
+The config was rejected outright. In `eslint-plugin-react-hooks` v7,
+`configs["recommended-latest"]` is still the eslintrc shape, with `plugins` as
+an array of strings; the flat config lives at
+`configs.flat["recommended-latest"]`. ESLint 10 fails with a migration-guide
+message that reads like the config was hand-written for eslintrc.
+
+Then it reported 25 errors on code that type-checks clean. Nine were
+promise-returning functions handed to `onClick` and `onSubmit`, where a rejected
+promise had nowhere to land. One was an `api.ticket()` call in an effect with no
+`.catch` at all, so a failed ticket load showed nothing and left the pane empty.
+Four were `String(step.content.summary)` on a `Record<string, unknown>` field,
+which renders `[object Object]` in the trajectory the first time the backend
+sends a shape other than a string.
+
+`strict` is about the types you wrote down. `content: Record<string, unknown>`
+is honest about the wire, and honest about it means tsc has nothing left to
+check — the type-aware lint rules are where that gap gets closed.
+
+**Next time.** On a TypeScript project, `recommendedTypeChecked` earns its
+setup cost before any style rule does. And when a plugin's flat config does not
+load, check for a `configs.flat` namespace before rewriting anything by hand.
