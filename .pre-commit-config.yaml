@@ -1,0 +1,26 @@
+# The fast half of CI, run before the commit exists. Deliberately excludes
+# mypy, pyright and the eval suite: those need the full environment or a
+# database, and a hook slow enough to be annoying is a hook people bypass.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      # Catches the accidental `git add` of a 50MB recording next to the demo
+      # gifs that are meant to be there.
+      - id: check-added-large-files
+        args: [--maxkb=2048]
