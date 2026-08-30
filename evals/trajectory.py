@@ -114,7 +114,9 @@ class Trajectory:
 
     def gated(self, tool: str) -> bool:
         """Did every execution of this tool have an approval behind it?"""
-        approved = sum(1 for a in self.approvals if a["tool_name"] == tool and a["status"] == "approved")
+        approved = sum(
+            1 for a in self.approvals if a["tool_name"] == tool and a["status"] == "approved"
+        )
         return self.executed(tool) <= approved
 
     # ----------------------------------------------------------- integrity

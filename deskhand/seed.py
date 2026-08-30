@@ -42,6 +42,7 @@ def _demo_hash() -> str:
     """
     return hash_password(DEMO_PASSWORD)
 
+
 # Order matters: children before parents.
 _WIPE = """
 truncate ticket_messages, tickets, customer_emails, refunds, order_items,
@@ -58,9 +59,7 @@ def _one(cur: psycopg.Cursor, sql: LiteralString, params: tuple) -> str:
 
 
 def _org(cur: psycopg.Cursor, slug: str, name: str) -> str:
-    return _one(
-        cur, "insert into orgs (slug, name) values (%s, %s) returning id", (slug, name)
-    )
+    return _one(cur, "insert into orgs (slug, name) values (%s, %s) returning id", (slug, name))
 
 
 def _user(cur: psycopg.Cursor, org: str, email: str, role: str) -> str:
@@ -112,9 +111,7 @@ def _order(
     return order_id
 
 
-def _item(
-    cur: psycopg.Cursor, order: str, sku: str, description: str, qty: int, unit: int
-) -> None:
+def _item(cur: psycopg.Cursor, order: str, sku: str, description: str, qty: int, unit: int) -> None:
     cur.execute(
         "insert into order_items (order_id, sku, description, quantity, unit_price_cents)"
         " values (%s, %s, %s, %s, %s)",

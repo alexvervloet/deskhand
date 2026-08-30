@@ -24,9 +24,7 @@ def cur():
     # Spelled with the type parameter so the connection really is a
     # Connection[DictRow]; `psycopg.connect(...)` alone resolves to the
     # tuple-row overload and rows come back as tuples to the checker.
-    with psycopg.Connection[DictRow].connect(
-        settings.database_url, row_factory=dict_row
-    ) as conn:
+    with psycopg.Connection[DictRow].connect(settings.database_url, row_factory=dict_row) as conn:
         with conn.cursor() as c:
             yield c
         conn.rollback()
@@ -58,8 +56,13 @@ def run(cur) -> tuple[str, str, str]:
 def call_tool(cur, run, name: str, args: dict, seq: int = 1):
     org_id, run_id, step_id = run
     return invoke(
-        cur, org_id=org_id, run_id=run_id, step_id=step_id, seq=seq,
-        tool_name=name, args=args,
+        cur,
+        org_id=org_id,
+        run_id=run_id,
+        step_id=step_id,
+        seq=seq,
+        tool_name=name,
+        args=args,
     )
 
 
@@ -137,9 +140,12 @@ def test_a_crash_rolls_back_what_the_handler_had_written(cur, run) -> None:
         faults.injecting(faults.Fault(tool="issue_refund", kind="crash")),
         pytest.raises(RuntimeError),
     ):
-        call_tool(cur, run, "issue_refund", {
-            "order_reference": "NW-1042", "amount_cents": 1900, "reason": "test"
-        })
+        call_tool(
+            cur,
+            run,
+            "issue_refund",
+            {"order_reference": "NW-1042", "amount_cents": 1900, "reason": "test"},
+        )
     cur.execute("select count(*) as n from refunds")
     assert row(cur)["n"] == 0, "a crashed handler left a refund behind"
 

@@ -194,9 +194,7 @@ def _unresolved(cur: psycopg.Cursor[DictRow], run_id: str) -> list[dict[str, Any
         (run_id,),
     )
     settled = {
-        r["content"].get("tool_use_id")
-        for r in cur.fetchall()
-        if r["content"].get("tool_use_id")
+        r["content"].get("tool_use_id") for r in cur.fetchall() if r["content"].get("tool_use_id")
     }
     return [tu for tu in tool_uses if tu["id"] not in settled]
 
@@ -561,9 +559,7 @@ def _settle(
                     args_hash=args_hash(tool_use["name"], tool_use.get("input") or {}),
                 )
         runs.suspend_for_approval(cur, run_id)
-        runs.audit(
-            cur, org_id=org_id, run_id=run_id, action="run.awaiting_approval"
-        )
+        runs.audit(cur, org_id=org_id, run_id=run_id, action="run.awaiting_approval")
         return "awaiting_approval"
 
     return None

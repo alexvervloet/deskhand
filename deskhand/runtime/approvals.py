@@ -67,9 +67,7 @@ def request(
     return lookup(cur, run_id, tool_use_id)  # type: ignore[return-value]
 
 
-def lookup(
-    cur: psycopg.Cursor[DictRow], run_id: str, tool_use_id: str
-) -> dict[str, Any] | None:
+def lookup(cur: psycopg.Cursor[DictRow], run_id: str, tool_use_id: str) -> dict[str, Any] | None:
     cur.execute(
         "select *, (status = 'pending' and expires_at < now()) as is_stale"
         "  from approvals where run_id = %s and tool_use_id = %s",

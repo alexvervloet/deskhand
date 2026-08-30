@@ -171,8 +171,7 @@ def list_tools(caller: CallerDep) -> list[dict[str, Any]]:
     money-moving call as routine.
     """
     return [
-        {"name": t.name, "risk": str(t.risk), "description": t.description}
-        for t in all_tools()
+        {"name": t.name, "risk": str(t.risk), "description": t.description} for t in all_tools()
     ]
 
 
@@ -384,7 +383,8 @@ def list_runs(
     # `ge=1` rather than a clamp at both ends: a negative limit is a bad
     # request and Postgres rejects it outright, where an over-large one is a
     # reasonable ask for "all of them" and is quietly capped.
-    caller: CallerDep, limit: Annotated[int, Query(ge=1)] = 50
+    caller: CallerDep,
+    limit: Annotated[int, Query(ge=1)] = 50,
 ) -> Any:
     rows = fetch_all(
         "select r.*, t.reference as ticket_reference from runs r"
@@ -398,24 +398,17 @@ def list_runs(
 @app.get("/runs/{run_id}", response_model=schemas.RunDetail)
 def get_run(run_id: str, caller: CallerDep) -> Any:
     run = _require_run(run_id, caller.org_id)
-    steps = fetch_all(
-        "select * from steps where run_id = %s order by seq", (run_id,)
-    )
-    pending = fetch_all(
-        "select * from approvals where run_id = %s order by created_at", (run_id,)
-    )
-    return (
-        _run_summary(run)
-        | {
-            "prompt": run["prompt"],
-            "max_steps": run["max_steps"],
-            "max_tokens": run["max_tokens"],
-            "max_spend_micros": run["max_spend_micros"],
-            "deadline_at": run["deadline_at"],
-            "steps": [_step_view(s) for s in steps],
-            "approvals": [_approval_view(a) for a in pending],
-        }
-    )
+    steps = fetch_all("select * from steps where run_id = %s order by seq", (run_id,))
+    pending = fetch_all("select * from approvals where run_id = %s order by created_at", (run_id,))
+    return _run_summary(run) | {
+        "prompt": run["prompt"],
+        "max_steps": run["max_steps"],
+        "max_tokens": run["max_tokens"],
+        "max_spend_micros": run["max_spend_micros"],
+        "deadline_at": run["deadline_at"],
+        "steps": [_step_view(s) for s in steps],
+        "approvals": [_approval_view(a) for a in pending],
+    }
 
 
 @app.post("/runs/{run_id}/cancel", response_model=schemas.RunSummary)
@@ -433,8 +426,7 @@ def cancel_run(run_id: str, caller: CallerDep) -> Any:
             stop_detail=f"cancelled by {caller.email}",
         )
         cur.execute(
-            "update approvals set status = 'expired'"
-            " where run_id = %s and status = 'pending'",
+            "update approvals set status = 'expired' where run_id = %s and status = 'pending'",
             (run_id,),
         )
         runs.audit(
@@ -557,9 +549,7 @@ def list_approvals(caller: CallerDep) -> Any:
 
 
 @app.post("/approvals/{approval_id}/decide", response_model=schemas.ApprovalView)
-def decide_approval(
-    approval_id: str, body: schemas.DecideRequest, caller: ApproverDep
-) -> Any:
+def decide_approval(approval_id: str, body: schemas.DecideRequest, caller: ApproverDep) -> Any:
     if not _is_uuid(approval_id):
         raise HTTPException(
             status.HTTP_409_CONFLICT,

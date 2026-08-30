@@ -75,12 +75,20 @@ def test_recursion_in_a_value_does_not_raise() -> None:
 def test_the_helpers_emit_the_fields_worth_alerting_on(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="deskhand.events"):
         tracing.tool_call(
-            "run-1", 4, tool="issue_refund", risk="irreversible",
-            ok=True, replayed=True, duration_ms=12,
+            "run-1",
+            4,
+            tool="issue_refund",
+            risk="irreversible",
+            ok=True,
+            replayed=True,
+            duration_ms=12,
         )
         tracing.run_finished(
-            "run-1", status="succeeded", stop_reason="end_turn",
-            steps=14, cost_micros=250,
+            "run-1",
+            status="succeeded",
+            stop_reason="end_turn",
+            steps=14,
+            cost_micros=250,
         )
 
     tool, finished = captured(caplog)
@@ -99,12 +107,25 @@ def test_events_carry_no_content(caplog) -> None:
     a log stream widens where they have to be protected."""
     with caplog.at_level(logging.INFO, logger="deskhand.events"):
         tracing.tool_call(
-            "run-1", 2, tool="get_ticket", risk="read",
-            ok=True, replayed=False, duration_ms=3,
+            "run-1",
+            2,
+            tool="get_ticket",
+            risk="read",
+            ok=True,
+            replayed=False,
+            duration_ms=3,
         )
     event = captured(caplog)[0]
     assert set(event) == {
-        "event", "ts", "run_id", "seq", "tool", "risk", "ok", "replayed", "duration_ms"
+        "event",
+        "ts",
+        "run_id",
+        "seq",
+        "tool",
+        "risk",
+        "ok",
+        "replayed",
+        "duration_ms",
     }
 
 
@@ -116,9 +137,7 @@ def test_starting_a_run_is_traced(caplog) -> None:
     already in progress.
     """
     with caplog.at_level(logging.INFO, logger="deskhand.events"):
-        tracing.run_started(
-            "run-1", org_id="org-1", ticket="NW-1", provider="mock", model="mock"
-        )
+        tracing.run_started("run-1", org_id="org-1", ticket="NW-1", provider="mock", model="mock")
     event = captured(caplog)[0]
     assert event["event"] == "run.started"
     assert event["ticket"] == "NW-1"

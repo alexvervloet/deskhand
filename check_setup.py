@@ -54,8 +54,7 @@ def main() -> int:
         try:
             with psycopg.connect(settings.database_url) as conn:
                 counted = conn.execute(
-                    "select count(*) from information_schema.tables"
-                    " where table_schema = 'public'"
+                    "select count(*) from information_schema.tables where table_schema = 'public'"
                 ).fetchone()
             n = counted[0] if counted else 0
             if n:

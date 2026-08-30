@@ -45,8 +45,14 @@ SCRIPT = [
     [call("get_ticket", reference="NW-1")],
     [call("get_order", reference="NW-1042")],
     [call("search_kb", query="refund policy window delivered")],
-    [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
-          reason="Stale beans inside the published window.")],
+    [
+        call(
+            "issue_refund",
+            order_reference="NW-1042",
+            amount_cents=1900,
+            reason="Stale beans inside the published window.",
+        )
+    ],
     [call("add_internal_note", reference="NW-1", body="Refund issued after approval.")],
     text("Refunded 19.00 against NW-1042 and noted it on the ticket."),
 ]
@@ -102,7 +108,7 @@ def main() -> int:
     say()
     say(f"{BOLD}Deskhand — a worker dies mid-run. Nobody gets refunded twice.{RESET}")
     say()
-    say(f"{DIM}NW-1: \"Beans arrived stale. I'd like a refund.\"{RESET}")
+    say(f'{DIM}NW-1: "Beans arrived stale. I\'d like a refund."{RESET}')
     say()
 
     step("worker A claims the ticket")

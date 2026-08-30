@@ -59,9 +59,7 @@ def run() -> int:
                 conn.execute(
                     cast("LiteralString", path.read_text())  # type: ignore[redundant-cast]
                 )
-                conn.execute(
-                    "insert into schema_migrations (filename) values (%s)", (path.name,)
-                )
+                conn.execute("insert into schema_migrations (filename) values (%s)", (path.name,))
                 conn.commit()
             except Exception as exc:  # noqa: BLE001 - the message is the product here
                 conn.rollback()

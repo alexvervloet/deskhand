@@ -103,9 +103,7 @@ class ClaudeProvider:
         request: dict[str, Any] = {
             "model": self.model,
             "max_tokens": settings.max_tokens_per_call,
-            "system": [
-                {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
-            ],
+            "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": self.effort},
             "tools": tools,
@@ -317,11 +315,7 @@ class DefaultMockProvider(ScriptedProvider):
             return plan
 
         total = _TOTAL.search(seen)
-        amount = (
-            int(total.group(1).replace(",", "")) * 100 + int(total.group(2))
-            if total
-            else 1900
-        )
+        amount = int(total.group(1).replace(",", "")) * 100 + int(total.group(2)) if total else 1900
 
         plan += [
             [call("get_order", reference=order_ref)],

@@ -32,9 +32,7 @@ def cur():
     # Spelled with the type parameter so the connection really is a
     # Connection[DictRow]; `psycopg.connect(...)` alone resolves to the
     # tuple-row overload and rows come back as tuples to the checker.
-    with psycopg.Connection[DictRow].connect(
-        settings.database_url, row_factory=dict_row
-    ) as conn:
+    with psycopg.Connection[DictRow].connect(settings.database_url, row_factory=dict_row) as conn:
         with conn.cursor() as c:
             yield c
         conn.rollback()
@@ -164,9 +162,12 @@ def test_unexpected_arguments_are_an_error(cur, org) -> None:
 
 
 def test_wrong_types_are_an_error(cur, org) -> None:
-    out = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": "nineteen", "reason": "test"
-    })
+    out = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": "nineteen", "reason": "test"},
+    )
     assert not out.ok
 
 
@@ -184,18 +185,14 @@ def test_search_survives_words_the_policy_does_not_use(cur, org) -> None:
     so one unmatched word turned a policy lookup into "no such policy" — which
     an agent reads as permission to proceed without one. Policy lookups must
     degrade, never fail open."""
-    out = run_tool(
-        cur, org, "search_kb", {"query": "refund window for stale beans zzzqqq"}
-    )
+    out = run_tool(cur, org, "search_kb", {"query": "refund window for stale beans zzzqqq"})
     assert out.ok
     assert "Refund policy" in out.result
 
 
 def _run_on(cur, org: str, reference: str) -> str:
     """A run whose subject is one named ticket, so scoping can be asserted."""
-    cur.execute(
-        "select id from tickets where org_id = %s and reference = %s", (org, reference)
-    )
+    cur.execute("select id from tickets where org_id = %s and reference = %s", (org, reference))
     ticket = row(cur)
     cur.execute(
         "insert into runs (org_id, ticket_id, prompt, max_steps, max_tokens,"
@@ -210,9 +207,7 @@ def _run_on(cur, org: str, reference: str) -> str:
 
 def test_a_run_can_read_the_customer_whose_ticket_it_is_working(cur, org) -> None:
     run_id = _run_on(cur, org, "NW-1")
-    out = run_tool(cur, org, "get_customer", {
-        "email": "dana.whitfield@example.com"
-    }, run_id=run_id)
+    out = run_tool(cur, org, "get_customer", {"email": "dana.whitfield@example.com"}, run_id=run_id)
     assert out.ok
     assert "Dana Whitfield" in out.result
 
@@ -227,9 +222,7 @@ def test_a_run_cannot_read_a_different_customers_history(cur, org) -> None:
     of the same merchant.
     """
     run_id = _run_on(cur, org, "NW-1")  # Dana's ticket
-    out = run_tool(cur, org, "get_customer", {
-        "email": "omar.reyes@example.com"
-    }, run_id=run_id)
+    out = run_tool(cur, org, "get_customer", {"email": "omar.reyes@example.com"}, run_id=run_id)
 
     assert not out.ok
     assert "not the customer on this ticket" in out.result
@@ -304,9 +297,12 @@ def test_tagging_keeps_existing_tags(cur, org) -> None:
 
 
 def test_internal_notes_are_not_customer_visible(cur, org) -> None:
-    out = run_tool(cur, org, "add_internal_note", {
-        "reference": "NW-2", "body": "Checked the carrier; parcel is in transit."
-    })
+    out = run_tool(
+        cur,
+        org,
+        "add_internal_note",
+        {"reference": "NW-2", "body": "Checked the carrier; parcel is in transit."},
+    )
     assert out.ok
     cur.execute(
         "select is_internal, author_kind::text as author_kind from ticket_messages"
@@ -328,26 +324,36 @@ def test_internal_notes_are_not_customer_visible(cur, org) -> None:
 def test_a_refund_cannot_exceed_what_remains(cur, org) -> None:
     """The approval gate stops the agent acting alone. It does not stop a human
     approving arithmetic that does not work, so the constraint lives here too."""
-    out = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": 999_999, "reason": "test"
-    })
+    out = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": 999_999, "reason": "test"},
+    )
     assert not out.ok
     assert "already refunded" in out.result or "leaving" in out.result
 
 
 def test_refunds_accumulate_against_the_order(cur, org) -> None:
-    first = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": 1900, "reason": "one stale bag"
-    })
+    first = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": 1900, "reason": "one stale bag"},
+    )
     assert first.ok
 
     view = run_tool(cur, org, "get_order", {"reference": "NW-1042"}, seq=2)
     assert "Already refunded: 19.00 USD" in view.result
     assert "Refundable remaining: 29.00 USD" in view.result
 
-    too_much = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": 3000, "reason": "the rest"
-    }, seq=3)
+    too_much = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": 3000, "reason": "the rest"},
+        seq=3,
+    )
     assert not too_much.ok
 
 
@@ -361,9 +367,13 @@ def test_a_run_with_no_ceiling_on_its_row_refunds_nothing(cur, org) -> None:
     run_id = _new_run(cur, org)
     cur.execute("update runs set max_refund_cents = 0 where id = %s", (run_id,))
 
-    out = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": 100, "reason": "a token amount"
-    }, run_id=run_id)
+    out = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": 100, "reason": "a token amount"},
+        run_id=run_id,
+    )
 
     assert not out.ok
     assert "may refund" in out.result
@@ -372,19 +382,27 @@ def test_a_run_with_no_ceiling_on_its_row_refunds_nothing(cur, org) -> None:
 
 
 def test_a_shipped_order_cannot_be_cancelled(cur, org) -> None:
-    out = run_tool(cur, org, "cancel_order", {
-        "order_reference": "NW-1042", "reason": "customer changed their mind"
-    })
+    out = run_tool(
+        cur,
+        org,
+        "cancel_order",
+        {"order_reference": "NW-1042", "reason": "customer changed their mind"},
+    )
     assert not out.ok
     assert "delivered" in out.result
 
 
 def test_email_lands_on_the_thread_as_well_as_the_outbox(cur, org) -> None:
-    out = run_tool(cur, org, "send_customer_email", {
-        "reference": "NW-2",
-        "subject": "Your order is on its way",
-        "body": "Thanks for waiting — NW-1077 shipped and should arrive shortly.",
-    })
+    out = run_tool(
+        cur,
+        org,
+        "send_customer_email",
+        {
+            "reference": "NW-2",
+            "subject": "Your order is on its way",
+            "body": "Thanks for waiting — NW-1077 shipped and should arrive shortly.",
+        },
+    )
     assert out.ok
     cur.execute("select count(*) as n from customer_emails")
     assert row(cur)["n"] == 1
@@ -436,9 +454,12 @@ def test_a_failing_tool_leaves_the_transaction_usable(cur, org) -> None:
     """Without a savepoint around the handler, one bad SQL statement would
     poison the transaction we still need in order to record the failure — and
     the run would die instead of the model getting a chance to recover."""
-    failed = run_tool(cur, org, "issue_refund", {
-        "order_reference": "NW-1042", "amount_cents": 999_999, "reason": "too much"
-    })
+    failed = run_tool(
+        cur,
+        org,
+        "issue_refund",
+        {"order_reference": "NW-1042", "amount_cents": 999_999, "reason": "too much"},
+    )
     assert not failed.ok
 
     recovered = run_tool(cur, org, "get_order", {"reference": "NW-1042"}, seq=2)

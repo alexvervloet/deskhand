@@ -331,9 +331,7 @@ def report(run_id: str, result: Divergence) -> int:
         return 0
 
     if not result.diverged:
-        print(
-            f"  {GREEN}no divergence{RESET} — all {result.matched_turns} decision(s) matched"
-        )
+        print(f"  {GREEN}no divergence{RESET} — all {result.matched_turns} decision(s) matched")
         print(f"  {DIM}run {run_id}{RESET}\n")
         return 0
 
@@ -347,9 +345,7 @@ def report(run_id: str, result: Divergence) -> int:
     for name, args in result.replayed or [("(finished)", "")]:
         print(f"    {GREEN}{name}{RESET}({_short(args)})")
     print()
-    print(
-        f"  {DIM}the replay stops here: there is no recorded observation for a call{RESET}"
-    )
+    print(f"  {DIM}the replay stops here: there is no recorded observation for a call{RESET}")
     print(f"  {DIM}the original run never made.{RESET}")
     print()
     return 1
@@ -379,15 +375,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("run_id")
     parser.add_argument(
-        "--at", type=int, metavar="N",
+        "--at",
+        type=int,
+        metavar="N",
         help="print the conversation exactly as it stood before step N",
     )
     parser.add_argument(
-        "--diverge", action="store_true",
+        "--diverge",
+        action="store_true",
         help="replay against the current configuration and report the first difference",
     )
     parser.add_argument(
-        "--system-prompt", type=Path, metavar="FILE",
+        "--system-prompt",
+        type=Path,
+        metavar="FILE",
         help="use this system prompt for the replay instead of the current one",
     )
     args = parser.parse_args(argv)
@@ -396,9 +397,7 @@ def main(argv: list[str] | None = None) -> int:
         return at(args.run_id, args.at)
 
     if args.diverge or args.system_prompt:
-        system = (
-            args.system_prompt.read_text() if args.system_prompt else SYSTEM_PROMPT
-        )
+        system = args.system_prompt.read_text() if args.system_prompt else SYSTEM_PROMPT
         return report(args.run_id, diverge(args.run_id, get_provider(), system))
 
     return show(args.run_id)

@@ -368,9 +368,7 @@ def _list_refunds(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     )
     rows = ctx.cursor.fetchall()
     if not rows:
-        return ToolOutcome(
-            f"No refunds to this customer in the last {since_days} day(s)."
-        )
+        return ToolOutcome(f"No refunds to this customer in the last {since_days} day(s).")
 
     total = sum(r["amount_cents"] for r in rows)
     lines = [

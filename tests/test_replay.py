@@ -20,8 +20,14 @@ pytestmark = pytest.mark.usefixtures("fresh")
 SCRIPT = [
     [call("get_ticket", reference="NW-1")],
     [call("get_order", reference="NW-1042")],
-    [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
-          reason="Stale beans inside the window.")],
+    [
+        call(
+            "issue_refund",
+            order_reference="NW-1042",
+            amount_cents=1900,
+            reason="Stale beans inside the window.",
+        )
+    ],
     [call("add_internal_note", reference="NW-1", body="Refunded after approval.")],
     text("Refunded 19.00 against NW-1042."),
 ]
@@ -55,8 +61,11 @@ def finished_run() -> str:
     owner = one("select id from users where role = 'owner' limit 1")
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
-            cur, approval_id=str(approval["id"]), org_id=str(approval["org_id"]),
-            decision="approved", decided_by=str(owner["id"]),
+            cur,
+            approval_id=str(approval["id"]),
+            org_id=str(approval["org_id"]),
+            decision="approved",
+            decided_by=str(owner["id"]),
         )
         conn.commit()
     drive()
@@ -97,7 +106,10 @@ def test_reconstruction_is_deterministic(finished_run) -> None:
 def test_a_run_loads_as_its_decisions(finished_run) -> None:
     _, turns = replay.load(finished_run)
     assert [t.calls[0][1] for t in turns if t.calls] == [
-        "get_ticket", "get_order", "issue_refund", "add_internal_note"
+        "get_ticket",
+        "get_order",
+        "issue_refund",
+        "add_internal_note",
     ]
     # The result that followed each call is attached to it, which is what makes
     # replaying observations without re-running tools possible.
@@ -115,12 +127,14 @@ def test_the_same_agent_does_not_diverge_from_itself(finished_run) -> None:
 
 
 def test_a_different_decision_is_located_exactly(finished_run) -> None:
-    cautious = ScriptedProvider(script=[
-        [call("get_ticket", reference="NW-1")],
-        [call("get_order", reference="NW-1042")],
-        [call("set_ticket_status", reference="NW-1", status="escalated")],
-        text("Outside my authority."),
-    ])
+    cautious = ScriptedProvider(
+        script=[
+            [call("get_ticket", reference="NW-1")],
+            [call("get_order", reference="NW-1042")],
+            [call("set_ticket_status", reference="NW-1", status="escalated")],
+            text("Outside my authority."),
+        ]
+    )
     result = replay.diverge(finished_run, cautious, SYSTEM_PROMPT)
 
     assert result.diverged
@@ -132,12 +146,20 @@ def test_a_different_decision_is_located_exactly(finished_run) -> None:
 def test_a_changed_argument_is_a_divergence(finished_run) -> None:
     """Same tool, different amount. This is the case a diff of tool *names*
     would miss, and it is the one that costs money."""
-    greedier = ScriptedProvider(script=[
-        [call("get_ticket", reference="NW-1")],
-        [call("get_order", reference="NW-1042")],
-        [call("issue_refund", order_reference="NW-1042", amount_cents=4800,
-              reason="Stale beans inside the window.")],
-    ])
+    greedier = ScriptedProvider(
+        script=[
+            [call("get_ticket", reference="NW-1")],
+            [call("get_order", reference="NW-1042")],
+            [
+                call(
+                    "issue_refund",
+                    order_reference="NW-1042",
+                    amount_cents=4800,
+                    reason="Stale beans inside the window.",
+                )
+            ],
+        ]
+    )
     result = replay.diverge(finished_run, greedier, SYSTEM_PROMPT)
     assert result.diverged
     assert "4800" in result.replayed[0][1]
@@ -147,16 +169,25 @@ def test_a_changed_argument_is_a_divergence(finished_run) -> None:
 def test_rewording_is_not_a_divergence(finished_run) -> None:
     """Two runs that make the same calls have made the same decisions, however
     differently they narrate them. A report that fired on prose would be noise."""
-    chattier = ScriptedProvider(script=[
-        [{"type": "text", "text": "Let me start by reading the ticket."},
-         call("get_ticket", reference="NW-1")],
-        [{"type": "text", "text": "Now the order."},
-         call("get_order", reference="NW-1042")],
-        [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
-              reason="Stale beans inside the window.")],
-        [call("add_internal_note", reference="NW-1", body="A differently worded note.")],
-        text("Done, phrased entirely differently."),
-    ])
+    chattier = ScriptedProvider(
+        script=[
+            [
+                {"type": "text", "text": "Let me start by reading the ticket."},
+                call("get_ticket", reference="NW-1"),
+            ],
+            [{"type": "text", "text": "Now the order."}, call("get_order", reference="NW-1042")],
+            [
+                call(
+                    "issue_refund",
+                    order_reference="NW-1042",
+                    amount_cents=1900,
+                    reason="Stale beans inside the window.",
+                )
+            ],
+            [call("add_internal_note", reference="NW-1", body="A differently worded note.")],
+            text("Done, phrased entirely differently."),
+        ]
+    )
     result = replay.diverge(finished_run, chattier, SYSTEM_PROMPT)
     # The internal note's *argument* differs, so it diverges there — at step 4,
     # not at either of the reworded turns before it.
@@ -177,10 +208,18 @@ def test_divergence_never_executes_a_tool(finished_run) -> None:
     replay.diverge(finished_run, provider(), SYSTEM_PROMPT)
     replay.diverge(
         finished_run,
-        ScriptedProvider(script=[
-            [call("issue_refund", order_reference="NW-1042", amount_cents=2900,
-                  reason="a refund the original run never made")],
-        ]),
+        ScriptedProvider(
+            script=[
+                [
+                    call(
+                        "issue_refund",
+                        order_reference="NW-1042",
+                        amount_cents=2900,
+                        reason="a refund the original run never made",
+                    )
+                ],
+            ]
+        ),
         SYSTEM_PROMPT,
     )
 
@@ -236,9 +275,10 @@ def test_a_replay_sees_the_failures_and_denials_the_original_saw() -> None:
         conn.commit()
 
     script = [
-        [call("get_order", reference="NO-SUCH-ORDER")],   # fails: no such order
-        [call("issue_refund", order_reference="NW-1042", amount_cents=1900,
-              reason="Goodwill.")],                        # denied by a human
+        [call("get_order", reference="NO-SUCH-ORDER")],  # fails: no such order
+        [
+            call("issue_refund", order_reference="NW-1042", amount_cents=1900, reason="Goodwill.")
+        ],  # denied by a human
         text("Understood — I will not refund."),
     ]
 
@@ -258,8 +298,11 @@ def test_a_replay_sees_the_failures_and_denials_the_original_saw() -> None:
     owner = one("select id from users where role = 'owner' limit 1")
     with connection() as conn, conn.cursor() as cur:
         approvals.decide(
-            cur, approval_id=str(approval["id"]), org_id=str(approval["org_id"]),
-            decision="denied", decided_by=str(owner["id"]),
+            cur,
+            approval_id=str(approval["id"]),
+            org_id=str(approval["org_id"]),
+            decision="denied",
+            decided_by=str(owner["id"]),
             reason="Not inside the window.",
         )
         conn.commit()

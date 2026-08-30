@@ -59,8 +59,7 @@ def apply_inverse(ctx: ToolContext, inverse: dict[str, Any]) -> None:
         )
     elif op == "set_priority":
         ctx.cursor.execute(
-            "update tickets set priority = %s::ticket_priority, updated_at = now()"
-            " where id = %s",
+            "update tickets set priority = %s::ticket_priority, updated_at = now() where id = %s",
             (inverse["priority"], inverse["ticket_id"]),
         )
     elif op == "set_status":

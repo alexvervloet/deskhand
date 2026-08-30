@@ -89,9 +89,7 @@ def emit(event: str, **fields: Any) -> None:
         pass
 
 
-def run_started(
-    run_id: str, *, org_id: str, ticket: str, provider: str, model: str
-) -> None:
+def run_started(run_id: str, *, org_id: str, ticket: str, provider: str, model: str) -> None:
     emit(
         "run.started",
         run_id=run_id,
@@ -103,8 +101,15 @@ def run_started(
 
 
 def model_call(
-    run_id: str, seq: int, *, input_tokens: int, output_tokens: int,
-    cost_micros: int, latency_ms: int, stop_reason: str, tool_calls: int,
+    run_id: str,
+    seq: int,
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    cost_micros: int,
+    latency_ms: int,
+    stop_reason: str,
+    tool_calls: int,
 ) -> None:
     emit(
         "model.call",
@@ -120,8 +125,14 @@ def model_call(
 
 
 def tool_call(
-    run_id: str, seq: int, *, tool: str, risk: str, ok: bool,
-    replayed: bool, duration_ms: int,
+    run_id: str,
+    seq: int,
+    *,
+    tool: str,
+    risk: str,
+    ok: bool,
+    replayed: bool,
+    duration_ms: int,
 ) -> None:
     emit(
         "tool.call",

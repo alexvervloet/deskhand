@@ -129,9 +129,7 @@ def invoke(
     # refund.
     already = _recorded(cur, key)
     if already is not None:
-        log.info(
-            "tool %s at %s:%d already recorded — not re-executing", tool_name, run_id, seq
-        )
+        log.info("tool %s at %s:%d already recorded — not re-executing", tool_name, run_id, seq)
         return already
 
     tool = get(tool_name)

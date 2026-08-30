@@ -83,9 +83,7 @@ def cursor() -> Iterator[psycopg.Cursor[DictRow]]:
 # The pool is built with row_factory=dict_row, so every row really is a dict.
 # Neither checker can see that through the pool's constructor kwargs, hence the
 # casts.
-def fetch_one(
-    sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()
-) -> dict | None:
+def fetch_one(sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()) -> dict | None:
     with cursor() as cur:
         cur.execute(sql, params)
         return cast(dict | None, cur.fetchone())
@@ -105,9 +103,7 @@ def one(sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()) -> di
     return row
 
 
-def fetch_all(
-    sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()
-) -> list[dict]:
+def fetch_all(sql: LiteralString, params: tuple[Any, ...] | dict[str, Any] = ()) -> list[dict]:
     with cursor() as cur:
         cur.execute(sql, params)
         return cast(list[dict], cur.fetchall())
