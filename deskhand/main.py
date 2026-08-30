@@ -274,7 +274,7 @@ _TICKET_COLUMNS = (
 @app.get("/tickets", response_model=list[schemas.TicketSummary])
 def list_tickets(caller: CallerDep) -> Any:
     rows = fetch_all(
-        f"select {_TICKET_COLUMNS} from tickets t"
+        f"select {_TICKET_COLUMNS} from tickets t"  # noqa: S608 - a module constant, and every caller value below is a %s parameter
         "  join customers c on c.id = t.customer_id"
         " where t.org_id = %s order by t.created_at",
         (caller.org_id,),
@@ -285,7 +285,7 @@ def list_tickets(caller: CallerDep) -> Any:
 @app.get("/tickets/{reference}", response_model=schemas.TicketDetail)
 def get_ticket(reference: str, caller: CallerDep) -> Any:
     row = fetch_one(
-        f"select {_TICKET_COLUMNS} from tickets t"
+        f"select {_TICKET_COLUMNS} from tickets t"  # noqa: S608 - a module constant, and every caller value below is a %s parameter
         "  join customers c on c.id = t.customer_id"
         " where t.org_id = %s and t.reference = %s",
         (caller.org_id, reference),

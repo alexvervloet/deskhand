@@ -21,7 +21,7 @@ from deskhand.config import settings
 # assert on them, and "why did it stop" is the first question anyone asks.
 STOP_END_TURN = "end_turn"
 STOP_STEP_CAP = "step_cap"
-STOP_TOKEN_CAP = "token_cap"
+STOP_TOKEN_CAP = "token_cap"  # noqa: S105 - a model token budget, not a credential
 STOP_SPEND_CAP = "spend_cap"
 STOP_DEADLINE = "deadline"
 STOP_LOOP = "loop_detected"

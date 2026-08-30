@@ -83,7 +83,7 @@ def emit(event: str, **fields: Any) -> None:
         # having to think about it. If a value defeats even that, the except
         # below catches it.
         log.info(json.dumps(payload, default=str, separators=(",", ":")))
-    except Exception:  # noqa: BLE001 - deliberately total
+    except Exception:  # noqa: BLE001, S110 - deliberately total, and re-logging is the loop
         # Swallowed on purpose, and not re-logged: a logging failure inside a
         # logging call is exactly where an infinite loop comes from.
         pass

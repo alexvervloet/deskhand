@@ -27,7 +27,7 @@ import psycopg
 from deskhand.auth import hash_password
 from deskhand.config import settings
 
-DEMO_PASSWORD = "demo-password-123"
+DEMO_PASSWORD = "demo-password-123"  # noqa: S105 - seed data for the demo org, and printed by the seeder
 
 
 @functools.cache

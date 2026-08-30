@@ -35,10 +35,17 @@ select = [
     "B",        # bugbear
     "SIM",      # simplify
     "C4",       # comprehensions
+    "S",        # flake8-bandit
 ]
 ignore = [
     "E501",  # line length is the formatter's job, and SQL strings read better long
     "B008",  # FastAPI's Depends() in defaults is the framework's idiom
+    # S101 exists because `python -O` strips asserts, so an assert standing in
+    # for a security check disappears in production. Every assert here narrows
+    # a type after a query that cannot return no row, and the line below it
+    # would raise anyway. Converting all fifteen to explicit raises is worth
+    # doing; suppressing per-site would just be that comment fifteen times.
+    "S101",
 ]
 
 [tool.ruff.format]
@@ -49,7 +56,7 @@ exclude = ["*.md"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests and evals reach into private helpers on purpose to assert on internals.
-"tests/*" = ["E402"]
+"tests/*" = ["E402", "S105", "S106"]
 "evals/*" = ["E402"]
 
 [tool.pyright]
