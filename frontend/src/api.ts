@@ -152,8 +152,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     let detail = response.statusText;
     try {
-      const body = await response.json();
-      detail = body.detail ?? detail;
+      const body: unknown = await response.json();
+      if (body !== null && typeof body === "object" && "detail" in body) {
+        const value = body.detail;
+        if (typeof value === "string") detail = value;
+      }
     } catch {
       // A non-JSON error body is still an error; the status carries the meaning.
     }
@@ -218,7 +221,10 @@ export type StreamHandlers = {
 export function streamRun(runId: string, handlers: StreamHandlers): () => void {
   const controller = new AbortController();
 
-  (async () => {
+  // Deliberately not awaited. The caller gets the abort function back
+  // immediately and the loop below runs until the stream ends or is aborted;
+  // the try/catch inside is what handles every rejection.
+  void (async () => {
     try {
       const response = await fetch(`${BASE}/runs/${runId}/stream`, {
         headers: headers(),
@@ -246,7 +252,7 @@ export function streamRun(runId: string, handlers: StreamHandlers): () => void {
           if (!eventLine || !dataLine) continue;
 
           const event = eventLine.slice(7).trim();
-          const data = JSON.parse(dataLine.slice(6));
+          const data: unknown = JSON.parse(dataLine.slice(6));
 
           if (event === "step") handlers.onStep?.(data as Step);
           else if (event === "status") handlers.onStatus?.(data as Run);
