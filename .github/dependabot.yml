@@ -1,0 +1,33 @@
+version: 2
+
+# The pins in requirements.txt and package-lock.json are deliberate, so that a
+# build which passed yesterday passes today. The cost is that a pin goes stale
+# in silence, including when it picks up a CVE. These updates are what move it.
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the test-only packages. They break loudly in CI if they
+      # break at all, so reviewing them one at a time buys nothing.
+      dev:
+        patterns:
+          - pytest
+          - httpx
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns:
+          - "@types/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
