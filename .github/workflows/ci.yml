@@ -90,6 +90,8 @@ jobs:
           pip install ruff==0.16.3 mypy==2.3.0 pyright==1.1.411 pip-audit==2.10.1
       - name: Ruff
         run: ruff check .
+      - name: Format
+        run: ruff format --check .
       - name: Mypy
         run: mypy
       # Pyright is what Pylance runs, so without it in CI an editor can be full
