@@ -81,7 +81,7 @@ jobs:
           pip install -e .
           # Pinned: an unpinned linter turns somebody else's release into a
           # red build on a pull request that changed nothing.
-          pip install ruff==0.16.3 mypy==2.3.0 pyright==1.1.411
+          pip install ruff==0.16.3 mypy==2.3.0 pyright==1.1.411 pip-audit==2.10.1
       - name: Ruff
         run: ruff check .
       - name: Mypy
@@ -91,3 +91,7 @@ jobs:
       # that running both has caught things neither found alone.
       - name: Pyright
         run: pyright
+      # Reads the pinned versions rather than the installed environment, so it
+      # audits what ships, not what the runner happens to have resolved.
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt
