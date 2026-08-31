@@ -62,7 +62,7 @@ version of this document quoted a total without saying which files it covered,
 which made it the one claim here a reader could not check.
 
 Run over whole files rather than mechanisms, the seven Python modules the port
-replaces come to 1,025 lines and their eight TypeScript counterparts to 986.
+replaces come to 1,025 lines and their eight TypeScript counterparts to 989.
 The only thing that pair establishes is that the port is not meaningfully
 smaller than what it replaced. The deletion is concentrated, not spread.
 
