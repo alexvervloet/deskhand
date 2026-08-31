@@ -1,0 +1,25 @@
+{
+  "name": "deskhand-trigger",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A slice of deskhand's durable runtime, ported onto Trigger.dev.",
+  "scripts": {
+    "dev": "trigger.dev@latest dev",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "run:ticket": "node --experimental-strip-types scripts/run.ts",
+    "approve": "node --experimental-strip-types scripts/approve.ts"
+  },
+  "dependencies": {
+    "@trigger.dev/sdk": "^4.0.0",
+    "ajv": "^8.17.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "trigger.dev": "^4.0.0",
+    "typescript": "^5.9.3"
+  }
+}
