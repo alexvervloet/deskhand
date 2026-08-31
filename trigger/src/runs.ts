@@ -23,11 +23,16 @@
  * that difference is most of the writeup. There, `steps` was the resume
  * mechanism: a worker that came to a run mid-trajectory rebuilt the
  * conversation by replaying these rows, so they had to be complete, ordered and
- * append-only or a resumed run would reach a different decision. Here the
- * conversation is a variable that the platform checkpoints across a wait.
+ * strictly append-only or a resumed run would reach a different decision. Here
+ * the conversation is a variable that the platform checkpoints across a wait.
  * Nothing reads these rows to decide what to do next. They are written because
  * "who did what, at what cost, and how do I replay it" is invariant 5, and no
  * amount of durable execution answers that for the merchant's auditor.
+ *
+ * It is no longer append-only, and `appendStep` says why. Losing that property
+ * is a real cost, paid for a real reason, and it is the kind of thing that
+ * should be written down rather than discovered later by whoever trusts the
+ * table.
  */
 
 import type { PoolClient } from "pg";
@@ -66,9 +71,9 @@ const CONFIG = {
  *
  * **The prompt names the ticket and quotes none of it.** The reference is an
  * identifier this system minted; the subject is a line a customer typed into a
- * form. Interpolating the subject here looks harmless — it is one short line,
- * and it helps the agent know what it is picking up — but the opening prompt is
- * the one message that is not fenced, so that line would be the single piece of
+ * form. Interpolating the subject here looks harmless, since it is one short
+ * line that helps the agent know what it is picking up, but the opening prompt
+ * is the one message that is not fenced, so that line would be the single piece of
  * customer text reaching the model as trusted narration. The subject is not
  * lost: `get_ticket` returns it, inside the fence, with the body it belongs to.
  */
@@ -120,19 +125,32 @@ export async function get(db: PoolClient, runId: string): Promise<Record<string,
 }
 
 /**
- * Append one step.
+ * Record one step. Not an append: see below.
  *
  * `on conflict do update` is the port's addition, and it is there because a
  * retried attempt walks the same trajectory and reaches `seq` again. In Python
  * that could not happen: a resumed run read the existing rows and continued
  * past them, so an insert at an occupied seq meant a bug and the unique index
  * was right to say so. Here it is the ordinary consequence of re-entering
- * `run()` from the top, and the second write is the same content.
+ * `run()` from the top.
  *
- * Note the asymmetry with the idempotency ledger, which does *not* do this. A
- * step row is a description; overwriting one with an identical description
- * costs nothing. A ledger row is a claim that a side effect happened, and
- * letting a retry overwrite that claim would be the whole bug.
+ * The content is overwritten because the second write describes the same step.
+ * **The accounting is added, not overwritten, and that distinction is the whole
+ * correctness of this function.** A retry that re-asks the model spends real
+ * tokens and real money a second time. `addUsage` accumulates those onto the
+ * run, so overwriting `cost_micros` here would leave
+ * `sum(steps.cost_micros) != runs.cost_micros` after any retry, and the step
+ * log would quietly under-report the bill. Since invariant 5 is now the step
+ * log's only job, an accounting hole in it is not a cosmetic problem.
+ *
+ * The bug this avoids is invisible against the scripted provider, which reports
+ * zero cost for everything. It would have appeared the first time this ran
+ * against a real model and retried.
+ *
+ * Note the asymmetry with the idempotency ledger, which does *not* upsert at
+ * all. A step row is a description, and a description can be restated. A ledger
+ * row is a claim that a side effect happened, and letting a retry overwrite
+ * that claim would be the whole bug.
  */
 export async function appendStep(
   db: PoolClient,
@@ -156,7 +174,11 @@ export async function appendStep(
        on conflict (run_id, seq) do update
          set content = excluded.content,
              kind = excluded.kind,
-             tool_name = excluded.tool_name
+             tool_name = excluded.tool_name,
+             input_tokens = steps.input_tokens + excluded.input_tokens,
+             output_tokens = steps.output_tokens + excluded.output_tokens,
+             cost_micros = steps.cost_micros + excluded.cost_micros,
+             latency_ms = excluded.latency_ms
        returning id`,
       [
         opts.runId,
@@ -195,6 +217,15 @@ export async function addUsage(
   );
 }
 
+/**
+ * End a run.
+ *
+ * The Python version cleared `lease_owner` and `lease_expires_at` here. This
+ * one does not write them at all, which is the point: a file whose docstring
+ * says there is no lease should not have a statement that nulls one out four
+ * screens further down. Nothing in the port ever sets those columns, so they
+ * are already null on every run it creates.
+ */
 export async function finish(
   db: PoolClient,
   runId: string,
@@ -202,7 +233,6 @@ export async function finish(
 ): Promise<void> {
   await db.query(
     `update runs set status = $1::run_status, stop_reason = $2, stop_detail = $3,
-                     lease_owner = null, lease_expires_at = null,
                      finished_at = now(), updated_at = now()
       where id = $4`,
     [opts.status, opts.stopReason, opts.stopDetail ?? null, runId],
