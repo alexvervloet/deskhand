@@ -3,7 +3,7 @@
  *
  * Set this beside `deskhand/runtime/loop.py` and the shape of the port is
  * legible in the first twenty lines. The Python version opens by insisting that
- * nothing about a run's position lives in a variable — every iteration
+ * nothing about a run's position lives in a variable. Every iteration
  * re-derives the next action from rows, because a worker that dies is not
  * resuming a computation, it is reading a database.
  *
@@ -196,9 +196,9 @@ export async function advance(
       const toolUseId = String(toolUse["id"]);
 
       // A model can ask for a tool that does not exist. Every question the
-      // runtime asks next — does this need approval, what does it cost, what is
-      // its risk class — is answered from the registry, and none of them has an
-      // answer here. Settle it as a failed result the agent reads and recovers
+      // runtime asks next is answered from the registry: does this need approval,
+      // what does it cost, what is its risk class. None of them has an answer
+      // here. Settle it as a failed result the agent reads and recovers
       // from, rather than letting the lookup throw and take a run that may
       // already have moved money down with it. On this platform "take the run
       // down" also means "retry it from the top", which makes the same mistake
@@ -214,7 +214,7 @@ export async function advance(
 
       if (requiresApproval(name)) {
         // Validate before asking anyone. `requestApproval` renders the preview
-        // a human reads, and it renders it from these arguments — so an
+        // a human reads, and it renders it from these arguments, so an
         // irreversible call missing a required property would raise out of the
         // preview and kill the run, before any of the code that knows how to
         // report a bad argument had run.
@@ -284,7 +284,7 @@ export async function advance(
           continue;
         }
 
-        // Approved — but consent was given for a specific set of arguments. If
+        // Approved, but consent was given for a specific set of arguments. If
         // what is about to run is not what was shown to the human, it does not
         // run. See the long note in `consent.ts` for why a waitpoint does not
         // make this redundant.
@@ -382,8 +382,22 @@ type AskResult =
  * the *same* token back rather than opening a second one and asking a second
  * person. That is the platform's primitive doing exactly the job the
  * `on conflict (run_id, tool_use_id) do nothing` in `requestApproval` does for
- * the row — and both are needed, because they protect different halves: the key
+ * the row, and both are needed, because they protect different halves: the key
  * stops a duplicate wait, the constraint stops a duplicate record of consent.
+ *
+ * **The key's TTL is deliberately longer than the approval's.** The token times
+ * out after `APPROVAL_TTL_SECONDS` (a day); the idempotency key survives seven.
+ * The gap is the interesting window, so it is worth saying what happens in it:
+ * a retry on day two resolves the cached, already-timed-out token, gets
+ * `ok: false` immediately, and ends the run `approval_expired` without asking
+ * anybody.
+ *
+ * That is the behaviour to want. Making the two TTLs equal would be worse, not
+ * tidier: the key would expire with the token, the retry would mint a *fresh*
+ * waitpoint, and a second person would be asked to authorise a payment whose
+ * consent window the process had already declared closed. An expired approval
+ * should stay expired. The key outliving the timeout is what makes that true
+ * across a retry.
  */
 async function askHuman(
   waiter: Waiter,
