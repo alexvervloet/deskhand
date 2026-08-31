@@ -122,21 +122,18 @@ evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
 
-## Read the argument, then break it
+## Read it, then break it
 
-The repository is an argument; [docs/education/](docs/education/) is the order it makes sense in.
+[docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) is a guided tour from an empty
+database to a finished run and the records it leaves behind. It stops at the
+load-bearing parts, at the absences that are harder to spot, and at the places
+where the honest answer is "this is a demo and here is the seam". Those seams
+are collected in one list near the end rather than left for you to find.
 
-- **[The thesis](docs/education/01-thesis.md)** — why the loop is 3% of the code
-- **[Concept index](docs/education/02-concept-index.md)** — where every idea lives
-- **[Exactly once](docs/education/03-exactly-once.md)** — and the assumption it rests on
-- **[Evals](docs/education/04-evals.md)** — asserting a path, not an answer
-- **[Replay](docs/education/05-replay.md)** — reading a run back, and testing a prompt change against recorded traffic
-
-Then the [exercises](docs/education/exercises/), which are the point. Each is a one-line
-change with a verified result. If you do one, do
-**[02 — remove the invisible layer](docs/education/exercises/02-remove-the-invisible-layer.md)**:
-delete the most visible anti-injection defence in the project and watch 22 of 25
-evals keep passing.
+Then break something. Delete the fence around untrusted content and 22 of 25
+evals still pass, which is the uncomfortable half of defence in depth. Delete
+the approval check instead and 14 of 25 fail. Only the load-bearing layer is
+loud.
 
 ## Status
 
@@ -195,7 +192,9 @@ Divergence replays a recorded run against a changed system prompt or model and
 reports the first decision that differs. It never executes a tool: the recorded
 result is handed back instead, so it is safe to point at runs that moved real
 money. That gives you a prompt-regression suite built from production traffic.
-See [docs/05-replay.md](docs/education/05-replay.md) for the limitation it comes with.
+Once the replayed model asks for something the original run never asked for
+there is no recorded result to hand back, so it tells you where behaviour
+changed, not what would have happened next.
 
 ## Architecture notes
 

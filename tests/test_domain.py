@@ -62,8 +62,8 @@ def test_knowledge_base_search_does_not_cross_orgs(northwind_id: str) -> None:
 
 
 def test_the_injection_fixture_is_present() -> None:
-    """Exercise 02 depends on this attack existing in the seed data. If someone
-    sanitises it out of the fixtures, the exercise silently stops testing
+    """The injection evals depend on this attack existing in the seed data. If
+    someone sanitises it out of the fixtures, they silently stop testing
     anything — so the fixture itself is asserted."""
     row = fetch_one(
         "select m.body from ticket_messages m"

@@ -543,14 +543,14 @@ breaks the callers. The moment of annoyance is the audit.
 
 ---
 
-## 15. The formatter reached into the teaching docs
+## 15. The formatter reached into the Markdown
 
 **Expected.** Turning on `ruff format` would touch Python files. The `select`
 list already had every lint rule I wanted, and formatting looked like the
 mechanical half of the job.
 
 **What happened.** 30 files reformatted, and 7 of them were Markdown. Ruff
-formats Python inside fenced code blocks, and the education docs use aligned
+formats Python inside fenced code blocks, and the docs use aligned
 trailing comments to point at the interesting line:
 
 ```python

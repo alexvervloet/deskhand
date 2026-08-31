@@ -13,7 +13,7 @@
 -- This works because every side effect in this system is a write to this same
 -- database. A tool that called an external payment API could not do it, and
 -- would need a third `claimed` state plus reconciliation against the provider.
--- That is a real difference, not a detail — see docs/education/03-exactly-once.md.
+-- That is a real difference, not a detail.
 --
 -- run_id and step_id are unconstrained uuids here; the foreign keys are added
 -- by the migration that introduces `runs` and `steps`.

@@ -3,8 +3,7 @@
 A guided tour of Deskhand, from an empty database to a finished run and the
 records it leaves behind.
 
-Other docs in [education/](education/) argue *why* the system is shaped this
-way. This one walks you through it in the order it actually happens, stops at
+This walks you through the system in the order it actually happens, stops at
 the interesting parts, and points out the things worth noticing. Some of those
 are load-bearing mechanisms. Some are absences, which are harder to spot and
 usually more interesting. A few are places where the honest answer is "this is
@@ -236,9 +235,8 @@ the resumed run does it zero more times.
 
 **Watch for.** The key is `f"{run_id}:{seq}"`. Not a uuid. A uuid here would look
 more rigorous and would silently disable the entire mechanism, because a resumed
-run must recompute the identical key. That is [exercise
-03](education/exercises/03-make-the-key-random.md), and it takes about a minute
-to prove.
+run must recompute the identical key. Swap it for a uuid and the crash-resume
+eval fails, which takes about a minute to prove.
 
 **Watch for.** The savepoint around the handler. Without it, one bad SQL
 statement would poison the transaction that is still needed in order to record
@@ -514,10 +512,9 @@ is evidence somebody tried, and it belongs in the transcript, the run viewer, an
 the replay.
 
 **Watch for, most of all.** Delete the fence entirely and 22 of 25 evals still
-pass. That is [exercise
-02](education/exercises/02-remove-the-invisible-layer.md), and it is the one
-worth doing, because it is the uncomfortable consequence of defence in depth:
-removing a redundant layer changes almost nothing you can observe. Delete the
+pass. Do that one yourself if you do nothing else here, because it is the
+uncomfortable consequence of defence in depth: removing a redundant layer
+changes almost nothing you can observe. Delete the
 approval gate instead and 14 of 25 fail. Only the load-bearing layer is loud.
 
 ### 15. The worker dies at the worst moment
@@ -556,8 +553,7 @@ re-entered. When you do see it, something disorderly happened and was absorbed.
 docstring rather than glossed over: every side effect in this system is a row in
 the same Postgres, so the ledger row and the effect share a transaction. A tool
 calling a real payment API could not do that, and would need a third `claimed`
-state plus reconciliation. That is a real difference, not a detail. See
-[03-exactly-once.md](education/03-exactly-once.md).
+state plus reconciliation. That is a real difference, not a detail.
 
 ### 16. The run that will not stop
 
@@ -684,10 +680,10 @@ trust boundary would be a poor trade for better tests.
 
 **Watch for.** Some evals assert an outcome and some assert a *mechanism*, and
 the second kind look redundant right up until they are the only thing catching a
-silent removal. That is the lesson from the mutation table in
-[01-thesis.md](education/01-thesis.md): if every eval asks "did the right thing
-happen", a system with three defences keeps answering yes after you have deleted
-two of them, and you learn which one was holding during an incident.
+silent removal. Delete a defence and re-run the suite and the point makes
+itself: if every eval asks "did the right thing happen", a system with three
+defences keeps answering yes after you have deleted two of them, and you learn
+which one was holding during an incident.
 
 ---
 
@@ -723,12 +719,11 @@ collected in one place:
 
 ## Where to go next
 
-[education/](education/) is the argument, in reading order. Then the
-[exercises](education/exercises/), which are the point: four one-line changes
-with verified results, five to ten minutes each. If you do one, do
-[02](education/exercises/02-remove-the-invisible-layer.md).
+Break something. Delete the fence in `quarantine()`, or the approval check in
+the runtime, and run the eval suite. The gap between what each removal costs is
+the whole argument of this repository, and it takes about five minutes.
 
-And [LESSONS.md](../LESSONS.md) for the eleven things that did not go according
+Then [LESSONS.md](../LESSONS.md) for the eleven things that did not go according
 to plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.
