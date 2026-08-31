@@ -6,7 +6,7 @@
  *
  * 1. **It cannot execute without a recorded human approval** bound to this exact
  *    run, step, and argument hash. That gate lives in the runtime, not here, so
- *    that adding a tool to this module is sufficient to protect it — a handler
+ *    that adding a tool to this module is sufficient to protect it. A handler
  *    cannot forget to check.
  *
  * 2. **Its own preconditions are still enforced in code.** The approval gate
@@ -28,7 +28,7 @@ const DAILY_REFUND_CENTS_PER_ORG = Number(process.env.DAILY_REFUND_CENTS_PER_ORG
 /**
  * Refuse a payout that breaches a ceiling, before any money moves.
  *
- * Two ceilings, and neither is the per-order remaining balance — that one is
+ * Two ceilings, and neither is the per-order remaining balance. That one is
  * about a single order being refunded twice, and it says nothing about a run
  * that refunds four different orders once each.
  *
@@ -43,8 +43,8 @@ const DAILY_REFUND_CENTS_PER_ORG = Number(process.env.DAILY_REFUND_CENTS_PER_ORG
  *
  * The org row is locked first, and that is not decoration. The caller holds a
  * lock on the *order*, which serialises two runs fighting over one order and
- * does nothing about two runs refunding different orders of the same merchant —
- * both would read a daily total that leaves room, and both would pay. Locking
+ * does nothing about two runs refunding different orders of the same merchant.
+ * Both would read a daily total that leaves room, and both would pay. Locking
  * the merchant serialises every payout it makes.
  */
 async function ceilings(ctx: ToolContext, amount: number, currency: string): Promise<void> {

@@ -43,7 +43,7 @@ test("a forged closing marker inside the body is neutralised, not deleted", () =
   assert.equal(wrapped.split(closer).length - 1, 1);
 });
 
-test("deleting rather than replacing would rebuild the marker — the regression", () => {
+test("deleting rather than replacing would rebuild the marker, the regression", () => {
   // This is the case that broke the Python version. Splitting the closer around
   // itself means a delete-the-closer pass joins the halves back into a closer.
   const token = fenceToken(RUN);

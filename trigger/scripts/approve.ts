@@ -8,7 +8,7 @@
  * Two modes, and the difference between them is the port's whole delivery
  * story. Against `run-local.ts` this writes the decision to the approvals row
  * and the polling waiter picks it up. Against a real deployment it also has to
- * *deliver* the decision, by completing the waitpoint token — which is what
+ * *deliver* the decision, by completing the waitpoint token, which is what
  * wakes a run that is currently suspended and holding no compute at all.
  *
  * Completing the token needs a `TRIGGER_SECRET_KEY`, so it is attempted only

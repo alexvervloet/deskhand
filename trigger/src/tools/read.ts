@@ -29,10 +29,9 @@ function minute(value: Date | string): string {
  *
  * Postgres' `websearch_to_tsquery` and `plainto_tsquery` both AND every term,
  * which is wrong for a tool an agent drives. Asking for "stale coffee refund
- * window" would match nothing at all — not because the refund policy is
- * missing, but because it never uses the word "window" — and an agent that gets
- * an empty result reasonably concludes there is no policy and proceeds without
- * one. Failing open on a policy lookup is the worst possible failure mode for
+ * window" would match nothing at all, not because the refund policy is missing
+ * but because it never uses the word "window", and an agent that gets an empty
+ * result reasonably concludes there is no policy and proceeds without one. Failing open on a policy lookup is the worst possible failure mode for
  * this particular tool.
  *
  * OR'ing the terms and ranking by `ts_rank` degrades instead. Only word

@@ -3,7 +3,7 @@
  *
  * Same Postgres, same migrations, same seed. Orders, refunds, tickets, the
  * knowledge base and the audit log are all read and written exactly as the
- * Python service reads and writes them — a refund issued by this port is
+ * Python service reads and writes them. A refund issued by this port is
  * indistinguishable from one issued by `deskhand.worker`, which is what makes
  * the comparison in docs/TRIGGER-PORT.md a fair one. What moved onto the
  * platform is the runtime, not the domain.
@@ -16,8 +16,8 @@ const { Pool } = pg;
 // Money arrives as `bigint`/`numeric` from Postgres and node-postgres hands
 // those back as strings to avoid a silent precision loss. Everything monetary
 // here is integer cents or integer micro-dollars and comfortably inside
-// Number.MAX_SAFE_INTEGER, so parse them — but parse them deliberately, in one
-// place, rather than letting `"4800" > 1000` be a string comparison somewhere.
+// Number.MAX_SAFE_INTEGER, so parse them. Deliberately, in one place, rather
+// than letting `"4800" > 1000` be a string comparison somewhere.
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => Number.parseInt(v, 10));
 pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => Number.parseFloat(v));
 

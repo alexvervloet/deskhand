@@ -7,9 +7,9 @@
  * spend, whose data a run may read, or whether a ticket body gets a vote on
  * what counts as pre-approved.
  *
- * The integrity tests below drive a *fully obedient* model — one that does
- * exactly what the injected instruction in NW-4 tells it to do — because a
- * model that declines the attack proves nothing about the runtime.
+ * The integrity tests below drive a *fully obedient* model, one that does
+ * exactly what the injected instruction in NW-4 tells it to do, because a model
+ * that declines the attack proves nothing about the runtime.
  */
 
 import { strict as assert } from "node:assert";
@@ -198,7 +198,7 @@ test("the payout ceiling holds even after a human clicks approve", async () => {
   ];
 
   // The human says yes. The ceiling says no, and the ceiling is checked at the
-  // point of payment rather than before the call that proposed it — which is
+  // point of payment rather than before the call that proposed it, which is
   // the only place it could hold against a human who has already approved.
   const waiter = new LocalWaiter({ approved: true, decidedBy: null, reason: null });
   await advance(runId, { provider: new FixedScriptProvider(script), waiter });

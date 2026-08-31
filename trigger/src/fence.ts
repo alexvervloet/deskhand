@@ -2,9 +2,9 @@
  * Fencing what the model is allowed to trust.
  *
  * A straight port of the `quarantine` half of `deskhand/runtime/transcript.py`.
- * The other half of that module — rebuilding the conversation by replaying step
- * rows — is gone, because the messages array now lives in a variable that
- * Trigger.dev checkpoints across a wait. This is the part that stays, because
+ * The other half of that module, rebuilding the conversation by replaying step
+ * rows, is gone: the messages array now lives in a variable that Trigger.dev
+ * checkpoints across a wait. This is the part that stays, because
  * it has nothing to do with durability: it is about where untrusted bytes enter
  * the model's context, and they enter in the same place either way.
  */
@@ -26,7 +26,7 @@ export function fenceToken(runId: string): string {
 
 /**
  * What a forged marker inside the body is replaced with. Deliberately contains
- * no angle bracket, which is what makes one pass enough — see `quarantine`.
+ * no angle bracket, which is what makes one pass enough. See `quarantine`.
  */
 export const STRIPPED_MARKER = "[fence marker stripped]";
 

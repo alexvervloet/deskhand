@@ -11,7 +11,7 @@
  * argument, or a tool *result* can reach it.
  *
  * Trigger.dev's `chat.agent()` has a `needsApproval: true` flag on a tool that
- * expresses the same idea, and it holds the same property for the same reason —
+ * expresses the same idea, and it holds the same property for the same reason:
  * it is declared in backend code, not carried on the call. It is not used here
  * because this port builds on `task()`; see docs/TRIGGER-PORT.md.
  */
@@ -31,7 +31,7 @@ export type RiskClass = (typeof RiskClass)[keyof typeof RiskClass];
 /**
  * A tool failed in a way the model should see and can react to.
  *
- * Raised for bad arguments, missing records, and policy violations — the
+ * Raised for bad arguments, missing records, and policy violations: the
  * ordinary failures of doing the job. It becomes an `is_error` tool result, not
  * a crashed run.
  *
@@ -190,8 +190,8 @@ export function requiresApproval(name: string): boolean {
  * hash equally regardless of construction order.
  *
  * This function is the single most load-bearing thing that did *not* delete in
- * the port. A waitpoint token replaces the approvals table's plumbing — the
- * pending state, the expiry, the wake-up — but the token's completion payload
+ * the port. A waitpoint token replaces the approvals table's plumbing, the
+ * pending state, the expiry and the wake-up, but the token's completion payload
  * arrives from outside the run, and a token id is a capability to resume, not a
  * statement about what was consented to. See `consent.ts`.
  */

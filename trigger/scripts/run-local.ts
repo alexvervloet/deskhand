@@ -11,10 +11,9 @@
  * table until somebody answers it.
  *
  * The difference between the two is exactly the thing worth paying for. This
- * script has to stay running for as long as the human takes. A waitpoint frees
- * its compute after 30 seconds of idle and the run costs nothing while a person
- * thinks about it — and if this process is killed while waiting, the run is
- * simply gone, whereas a suspended task comes back.
+ * script has to stay running for as long as the human takes, and if it is
+ * killed while waiting, the run is simply gone. A suspended waitpoint holds no
+ * compute, does not count against `maxDuration`, and comes back.
  *
  * Answer an approval from another shell:
  *
