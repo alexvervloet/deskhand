@@ -20,7 +20,7 @@ python -m deskhand.seed
 
 cd trigger
 npm install
-npm test                            # 25 tests, real Postgres, no account needed
+npm test                            # 26 tests, real Postgres, no account needed
 ```
 
 Drive a ticket end to end without a Trigger.dev account:
@@ -49,7 +49,7 @@ nothing in a tool result can reach.
 | `src/trigger/work-ticket.ts` | The task. 33 lines, and the whole of the platform's footprint. |
 | `src/consent.ts` | The approval gate. Mostly deleted; `args_hash` is what stayed. |
 | `src/invoke.ts` | The idempotency ledger, which a platform retry still needs. |
-| `src/bounds.ts` | Steps, tokens, spend, deadline, loop detection. |
+| `src/bounds.ts` | Steps, tokens, spend, deadline, loop detection. None of it moved. |
 | `src/fence.ts` | Wrapping tool output as data rather than instruction. |
 | `src/tools/` | The registry and the tools, split by risk class. |
 
@@ -60,8 +60,8 @@ the suspension: instead of a waitpoint it polls the approvals table.
 
 The difference is the thing worth paying for. That script has to stay running
 for as long as the human takes, and if you kill it while it waits, the run is
-gone. A waitpoint frees its compute after 30 seconds of idle, costs nothing
-while a person thinks, and comes back.
+gone. A suspended waitpoint holds no compute, does not count against
+`maxDuration` (which measures CPU time, not elapsed time), and comes back.
 
 ## What is not here
 
