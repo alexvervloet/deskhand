@@ -1,24 +1,31 @@
 /**
- * The model, and the scripted stand-in that needs no key.
+ * The scripted model.
  *
- * Both return the same `ModelReply` and the runtime cannot tell them apart, so
- * the loop, the approval gate, the bounds and the fence are all exercised
- * identically whether or not an API key is set.
+ * **There is no real provider here, and that is a real limitation of the port
+ * rather than a detail.** The Python service has a working `ClaudeProvider`
+ * next to its mock; this file has only the mock, because the port exists to
+ * compare *runtimes* and every claim it makes is about what happens around the
+ * model call rather than inside it. `getProvider` returns the scripted one
+ * unconditionally. Nothing here has ever spoken to an API.
  *
- * The mock is **not** a small language model and makes no claim to be. It is a
+ * What that costs is stated in docs/TRIGGER-PORT.md: the port has not been run
+ * against a model that can produce a genuinely unexpected turn, so the
+ * trajectory is reproducible by construction rather than by luck. That
+ * assumption is load-bearing for the idempotency key, and `invoke.ts` says what
+ * happens when it does not hold.
+ *
+ * The mock is not a small language model and makes no claim to be. It is a
  * handful of fixed trajectories chosen by keyword, whose job is to drive the
- * runtime through its interesting states — the approval gate, and a retry after
+ * runtime through its interesting states: the approval gate, and a retry after
  * a crash. Every run it produces is tagged `provider=mock`.
  *
  * Statelessness is a requirement here, not a simplification, and the port
  * sharpens why. In Python a resumed run rebuilt its history from the step log
  * and asked the provider for the next turn; a provider holding a private
  * counter would have returned the wrong turn. Here a *retried* run rebuilds
- * nothing — it re-enters `run()` from the top with an empty history — and the
+ * nothing. It re-enters `run()` from the top with an empty history, and the
  * turn index is still derived from the messages it is handed, so attempt two
- * walks the same trajectory as attempt one. That is what makes the idempotency
- * ledger's key stable across a retry, and it is the assumption a real model
- * does not honour. See the note in `invoke.ts`.
+ * walks the same trajectory as attempt one.
  */
 
 export interface ContentBlock {
@@ -73,7 +80,7 @@ function call(name: string, input: Record<string, unknown>): ContentBlock {
 }
 
 // Order references are four digits (NW-1042); ticket references are one or two
-// (NW-1). Crude, and adequate for a fixture-driven demo — the mock's job is to
+// (NW-1). Crude, and adequate for a fixture-driven demo: the mock's job is to
 // reach the interesting states, not to parse English.
 const ORDER_REF = /\b([A-Z]{2}-\d{3,})\b/;
 const TICKET_REF = /\b([A-Z]{2}-\d{1,2})\b/;
@@ -83,9 +90,9 @@ const TOTAL = /total: ([\d,]+)\.(\d{2}) /;
  * The opening prompt plus the first tool result, and nothing after it.
  *
  * Deliberately *not* the whole conversation. The plan below is recomputed from
- * scratch on every turn — it has to be, because the provider is stateless so
- * that a retried run reaches the same decision — and reading the growing
- * transcript made that recomputation unstable: the agent would set off down the
+ * scratch on every turn. It has to be, because the provider is stateless so that
+ * a retried run reaches the same decision, and reading the growing transcript
+ * made that recomputation unstable: the agent would set off down the
  * "where is my order" path, a knowledge-base search would return an article
  * that happens to contain the word *refund*, and the next turn would decide it
  * had been working a refund all along.
@@ -164,12 +171,12 @@ export class ScriptedProvider implements Provider {
 }
 
 /**
- * The trajectory used when there is no API key.
+ * The default trajectory.
  *
  * It picks one of three shapes from the ticket text and fills in references and
  * amounts by reading them back out of earlier tool results. That is enough to
- * walk the runtime through a full run — including suspending on an irreversible
- * call and resuming after a human decides — with no key and no network.
+ * walk the runtime through a full run, including suspending on an irreversible
+ * call and resuming after a human decides, with no key and no network.
  */
 export class DefaultMockProvider extends ScriptedProvider {
   protected override plan(messages: Message[]): ContentBlock[][] {
@@ -241,8 +248,8 @@ export class DefaultMockProvider extends ScriptedProvider {
 
 /**
  * A provider that walks a trajectory you hand it, for tests that need one
- * specific shape — an obedient model that does what an injected instruction
- * tells it, say.
+ * specific shape: an obedient model that does what an injected instruction tells
+ * it, say.
  */
 export class FixedScriptProvider extends ScriptedProvider {
   readonly script: ContentBlock[][];
@@ -258,8 +265,8 @@ export class FixedScriptProvider extends ScriptedProvider {
 }
 
 export function getProvider(): Provider {
-  // Falls back to the mock rather than failing, because running keyless is a
-  // supported mode — but the choice is surfaced on every run, so it is never a
-  // silent substitution.
+  // Unconditional. There is no real provider in the port to fall back from, and
+  // pretending otherwise would be the one place this repository lied about what
+  // it does. Every run is tagged provider=mock, in the run row and in the logs.
   return new DefaultMockProvider();
 }
