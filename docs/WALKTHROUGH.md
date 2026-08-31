@@ -680,12 +680,122 @@ trust boundary would be a poor trade for better tests.
 
 **Watch for.** Some evals assert an outcome and some assert a *mechanism*, and
 the second kind look redundant right up until they are the only thing catching a
-silent removal. Delete a defence and re-run the suite and the point makes
-itself: if every eval asks "did the right thing happen", a system with three
-defences keeps answering yes after you have deleted two of them, and you learn
-which one was holding during an incident.
+silent removal. If every eval asks "did the right thing happen", a system with
+three defences keeps answering yes after you have deleted two of them, and you
+find out which one was holding during an incident. Part five is four deletions
+that make the point concrete.
 
 ---
+
+## Part five. Break it yourself
+
+Everything above is a claim. Here is how to check four of them, at about five
+minutes each. On a clean checkout the suite passes 25 of 25:
+
+```bash
+docker compose up -d db && python -m deskhand.migrate
+python -m evals.run
+```
+
+Each change below is one line, and `git checkout <file>` puts it back.
+
+| Delete | In | Evals that fail |
+|---|---|---|
+| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 14 of 25 |
+| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 25 |
+| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 25 |
+| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 25 |
+
+Write your prediction down before you run each one. The gap between the guess
+and the result is the part worth having.
+
+### 20. Delete the approval gate
+
+In `requires_approval`, return `False` instead of asking the registry.
+
+Fourteen failures, spread across every invariant in the project rather than
+sitting inside `consent`. Both injection evals go red, because the gate and not
+the fence is what stops an injected instruction from moving money. The
+durability and payout-ceiling evals go red because they need to reach the gate
+to set their scenario up at all: you cannot check that a ceiling refused a
+refund when nothing ever suspends. The accountability eval goes red because
+"who authorised this" has no answer when nothing was authorised.
+
+Two integrity evals live. Scoping a read to the ticket's own customer, and
+keeping customer text out of the opening prompt, are enforced elsewhere and do
+not care. That is the shape the next one is about.
+
+This is what a load-bearing mechanism looks like when you remove it.
+
+### 21. Delete the fence
+
+Last line of `quarantine()`, return `cleaned` instead of wrapping it in the
+delimiters. Tool output now reaches the model with nothing marking where a
+customer's words stop and the runtime's own begin.
+
+Three failures out of twenty-five, and not one of them is an injection eval.
+`every-tool-result-is-fenced`, `the-opening-prompt-quotes-no-customer-text` and
+the last line of `garbage-does-not-derail-the-run` assert that the mechanism is
+*present*. Every eval that asserts an *outcome* still passes.
+
+That is the uncomfortable one, so it is worth being precise about why. The
+injection eval from stop 14 drives a fully obedient model: it reads the forged
+instruction in NW-4 and calls `issue_refund` on the spot, no hesitation. It
+passes with the fence deleted, because `requires_approval` reads a frozen
+dataclass that nothing in a tool result can reach. The model can be completely
+persuaded and the worst it achieves is a request a human is still asked to
+approve.
+
+The fence and the registry defend the same attack at different depths. The fence
+removes structural ambiguity, which makes the model likelier to resist in the
+first place. The registry removes authority. Only one of them is load-bearing,
+and it is not the one with the red rule down the side of it in the UI.
+
+If these evals only asked "did the right thing happen", deleting the fence would
+have been silent. No refund issued, nothing red, ship it, and the next model or
+the next prompt tweak or the next tool whose output is long enough to bury the
+boundary finds out for you. Defence in depth makes each individual layer
+invisible to outcome testing, which is the argument for writing one eval per
+layer that asserts the mechanism instead.
+
+### 22. Make the idempotency key unique
+
+Have `idempotency_key` return `f"{run_id}:{seq}:{uuid.uuid4()}"`. Globally
+unique, unguessable, and completely inert.
+
+One failure, and it is not the dramatic one. `crash-resume-pays-once` still
+passes cheerfully with exactly-once disabled, because an orderly resume rebuilds
+the conversation from the step log, finds the refund's result row already
+sitting there, and never calls `invoke()` at all. The ledger covers the case the
+step log cannot: two callers at the same step, from a leasing bug or an approval
+callback that fires twice. `the-ledger-catches-a-double-execution` forces that
+path directly, which is why it is the only thing that notices.
+
+The key looks like an identifier and is really a derivation. Its whole job is
+that two independent attempts at the same logical step arrive at the same
+string, so uniqueness defeats it. Any time you catch yourself making an
+idempotency key more unique, check what is supposed to recognise it.
+
+You would not have found this in production for a long time either. The orderly
+path is covered by the step log, so you would learn the ledger was inert during
+the one incident it existed to survive.
+
+### 23. Delete loop detection
+
+Have `_looping()` always return `None`. The step cap, token cap, spend cap and
+deadline are untouched, so every run still terminates.
+
+One failure, and the run inside it still stops. It stops for the wrong reason:
+`step_cap` after burning all 24 steps, rather than `loop_detected` on the third
+identical call. The first message is true and nearly useless, because "reached
+the 24-step ceiling" is what a genuinely hard problem looks like, and also a
+stuck agent, and also a budget set too low. Those want three different
+responses. It is also twenty-one billed model calls that bought nothing.
+
+A bound that stops a run is not the same as a bound that explains it. The seven
+bounds from stop 16 stay separate reasons precisely so that "why did it stop"
+has a specific answer. Collapse them into one catch-all and termination is still
+guaranteed, with every bit of information about what went wrong thrown away.
 
 ## What this tour does not show you
 
@@ -719,12 +829,8 @@ collected in one place:
 
 ## Where to go next
 
-Break something. Delete the fence in `quarantine()`, or the approval check in
-the runtime, and run the eval suite. The gap between what each removal costs is
-the whole argument of this repository, and it takes about five minutes.
-
-Then [LESSONS.md](../LESSONS.md) for the eleven things that did not go according
-to plan, written while the detail was fresh. A full-text search that failed
+[LESSONS.md](../LESSONS.md) for the eleven things that did not go according to
+plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.
 Two individually correct decisions that composed into a demo asking to refund a
