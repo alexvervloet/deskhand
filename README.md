@@ -200,7 +200,15 @@ changed, not what would have happened next.
 
 **Durable execution is hand-rolled on Postgres, not delegated to Temporal.**
 Temporal is the right production answer and hides exactly the mechanism this
-project exists to show.
+project exists to show. So I took the mechanism out and put a platform
+underneath it, to find out how much of this was essential: [`trigger/`](trigger)
+is the runtime ported onto Trigger.dev, and
+[docs/TRIGGER-PORT.md](docs/TRIGGER-PORT.md) is what deleted and what did not.
+Two hundred and four lines went, all doing the single job of surviving not
+being in memory. The idempotency ledger and the argument-hash binding on
+consent both stayed, and the second one got *more* load-bearing, because a
+platform that retries from the top can resume a diverged trajectory on an
+approval a human gave for a different amount.
 
 **Exactly-once is honest about its assumption.** The idempotency ledger row is
 written in the *same transaction* as the tool's effect, which is what removes
@@ -239,7 +247,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — fourteen entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — seventeen entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
