@@ -4,13 +4,13 @@
  * This file is deliberately the whole of the platform's footprint in the port,
  * and it is worth reading as a measurement rather than as code. Everything
  * Trigger.dev contributes to a durable, resumable, human-gated agent is here:
- * a task definition, a wall-clock ceiling, a queue, a retry policy, and an
+ * a task definition, a compute ceiling, a queue, a retry policy, and an
  * adapter that turns `wait.createToken` / `wait.forToken` into the four-method
  * `Waiter` the loop asks for.
  *
- * `deskhand/worker.py` — the poll loop, the lease renewal, the signal handling,
- * the crash path that has to explicitly fail a run so it does not sit forever
- * looking alive — has no counterpart here at all. Neither does `claim_next`,
+ * `deskhand/worker.py` has no counterpart here at all: the poll loop, the lease
+ * renewal, the signal handling, the crash path that has to explicitly fail a run
+ * so it does not sit forever looking alive. Neither does `claim_next`,
  * with its `for update skip locked`. That is the deletion the port was for.
  */
 
@@ -35,6 +35,10 @@ const triggerWaiter: Waiter = {
     const idempotencyKey = await idempotencyKeys.create(key, { scope: "global" });
     const token = await wait.createToken({
       idempotencyKey,
+      // Deliberately longer than `timeout`. A retry that lands after the
+      // approval has timed out must inherit the expired token and end the run,
+      // not mint a fresh waitpoint and ask a second person for consent the
+      // process already declared stale. `askHuman` in loop.ts has the full note.
       idempotencyKeyTTL: "7d",
       timeout: `${timeoutSeconds}s`,
       tags,
@@ -58,10 +62,11 @@ const triggerWaiter: Waiter = {
 
 export const workTicket = task({
   id: "work-ticket",
-  // The backstop, not the deadline. See the note at the top of `bounds.ts`:
-  // this bounds an attempt, and the run's real ceiling is absolute and lives on
-  // the row, because three retries of a per-attempt ceiling is three fresh
-  // clocks.
+  // A backstop on runaway compute, not the deadline. This counts CPU time
+  // within one attempt and excludes time spent suspended, so it can neither
+  // bound a run across retries nor notice a ticket that has been open for a
+  // day. The wall-clock ceiling is absolute and lives on the row. See the note
+  // at the top of `bounds.ts`.
   maxDuration: 900,
   queue: { concurrencyLimit: 4 },
   run: async (payload: WorkTicketPayload) => {

@@ -1,17 +1,31 @@
 /**
  * Every run terminates, and every run is capped on what it costs.
  *
- * This file is the one that surprised me least and taught me most. Going in I
- * expected a durable execution platform to absorb the bounds along with the
- * durability, and it absorbs exactly one of them: `maxDuration` is a wall-clock
- * ceiling, so the deadline could in principle move into `trigger.config.ts`.
+ * Going in I expected a durable execution platform to absorb the bounds along
+ * with the durability, and it absorbs none of them. The one that looked like it
+ * would move is the deadline, and the reason it cannot is worth getting exactly
+ * right, because I got it wrong first: **`maxDuration` is not a wall-clock
+ * ceiling.**
  *
- * It does not move, and the reason is worth stating precisely. `maxDuration`
- * bounds an **attempt**. Deskhand's `deadline_at` is absolute and stamped once
- * at creation, specifically so that a run which crash-loops cannot earn itself
- * a fresh clock on every resume. Under a platform that retries three times by
- * default, a per-attempt ceiling is three fresh clocks. So `maxDuration` is set
- * as a backstop on the process, and the absolute deadline stays here, on the
+ * From `runs/max-duration.mdx`, it "is compared to the CPU time elapsed since
+ * the start of a single execution (which we call attempts) of the task. The CPU
+ * time is the time that the task has been actively running on the CPU, and does
+ * not include time spent waiting."
+ *
+ * So it is wrong for `deadline_at` twice over, for independent reasons:
+ *
+ *   1. It bounds an **attempt**, not a run. Deskhand's deadline is absolute and
+ *      stamped once at creation, specifically so a crash-looping run cannot
+ *      earn itself a fresh clock on every resume. Under a platform that retries
+ *      three times by default, a per-attempt ceiling is three fresh clocks.
+ *   2. It counts **CPU time**, not elapsed time. An agent that suspends for a
+ *      day waiting on a human burns almost none of it.
+ *
+ * The second is the same property that makes the approval gate cheap here, and
+ * it is genuinely good: nobody is billed for a person thinking. It just means
+ * `maxDuration` cannot answer "how long has this ticket been open", which is
+ * the only question an absolute deadline is asked. So `maxDuration` is set as a
+ * backstop on runaway compute, and the wall-clock deadline stays here, on the
  * row, checked against `now()` in the database that stamped it.
  *
  * Nothing else in this file has a platform counterpart, and that is not a gap
@@ -110,8 +124,8 @@ export async function exceeded(
  *
  * A step cap alone would eventually stop a loop, but only after paying for
  * every iteration of it. Matching on the argument hash catches the specific
- * failure — same tool, same arguments, no new information — early and names it,
- * so the run ends with `loop_detected` rather than an ambiguous `step_cap`.
+ * failure early, and names it: same tool, same arguments, no new information.
+ * The run ends with `loop_detected` rather than an ambiguous `step_cap`.
  */
 export async function looping(db: PoolClient, runId: string): Promise<string | null> {
   const row = (

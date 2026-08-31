@@ -3,12 +3,12 @@ import { defineConfig } from "@trigger.dev/sdk";
 /**
  * Deskhand's bounds, expressed where the platform can enforce them.
  *
- * `maxDuration` is the wall-clock deadline that `runs.deadline_at` used to be,
- * with one behavioural difference the port had to account for: it bounds an
- * *attempt*, not a run. Deskhand's deadline is absolute and set once at
- * creation precisely so that a crash-looping run cannot earn itself a fresh
- * clock. Here every retry starts a new one, so the absolute deadline is still
- * carried on the run row and checked in `bounds.ts`.
+ * `maxDuration` is a ceiling on **CPU time within one attempt**, not a
+ * wall-clock deadline: the docs are explicit that it "does not include time
+ * spent waiting". It is set here as a backstop against runaway compute, and it
+ * is not a replacement for `runs.deadline_at`, which is absolute, stamped once
+ * at creation, and checked in `bounds.ts`. See the note at the top of that file
+ * for why the two are not interchangeable.
  *
  * `retries.enabledInDev` is on deliberately. It is off by default, and leaving
  * it off would have hidden the whole finding: a retry re-enters `run()` from
