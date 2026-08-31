@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "trigger.dev@latest dev",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "test": "node --test --test-concurrency=1 --experimental-strip-types tests/*.test.ts",
     "run:ticket": "node --experimental-strip-types scripts/run.ts",
     "approve": "node --experimental-strip-types scripts/approve.ts"
   },
