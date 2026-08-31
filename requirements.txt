@@ -7,7 +7,7 @@ pydantic-settings==2.14.2
 python-dotenv==1.2.2
 bcrypt==5.0.0
 jsonschema==4.26.0
-anthropic==0.120.2
+anthropic==1.1.0
 
 # tests
 pytest==9.1.1
