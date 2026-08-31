@@ -9,8 +9,8 @@
  * notices the failure and retries.
  *
  * What it retries is the whole of `run()`, from the top. That is the fact the
- * port turns on. The loop has no memory of the first attempt — `messages`
- * starts empty, the model is asked from the beginning, and the trajectory walks
+ * port turns on. The loop has no memory of the first attempt: `messages` starts
+ * empty, the model is asked from the beginning, and the trajectory walks
  * straight back to `issue_refund`. Everything that made deskhand's crash
  * recovery careful is still required; only the machinery that *detected* the
  * crash has been handed over.
@@ -78,7 +78,7 @@ const FULL_SCRIPT: ContentBlock[][] = [
  * the crash lands at the same place regardless of which attempt is running.
  * Setting it to 4 means: the refund at turn 3 has executed and committed, and
  * the process dies before anything else happens. That is the worst moment
- * available — the money has moved and the run has no idea.
+ * available: the money has moved and the run has no idea.
  */
 class CrashingProvider extends ScriptedProvider {
   private readonly crashAtTurn: number;
@@ -157,6 +157,81 @@ test("a crash after the refund does not refund the customer twice", async () => 
     [false, false],
     "the two it never reached run for the first time",
   );
+});
+
+/**
+ * A model that reports a bill.
+ *
+ * The scripted provider reports zero cost for everything, which is fine for
+ * every other test here and hides exactly one bug: `appendStep` upserts, and if
+ * the upsert *overwrote* the accounting columns rather than adding to them, a
+ * retried run would leave `sum(steps.cost_micros)` short of `runs.cost_micros`
+ * while both looked plausible on their own. Against a zero-cost mock, 0 == 0
+ * and the test passes either way.
+ *
+ * Since the step log's only remaining job is invariant 5, an accounting hole in
+ * it is the kind of thing that has to be checked rather than reasoned about.
+ */
+function costed(reply: ModelReply): ModelReply {
+  return { ...reply, inputTokens: 1_000, outputTokens: 250, costMicros: 4_200 };
+}
+
+class CostedProvider extends FixedScriptProvider {
+  override async complete(
+    system: string,
+    messages: Message[],
+    tools: Array<Record<string, unknown>>,
+  ): Promise<ModelReply> {
+    return costed(await super.complete(system, messages, tools));
+  }
+}
+
+/** The crashing provider, but billing. Both attempts have to report a cost or
+ * the test cannot tell adding from overwriting: attempt one contributing zero
+ * makes `0 + x` and `x` the same number, and the assertion passes against the
+ * bug it exists to catch. */
+class CostedCrashingProvider extends CrashingProvider {
+  override async complete(
+    system: string,
+    messages: Message[],
+    tools: Array<Record<string, unknown>>,
+  ): Promise<ModelReply> {
+    return costed(await super.complete(system, messages, tools));
+  }
+}
+
+test("a retry's spend is added to the step log, not overwritten", async () => {
+  const fixture = await ticket("NW-1");
+  await resetTicket(fixture);
+  const runId = await newRun(fixture);
+
+  const waiter = new LocalWaiter({ approved: true, decidedBy: null, reason: null });
+  await assert.rejects(advance(runId, { provider: new CostedCrashingProvider(4), waiter }));
+
+  const replayWaiter = new LocalWaiter({ approved: true, decidedBy: null, reason: null });
+  for (const [key, id] of waiter.tokens) replayWaiter.tokens.set(key, id);
+  await advance(runId, { provider: new CostedProvider(FULL_SCRIPT), waiter: replayWaiter });
+
+  const { transaction } = await import("../src/db.ts");
+  const totals = await transaction(async (db) => {
+    const { rows } = await db.query(
+      `select r.cost_micros as run_cost,
+              r.input_tokens as run_input,
+              (select coalesce(sum(cost_micros), 0) from steps where run_id = r.id) as step_cost,
+              (select coalesce(sum(input_tokens), 0) from steps where run_id = r.id) as step_input
+         from runs r where r.id = $1`,
+      [runId],
+    );
+    return rows[0]!;
+  });
+
+  assert.ok(Number(totals["run_cost"]) > 0, "the costed provider actually reported a bill");
+  assert.equal(
+    Number(totals["step_cost"]),
+    Number(totals["run_cost"]),
+    "what the run says it spent must equal what the steps add up to",
+  );
+  assert.equal(Number(totals["step_input"]), Number(totals["run_input"]));
 });
 
 test("no human is asked twice for the same decision", async () => {
