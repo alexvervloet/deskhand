@@ -649,3 +649,48 @@ string` in a constructor signature has to become an explicit field and an
 assignment. And test files that share seeded fixtures need
 `--test-concurrency=1`, because `node --test` runs *files* in parallel by
 default and three of these reset the same ticket.
+
+---
+
+## 18. I read "duration" as elapsed time, and argued against myself for two sections
+
+**Expected.** `maxDuration` is a timeout. Deskhand has a wall-clock deadline on
+the run row. One is the platform's version of the other, and the only wrinkle
+worth writing down is that `maxDuration` bounds an attempt rather than a run.
+
+**What happened.** `maxDuration` is not a wall-clock ceiling at all. It counts
+CPU time. The docs say so plainly: it "is compared to the CPU time elapsed since
+the start of a single execution ... and does not include time spent waiting."
+
+I never checked, because the word "duration" did the thinking for me.
+
+The part that should have caught it was already written. The best paragraph in
+the writeup is about `runs.suspended_at`, a column that exists because a person
+reading an approval screen used to spend the agent's wall-clock budget, and its
+whole point is that a suspended waitpoint does *not* consume `maxDuration`. A
+wall-clock ceiling would consume it. So the document asserted a thing and its
+negation, two sections apart, and I proofread it twice without the collision
+registering.
+
+The correction is a better finding than the error was. `maxDuration` is wrong
+for `deadline_at` for two independent reasons rather than one: it is per
+attempt, and it is blind to elapsed time. An absolute deadline stamped at
+creation is the only thing that can answer "how long has this ticket been
+open".
+
+Two things fell out of the same review. The port's headline line-count was
+unreproducible, not because the arithmetic was wrong but because the document
+never said which files it covered, so nobody could check it. That is the one
+kind of error a careful reader catches in five minutes, and it was in the
+document whose entire stance is careful accounting. There is now a
+`trigger/scripts/count-lines.mjs` that prints every number in it. And the step
+log's upsert overwrote `cost_micros` instead of adding it, so after a retry the
+step rows would have under-reported the bill while looking plausible. Invisible
+against a mock that reports zero cost, which is why the test that now covers it
+makes both attempts report a real one.
+
+**Next time.** When a platform's word matches a word in my own design, that is
+the moment to read the reference page, not the moment to assume a mapping. And
+when a document makes a claim in one section and leans on its opposite in
+another, no amount of rereading my own prose will find it. Only checking each
+claim against the source will.
