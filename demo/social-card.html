@@ -1,0 +1,245 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- The repo's GitHub social preview. Render it with demo/social-card.sh.
+     Colours are lifted from frontend/src/styles.css so the card and the app
+     agree about what amber means: a human has to decide. -->
+<style>
+  :root {
+    --bg: #101215;
+    --bg-raised: #171a1f;
+    --bg-sunken: #0b0d0f;
+    --line: #262b33;
+    --line-soft: #1d222a;
+    --text: #e4e7ea;
+    --text-dim: #939ba6;
+    --text-faint: #646c78;
+    --read: #6f8fb0;
+    --irreversible: #d4574e;
+    --accent: #d98b4a;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 640px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* A cold wash from the top-left, warming only where the gate is. */
+  .card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 60px 64px 56px;
+    display: flex;
+    gap: 56px;
+    background:
+      radial-gradient(900px 520px at 88% 62%, rgba(217, 139, 74, 0.10), transparent 70%),
+      radial-gradient(760px 460px at 4% 0%, rgba(111, 143, 176, 0.07), transparent 70%);
+  }
+
+  .left { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+
+  .mark {
+    font-family: var(--mono);
+    font-size: 15px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  h1 {
+    margin-top: 26px;
+    font-size: 82px;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
+
+  .sub {
+    margin-top: 20px;
+    font-size: 25px;
+    line-height: 1.35;
+    color: var(--text-dim);
+    max-width: 20ch;
+    letter-spacing: -0.01em;
+  }
+
+  .quote {
+    margin-top: 52px;
+    padding-left: 18px;
+    border-left: 2px solid var(--accent);
+    font-family: var(--mono);
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--text);
+    max-width: 34ch;
+  }
+  .quote .dim { color: var(--text-faint); display: block; font-size: 14px; margin-top: 10px; letter-spacing: 0.04em; }
+
+  .invariants {
+    margin-top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+    border: 1px solid var(--line);
+    background: var(--bg-raised);
+    border-radius: 6px;
+    padding: 5px 11px;
+  }
+
+  /* ------------------------------------------------- the run, mid-decision */
+  .right {
+    flex: 0 0 486px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .url {
+    text-align: right;
+    padding: 5px 2px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-faint);
+    letter-spacing: 0.02em;
+  }
+  .url b { color: var(--text-dim); font-weight: 500; }
+
+  .panel {
+    margin: auto 0;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-raised);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-faint);
+  }
+  .panel-head .badge {
+    color: var(--accent);
+    border: 1px solid rgba(217, 139, 74, 0.45);
+    background: rgba(217, 139, 74, 0.10);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 15px;
+  }
+  .step .n { color: var(--text-faint); width: 16px; font-size: 13px; }
+  .step .tool { color: var(--text-dim); flex: 1 1 auto; }
+  .step .tag { font-size: 12px; letter-spacing: 0.05em; }
+  .tag.read { color: var(--read); }
+  .tag.irrev { color: var(--irreversible); }
+  .step .tick { color: #4aa375; font-size: 13px; }
+
+  .step.pending {
+    background: rgba(217, 139, 74, 0.07);
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+  }
+  .step.pending .tool { color: var(--text); }
+  .amount { color: var(--text); }
+
+  .gate {
+    padding: 15px 18px 17px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(217, 139, 74, 0.07);
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+  }
+  .gate .label { font-size: 14px; color: var(--accent); flex: 1 1 auto; }
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    border-radius: 6px;
+    padding: 6px 14px;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #17120c; font-weight: 500; }
+
+  .foot {
+    padding: 12px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--line);
+    background: var(--bg-raised);
+  }
+</style>
+
+<div class="card">
+  <div class="left">
+    <div class="mark">alexvervloet / deskhand</div>
+    <h1>Deskhand</h1>
+    <p class="sub">A durable agent runtime for support operations.</p>
+
+    <div class="quote">
+      Step 7 of 12 fails after step 6 already sent the email.
+      <span class="dim">the sentence the project exists for</span>
+    </div>
+
+    <div class="invariants">
+      <span class="chip">durability</span>
+      <span class="chip">consent</span>
+      <span class="chip">boundedness</span>
+      <span class="chip">integrity</span>
+      <span class="chip">accountability</span>
+    </div>
+  </div>
+
+  <div class="right">
+  <div class="panel">
+    <div class="panel-head">
+      <span>NW&#8209;4 &middot; run 0f3ac1b2</span>
+      <span class="badge">awaiting approval</span>
+    </div>
+
+    <div class="step"><span class="n">1</span><span class="tool">read_ticket</span><span class="tag read">read</span><span class="tick">&#10003;</span></div>
+    <div class="step"><span class="n">2</span><span class="tool">read_order</span><span class="tag read">read</span><span class="tick">&#10003;</span></div>
+    <div class="step"><span class="n">3</span><span class="tool">search_policy</span><span class="tag read">read</span><span class="tick">&#10003;</span></div>
+    <div class="step pending"><span class="n">4</span><span class="tool">issue_refund <span class="amount">$19.00</span></span><span class="tag irrev">irreversible</span></div>
+
+    <div class="gate">
+      <span class="label">A person has to say yes.</span>
+      <span class="btn">Deny</span>
+      <span class="btn primary">Approve</span>
+    </div>
+
+    <div class="foot">the ticket claims pre&#8209;approval. the registry decides.</div>
+  </div>
+
+    <div class="url"><b>deskhand.fly.dev</b> &middot; live, keyless, free</div>
+  </div>
+</div>
