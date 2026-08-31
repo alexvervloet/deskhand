@@ -9,7 +9,7 @@
  * Substituting the waiter is the honest limit of what can be checked without a
  * Trigger.dev login, and it is worth being precise about what it does and does
  * not establish. It does not test that Trigger.dev checkpoints and resumes a
- * suspended run — that is their code, it is the reason to use them, and taking
+ * suspended run. That is their code, it is the reason to use them, and taking
  * their word for it is the entire premise of the port. What it does test is
  * every claim in docs/TRIGGER-PORT.md about what the *port* still has to do:
  * that a divergent retry cannot execute on a stale approval, and that a replay
@@ -41,10 +41,9 @@ export async function ticket(reference: string): Promise<TicketFixture> {
 /**
  * Put one ticket back the way the seed left it.
  *
- * These tests move real money in the real seeded database — that is the point
- * of them — so a second run would otherwise find NW-1042 already refunded to
- * its total and fail for a reason that has nothing to do with what is being
- * tested. Refunds go first: `refunds.run_id` is `on delete set null`, so
+ * These tests move real money in the real seeded database, which is the point
+ * of them, so a second run would otherwise find NW-1042 already refunded to its
+ * total and fail for a reason that has nothing to do with what is being tested. Refunds go first: `refunds.run_id` is `on delete set null`, so
  * dropping the runs would orphan them rather than remove them.
  */
 export async function resetTicket(fixture: TicketFixture): Promise<void> {
@@ -110,7 +109,7 @@ export async function ledger(runId: string): Promise<Array<Record<string, any>>>
  *
  * `tokens` is keyed by the same string the real adapter passes to
  * `idempotencyKeys.create`, so a second attempt at the same approval resolves
- * to the token the first attempt opened — which is what Trigger.dev's global-
+ * to the token the first attempt opened, which is what Trigger.dev's global-
  * scoped idempotency key does, and what makes the divergent-retry test in
  * `consent.test.ts` a faithful reproduction rather than a contrivance.
  */
@@ -118,10 +117,12 @@ export class LocalWaiter implements Waiter {
   readonly tokens = new Map<string, string>();
   readonly logs: Array<{ message: string; fields?: Record<string, unknown> }> = [];
   private readonly answer: Decision | null;
-  /** Throw out of the first wait, modelling a worker that dies while a human is
-   * still deciding. The next call answers normally, which is what a retried
-   * attempt sees. */
-  crashOnFirstWait = false;
+  /** Throw out of the first wait, modelling an attempt that fails after its
+   * token exists: an uncaught error on the resume path, an OOM, a restore that
+   * does not come back. Not a worker dying while a human decides, because no
+   * worker is running then. The next call answers normally, which is what the
+   * retried attempt sees. */
+  failFirstWait = false;
   private waits = 0;
 
   constructor(answer: Decision | null) {
@@ -138,8 +139,8 @@ export class LocalWaiter implements Waiter {
 
   async forToken<T>(_tokenId: string): Promise<{ ok: boolean; output?: T }> {
     this.waits += 1;
-    if (this.crashOnFirstWait && this.waits === 1) {
-      throw new Error("worker died while the approval was outstanding");
+    if (this.failFirstWait && this.waits === 1) {
+      throw new Error("attempt failed after the approval token was created");
     }
     // `null` models the timeout branch: nobody answered.
     if (this.answer === null) return { ok: false };

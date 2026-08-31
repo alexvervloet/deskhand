@@ -9,14 +9,17 @@
  * semantics:
  *
  *   - attempt one asks for USD 19.00 and opens a waitpoint
- *   - the worker dies while the human is still deciding
+ *   - the attempt fails after the token exists, for its own reasons: an
+ *     uncaught error on the resume path, an OOM, a restore that does not come
+ *     back. Note this is *not* "a worker dies while the human decides". There
+ *     is no worker during the wait, which is exactly what the platform is for.
  *   - the platform re-enters `run()` from the top
  *   - attempt two re-derives the trajectory and this time asks for USD 48.00
  *   - the token is idempotent, so the wait resolves on attempt one's approval
  *
  * A human said yes to nineteen dollars. Forty-eight is about to leave. Nothing
  * in the platform can see the problem, because from its point of view a token
- * was created, a person completed it, and a run resumed — all correct. The only
+ * was created, a person completed it, and a run resumed, all correct. The only
  * thing standing between that sequence and the money is `args_hash`.
  */
 
@@ -115,19 +118,19 @@ test("a divergent retry cannot spend the first attempt's approval", async () => 
   const runId = await newRun(fixture);
 
   // One waiter across both attempts, so the token created by attempt one is
-  // the token attempt two resolves — which is what Trigger.dev's global-scoped
+  // the token attempt two resolves, which is what Trigger.dev's global-scoped
   // idempotency key guarantees.
   const waiter = new LocalWaiter({ approved: true, decidedBy: null, reason: null });
-  waiter.crashOnFirstWait = true;
+  waiter.failFirstWait = true;
 
-  // Attempt one: asks for USD 19.00, opens the waitpoint, dies waiting.
+  // Attempt one: asks for USD 19.00, opens the waitpoint, then fails.
   await assert.rejects(
     advance(runId, { provider: new FixedScriptProvider(refundScript(1900)), waiter }),
-    /worker died while the approval was outstanding/,
+    /attempt failed after the approval token was created/,
   );
 
   // Attempt two: the platform re-enters `run()` from the top. This time the
-  // trajectory diverges and the model asks for USD 48.00 — the full order — and
+  // trajectory diverges and the model asks for USD 48.00, the full order, and
   // resumes on the approval a human gave for USD 19.00.
   const outcome = await advance(runId, {
     provider: new FixedScriptProvider(refundScript(4800)),
@@ -147,13 +150,13 @@ test("a divergent retry cannot spend the first attempt's approval", async () => 
   assert.equal(waiter.tokens.size, 1);
 });
 
-test("the same amount across a retry is fine — this refuses divergence, not retries", async () => {
+test("the same amount across a retry is fine: it refuses divergence, not retries", async () => {
   const fixture = await ticket("NW-1");
   await resetTicket(fixture);
   const runId = await newRun(fixture);
 
   const waiter = new LocalWaiter({ approved: true, decidedBy: null, reason: null });
-  waiter.crashOnFirstWait = true;
+  waiter.failFirstWait = true;
 
   await assert.rejects(
     advance(runId, { provider: new FixedScriptProvider(refundScript(1900)), waiter }),

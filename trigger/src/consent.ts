@@ -7,8 +7,8 @@
  * Most of `deskhand/runtime/approvals.py` is gone. The pending state, the
  * expiry sweep, the "wake the run so it can notice nobody answered" dance, the
  * `awaiting_approval` run status, the suspend-and-requeue pair and the deadline
- * arithmetic that gave a run back the time a human spent thinking — all of that
- * was plumbing for *a process that has to survive not being in memory*, and a
+ * arithmetic that gave a run back the time a human spent thinking. All of it was
+ * plumbing for a process that has to survive not being in memory, and a
  * waitpoint token is exactly that plumbing, done properly, by someone else.
  * `wait.createToken({ timeout })` even carries the TTL.
  *
@@ -31,15 +31,22 @@
  *      the hash recorded in step 1.
  *
  * Step 3 is not paranoia about a hostile approver. It is load-bearing for an
- * ordinary retry. Trigger.dev re-enters `run()` from the top on failure, so the
- * trajectory is re-derived; a token created under `idempotencyKey` is handed
- * back cached, so the *second* attempt resumes on the *first* attempt's
- * approval. If the model produced a different amount that time round, the
- * consent on record is for a call nobody is making any more. Deskhand's
- * `args_hash` catches that on a platform that has no idea it happened.
+ * ordinary retry.
+ *
+ * The sequence is not "a worker dies while the human decides". There is no
+ * worker during the wait, which is the thing the platform is for: the attempt
+ * is checkpointed and its compute released. The sequence is that the attempt
+ * fails for its own reasons *after* the token exists. An uncaught error on the
+ * resume path, an OOM, a restore that does not come back. Trigger.dev then
+ * re-enters `run()` from the top, the trajectory is re-derived, and a token
+ * created under `idempotencyKey` is handed back cached, so the *second* attempt
+ * resumes on the *first* attempt's approval. If the model produced a different
+ * amount that time round, the consent on record is for a call nobody is making
+ * any more. Deskhand's `args_hash` catches that on a platform that has no idea
+ * it happened.
  *
  * Trigger.dev's `chat.agent()` has a `needsApproval: true` flag that expresses
- * the gate itself far better than this file does — declared on the tool, in
+ * the gate itself far better than this file does. It is declared on the tool, in
  * backend code, unreachable from a tool result, which is the property that
  * matters. This port does not use it because it builds on `task()`. Worth
  * noting either way: its documented resume path is that the frontend sends the
@@ -77,7 +84,7 @@ export interface Decision {
  *
  * The preview is rendered here, from these arguments, and stored. It is never
  * derived from a tool result, and it is never re-rendered at approval time from
- * whatever the run happens to be holding — the human's screen and the hash are
+ * whatever the run happens to be holding. The human's screen and the hash are
  * generated from one read of one set of arguments, or they are not evidence of
  * anything.
  */
@@ -170,8 +177,8 @@ export class ConsentMismatch extends Error {
  * two sentences is this function.
  *
  * Note what is not an input: the completion payload. The decision arrives from
- * outside the run and is trusted for exactly one bit — yes or no — plus who
- * said it, for the audit log. Any arguments it carries are ignored, because a
+ * outside the run and is trusted for exactly one bit, yes or no, plus who said
+ * it, for the audit log. Any arguments it carries are ignored, because a
  * payload that could restate the call would be a payload that could change it.
  */
 export function assertConsentCovers(
