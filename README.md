@@ -130,10 +130,10 @@ load-bearing parts, at the absences that are harder to spot, and at the places
 where the honest answer is "this is a demo and here is the seam". Those seams
 are collected in one list near the end rather than left for you to find.
 
-Then break something. Delete the fence around untrusted content and 22 of 25
-evals still pass, which is the uncomfortable half of defence in depth. Delete
-the approval check instead and 14 of 25 fail. Only the load-bearing layer is
-loud.
+It ends with four one-line deletions to try yourself, each with the eval count
+it produces. Delete the fence around untrusted content and 22 of 25 evals still
+pass, which is the uncomfortable half of defence in depth. Delete the approval
+check instead and 14 of 25 fail. Only the load-bearing layer is loud.
 
 ## Status
 
