@@ -602,3 +602,50 @@ check — the type-aware lint rules are where that gap gets closed.
 **Next time.** On a TypeScript project, `recommendedTypeChecked` earns its
 setup cost before any style rule does. And when a plugin's flat config does not
 load, check for a `configs.flat` namespace before rewriting anything by hand.
+
+---
+
+## 17. The durable runtime port deleted less than expected, and the wrong parts stayed
+
+**Expected.** Porting the runtime onto Trigger.dev would be a large deletion.
+Durable execution is the thing the platform sells, deskhand hand-rolls it, so
+most of `runtime/` would collapse into a `task()` and the invariants would come
+along for free.
+
+**What happened.** Three things, none of them the expected one.
+
+The totals barely moved. 1,025 code lines of Python runtime became 986 lines of
+TypeScript. The deletion is real but narrow: 204 lines, every one of them doing
+the single job of surviving not being in memory. The lease, the claim query,
+the suspend and requeue pair, the transcript rebuild, and the whole worker
+process. Everything else stayed, and quoting the total either way would have
+been a misleading way to describe the change.
+
+The idempotency ledger did not go, and it should have been obvious sooner why.
+Trigger.dev retries a failed run by re-entering `run()` from the top, so a
+crash after a refund replays the refund. Their `idempotencyKey` covers the
+neighbouring case, and their docs say plainly that it is exactly-once task
+*creation*. I had read that sentence before starting and still expected the
+ledger to be redundant, because "durable execution" sounds like it should mean
+"my side effects happen once".
+
+The consent binding got *more* load-bearing, not less. Deskhand's `args_hash`
+test models a hostile caller rewriting a pending call. On a platform that
+retries from the top and hands back a cached waitpoint token, the same
+situation arrives with nobody being hostile: attempt two re-derives a different
+amount and resumes on attempt one's approval. Every step is correct from the
+platform's point of view. Only the hash catches it.
+
+**Next time.** When a platform absorbs a mechanism, ask what the mechanism was
+*for* rather than what it was called. "Durability" covered two unrelated jobs
+here: keeping a process resumable, which Trigger.dev does properly, and never
+paying a customer twice, which is a claim about a database and stayed mine. The
+deletion table is the useful artifact, not the line count.
+
+Two smaller ones from the same port, worth recording because both cost a detour.
+Node's `--experimental-strip-types` cannot handle constructor parameter
+properties, since they need a transform rather than an erasure; `readonly x:
+string` in a constructor signature has to become an explicit field and an
+assignment. And test files that share seeded fixtures need
+`--test-concurrency=1`, because `node --test` runs *files* in parallel by
+default and three of these reset the same ticket.
