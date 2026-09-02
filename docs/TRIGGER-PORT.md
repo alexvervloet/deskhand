@@ -299,13 +299,44 @@ crash, because it looks like working software. There is now a
 [test](../trigger/tests/invariants.test.ts) that a denied run says what
 actually happened, and the ticket escalates rather than resolving.
 
+**And a retry really does start from the top.** This was the last thing I was
+taking on faith, and the whole idempotency argument rests on it, so
+[`crash-probe.ts`](../trigger/src/trigger/crash-probe.ts) is a second task that
+fails on purpose on real infrastructure, at the worst available moment: after
+the refund has committed and before anything else happens. Attempt two is given
+the ordinary provider, no memory of the first, and no hint that it is a retry.
+
+The platform recorded two attempts. The database recorded one refund. The step
+log says why:
+
+| seq | step | replayed |
+| ---: | --- | --- |
+| 2 | `get_ticket` | true |
+| 4 | `get_order` | true |
+| 6 | `search_kb` | true |
+| 8 | **`issue_refund`** | **true** |
+| 10 | `add_internal_note` | false |
+| 12 | `set_ticket_status` | false |
+
+Attempt two walked the whole trajectory again, including the refund. Steps 10
+and 12 ran for the first time because attempt one died before reaching them.
+Step 8 is the answer to the question: the second attempt arrived at
+`issue_refund` with the money already gone, found the claim in the ledger under
+`<run>:8`, and handed back the recorded result instead of paying again. Delete
+the ledger and that row pays a second time.
+
+The approval was not asked twice either. The waitpoint token was already
+completed, and the idempotency key on it meant attempt two resolved the same
+token rather than opening a new one and putting the decision in front of a
+second person.
+
+The fault lives in its own task with its own id rather than behind a flag on
+the production one. Deskhand's fault injector has no environment switch for the
+same reason: a runtime that can be told to misbehave by its configuration is a
+runtime nobody can reason about.
+
 ## What I still have not verified
 
-- **"Retries re-enter `run()` from the top" comes from the documentation**, not
-  from a deployment I watched. It is consistent with why `idempotencyKey`
-  exists, and the whole idempotency argument depends on it. The crash and
-  replay behaviour is covered by tests locally, where the failure is injected
-  rather than genuine.
 - **The port never calls a real model.** `getProvider()` returns the scripted
   provider unconditionally; there is no Anthropic client in `trigger/` at all,
   where the Python service has a working one. So the trajectory is reproducible
@@ -334,6 +365,10 @@ database and stayed mine.
 The same mistake nearly cost me the deadline argument. "Duration" sounds like
 elapsed time, I read it as elapsed time, and I had written a paragraph
 depending on the opposite two sections earlier without noticing the collision.
+
+Both were caught by checking rather than by rereading. The retry claim held up,
+the deadline claim did not, and I could not have told you in advance which was
+which. That is the argument for deploying the thing.
 
 ## Running it
 
