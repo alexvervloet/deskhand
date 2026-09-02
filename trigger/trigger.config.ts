@@ -16,10 +16,13 @@ import { syncEnvVars } from "@trigger.dev/build/extensions/core";
  * the top, and that is what the idempotency ledger is still here to survive.
  */
 export default defineConfig({
-  // No default. A placeholder ref fails at deploy time with "Project not
-  // found", which is a worse error than the one below because it sounds like
-  // the project was deleted rather than never configured.
-  project: requireEnv("TRIGGER_PROJECT_REF"),
+  // A literal, not an env lookup, and the first version of this file got that
+  // wrong. This config is bundled and re-executed *inside the build container*
+  // during indexing, where nothing from the deploying shell exists, so a
+  // `requireEnv` here threw and killed the build rather than the deploy. A
+  // project ref is a public identifier anyway; the secret is the API key.
+  // Override with TRIGGER_PROJECT_REF to deploy a fork into your own project.
+  project: process.env.TRIGGER_PROJECT_REF ?? "proj_jdcxknupwfnetfusrhic",
   dirs: ["./src/trigger"],
   runtime: "node-22",
   maxDuration: 900,
@@ -71,13 +74,3 @@ export default defineConfig({
   },
 });
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `${name} is not set. Create a project at https://cloud.trigger.dev, then run ` +
-        `${name}=proj_… npx trigger.dev@latest deploy`,
-    );
-  }
-  return value;
-}
