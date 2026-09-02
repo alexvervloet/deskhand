@@ -24,6 +24,9 @@ import * as runs from "../src/runs.ts";
 
 async function main(): Promise<number> {
   const reference = process.argv[2];
+  // Second argument picks the task, so the crash probe can be driven by the
+  // same entry point rather than a second copy of it.
+  const taskId = process.argv[3] === "--crash-probe" ? "crash-probe" : "work-ticket";
   if (!reference) {
     console.error("usage: start.ts <TICKET_REFERENCE>   e.g. NW-1");
     return 2;
@@ -55,11 +58,12 @@ async function main(): Promise<number> {
   // database can be joined by eye, which is most of what makes a deployed
   // demo legible to somebody who did not write it.
   const handle = await tasks.trigger(
-    "work-ticket",
+    taskId,
     { runId },
     { tags: [`deskhand:${runId}`, `ticket:${reference}`] },
   );
 
+  console.log(`task          ${taskId}`);
   console.log(`deskhand run  ${runId}`);
   console.log(`trigger run   ${handle.id}`);
   console.log(`\nwatch it:     https://cloud.trigger.dev/runs/${handle.id}`);
