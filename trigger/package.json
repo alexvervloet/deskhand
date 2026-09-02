@@ -10,6 +10,7 @@
     "test": "node --test --test-concurrency=1 --experimental-strip-types tests/*.test.ts",
     "run:ticket": "node --experimental-strip-types scripts/run-local.ts",
     "approve": "node --experimental-strip-types scripts/approve.ts",
+    "start:remote": "node --experimental-strip-types scripts/start.ts",
     "count": "node scripts/count-lines.mjs"
   },
   "dependencies": {
