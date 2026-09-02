@@ -274,3 +274,36 @@ test("every run leaves an attributable trail", async () => {
   });
   assert.deepEqual(seqs, Array.from({ length: seqs.length }, (_, i) => i + 1));
 });
+
+test("a denied run does not end by claiming it refunded the customer", async () => {
+  const fixture = await ticket("NW-4");
+  await resetTicket(fixture);
+  const runId = await newRun(fixture);
+
+  // The deployed demo caught this one, not the suite. The scripted provider's
+  // closing turn was a fixed string, so a denied run finished with "Refunded
+  // NW-1101" written next to zero refunds. Every invariant held and the
+  // summary was still false, which on a public demo reads as working software
+  // doing the wrong thing.
+  const { DefaultMockProvider } = await import("../src/provider.ts");
+  const outcome = await advance(runId, {
+    provider: new DefaultMockProvider(),
+    waiter: new LocalWaiter({ approved: false, decidedBy: null, reason: "Not pre-approved." }),
+  });
+
+  assert.equal(outcome.status, "succeeded");
+  assert.equal(await countRefunds(runId), 0, "nothing may move on a denial");
+
+  const summary = String(outcome.summary);
+  assert.doesNotMatch(summary, /^Refunded/, `the run ended claiming: ${summary}`);
+  assert.match(summary, /declined/i, "the summary has to say what actually happened");
+
+  // And the ticket lands somewhere a person will look, rather than resolved.
+  const status = await transaction(async (db) => {
+    const { rows } = await db.query("select status::text from tickets where id = $1", [
+      fixture.ticketId,
+    ]);
+    return rows[0]!["status"];
+  });
+  assert.equal(status, "escalated");
+});
