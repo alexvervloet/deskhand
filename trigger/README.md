@@ -63,6 +63,55 @@ for as long as the human takes, and if you kill it while it waits, the run is
 gone. A suspended waitpoint holds no compute, does not count against
 `maxDuration` (which measures CPU time, not elapsed time), and comes back.
 
+## Deploying it
+
+The tests and `run-local.ts` need no account. A real deploy needs two things
+this repository cannot provide for you.
+
+**A project.** Create one at [cloud.trigger.dev](https://cloud.trigger.dev) and
+take its `proj_…` ref.
+
+**A Postgres the public internet can reach.** A deployed task runs on
+Trigger.dev's infrastructure, so the `localhost:5437` container that
+`docker compose up -d db` starts is not reachable from it. Any hosted Postgres
+works; the free tier of a serverless provider is enough for a demo, and the
+data here is seeded fixtures rather than anything worth protecting.
+
+Point the migrations and the seed at that database first, then deploy:
+
+```bash
+export DATABASE_URL="postgresql://…?sslmode=require"
+
+python -m deskhand.migrate      # from the repo root
+python -m deskhand.seed
+
+cd trigger
+TRIGGER_PROJECT_REF=proj_… npx trigger.dev@latest deploy
+```
+
+The deploy pushes `DATABASE_URL` into the environment as a secret via the
+`syncEnvVars` extension in `trigger.config.ts`, so there is no dashboard step.
+It refuses to deploy if the URL is missing or points at localhost, because
+deploying an agent that moves money against an unreachable database fails at
+the first tool call rather than at the first line.
+
+Then trigger a run and answer its approval:
+
+```bash
+export TRIGGER_SECRET_KEY=tr_prod_…      # an environment API key
+
+node --experimental-strip-types scripts/start.ts NW-1
+# prints the deskhand run id, the Trigger.dev run id, and a dashboard link
+
+# once it suspends on the gate, from anywhere, including another machine:
+node --experimental-strip-types scripts/approve.ts NW-1 approve
+```
+
+`start.ts` writes the run row and triggers the task, then exits. The work
+carries on without it. `approve.ts` completes the waitpoint token, which is
+what wakes a run that is holding no compute at all. Those two halves are what
+`run-local.ts` can only pretend to do, because it has to sit there.
+
 ## What is not here
 
 No UI, no replay, no divergence, and no port of the eval harness. The slice is
