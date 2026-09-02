@@ -20,7 +20,7 @@ python -m deskhand.seed
 
 cd trigger
 npm install
-npm test                            # 26 tests, real Postgres, no account needed
+npm test                            # 27 tests, real Postgres, no account needed
 ```
 
 Drive a ticket end to end without a Trigger.dev account:

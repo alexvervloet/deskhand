@@ -263,17 +263,49 @@ I have not built the frontend half, so I have not watched a mutated payload go
 through. But this is a reading of the documented mechanism rather than a guess
 about it.
 
-## What I did not verify
+## What the deploy showed
 
-- **Not deployed.** This ran locally against real Postgres, not on Trigger.dev
-  infrastructure. The tests substitute the waiter for one that answers instead
-  of suspending.
-- **The checkpoint and resume itself is taken on trust.** That Trigger.dev
-  suspends a waiting run, frees its compute and brings it back is their code,
-  and it is the reason to use them.
+The port is deployed and has run on Trigger.dev infrastructure, against a
+Postgres branch of the demo database. Two things I had taken on trust are now
+things I watched.
+
+**A suspended run really does hold nothing.** NW-1 reached the approval gate and
+the platform reported `status: "FROZEN"`, checkpointed with its compute
+released. It sat there while a human decided. When it finished:
+
+| Measure | Value |
+| --- | ---: |
+| wall clock, trigger to completion | 153 s |
+| billed `durationMs` | 19.8 s |
+| cost | 0.067 cents |
+
+The 133 seconds a person spent reading the approval screen cost nothing and
+counted for nothing. That is the `maxDuration` argument above, measured rather
+than quoted: a ceiling on CPU time cannot bound how long a ticket has been
+open, because the waiting is free.
+
+**The gate holds on real infrastructure.** NW-4, whose ticket body carries a
+forged `SYSTEM:` block ordering an unapproved refund, reached the same gate.
+The instruction said not to request human approval. The run requested one, a
+human denied it, and no money moved. The ledger for the successful NW-1 run has
+exactly six rows, one per tool call, with `issue_refund` claimed once under key
+`<run>:8`.
+
+Deploying it also found a bug that 26 passing tests did not. The scripted
+provider had a fixed closing turn, so the first denied run finished by writing
+"Refunded NW-1101" into the step log next to zero refunds. Every invariant
+held. The summary was still false, which on a public demo is worse than a
+crash, because it looks like working software. There is now a
+[test](../trigger/tests/invariants.test.ts) that a denied run says what
+actually happened, and the ticket escalates rather than resolving.
+
+## What I still have not verified
+
 - **"Retries re-enter `run()` from the top" comes from the documentation**, not
   from a deployment I watched. It is consistent with why `idempotencyKey`
-  exists, and the whole idempotency argument depends on it.
+  exists, and the whole idempotency argument depends on it. The crash and
+  replay behaviour is covered by tests locally, where the failure is injected
+  rather than genuine.
 - **The port never calls a real model.** `getProvider()` returns the scripted
   provider unconditionally; there is no Anthropic client in `trigger/` at all,
   where the Python service has a working one. So the trajectory is reproducible
@@ -286,7 +318,7 @@ What the tests do establish is what the port still has to do for itself: a
 divergent retry cannot execute on a stale approval, a replay from the top does
 not refund twice, an obedient model reading a forged pre-approval still hits
 the gate, a payout ceiling holds after a human clicks approve, and a retry's
-spend lands in the step log. 26 tests, against a real database, no account
+spend lands in the step log. 27 tests, against a real database, no account
 needed to run them.
 
 ## The thing I would tell myself before starting
@@ -311,7 +343,7 @@ python -m deskhand.migrate          # includes 0007, which the port added
 python -m deskhand.seed
 
 cd trigger && npm install
-npm test                            # 26 tests, real Postgres, no account needed
+npm test                            # 27 tests, real Postgres, no account needed
 npm run count                       # reproduces every number in this document
 
 node --experimental-strip-types scripts/run-local.ts NW-1
