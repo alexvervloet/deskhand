@@ -52,6 +52,8 @@ nothing in a tool result can reach.
 | `src/bounds.ts` | Steps, tokens, spend, deadline, loop detection. None of it moved. |
 | `src/fence.ts` | Wrapping tool output as data rather than instruction. |
 | `src/tools/` | The registry and the tools, split by risk class. |
+| `src/trigger/crash-probe.ts` | A second task that fails on purpose after the refund commits. |
+| `scripts/demo.ts` | Drives the deployed tasks and prints the receipts. |
 
 ## On `run-local.ts`
 
@@ -62,6 +64,31 @@ The difference is the thing worth paying for. That script has to stay running
 for as long as the human takes, and if you kill it while it waits, the run is
 gone. A suspended waitpoint holds no compute, does not count against
 `maxDuration` (which measures CPU time, not elapsed time), and comes back.
+
+## Where it runs, and why there is no link
+
+It is deployed to Trigger.dev Cloud, in a project called `deskhand`, against a
+Neon branch of the demo database. The task ids are `work-ticket` and
+`crash-probe`.
+
+**There is no public link, and there cannot be one.** A Trigger.dev run lives
+under the account that deployed it, and the dashboard needs a login. The only
+public-facing credential the platform offers is a Public Access Token for the
+Realtime API, which is scoped to specific runs and expires after fifteen
+minutes by default. Neither gives a stranger a URL that shows a run, and
+publishing a long-lived token to work around that would be handing out read
+access to the account.
+
+So the evidence is a transcript instead:
+[`demo/deployed-run.txt`](demo/deployed-run.txt), produced by
+[`scripts/demo.ts`](scripts/demo.ts). It drives the deployed tasks and prints
+every number after reading it back out of Postgres and the Trigger.dev API,
+which is the same standard [`demo/crash_resume.py`](../demo/crash_resume.py)
+holds itself to for the Python runtime.
+
+If you want to watch it yourself rather than read what it did, the whole thing
+runs on free tiers and the section below is the entire setup. Your own runs
+appear in your own dashboard.
 
 ## Deploying it
 
