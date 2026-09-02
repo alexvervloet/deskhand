@@ -1,0 +1,49 @@
+deskhand on Trigger.dev, running on their infrastructure.
+Every number below is read back afterwards, not asserted here.
+
+Resetting NW-1 on the demo database
+
+  order NW-1042, total 48.00 USD, nothing refunded
+
+Handing a ticket to the deployed task
+  deskhand run  1dec6c98-f9fe-4eeb-9c17-76c8c42ba01d
+  trigger run   run_06g6028c2bo5vljip082qe4f01
+  This process is not the agent. It could exit here and the run would go on.
+
+Waiting for it to reach something irreversible
+  stopped: Refund 19.00 USD against order NW-1042 — Quality complaint inside the published refund window.
+  bound to args_hash 73dbafa5c7a6987c…
+  waiting on waitpoint waitpoint_cmtji4s2qgm2f0vomqmwuh2le
+  platform says FROZEN, billed durationMs 0, after 93s of waiting
+  Checkpointed, compute released. A person can take a day and it costs nothing.
+
+A human approves that exact call
+  approved, waitpoint completed from a different process
+
+The attempt refunds the customer, then dies on purpose
+  crash-probe throws after the refund commits. The platform decides what happens next.
+
+What is actually in the database
+  run            succeeded (end_turn)
+  attempts       2
+  refunds        1, totalling 19.00 USD
+  ledger rows    6
+  billed         31568 ms, 0.106542 cents
+
+  the ledger, one row per tool call:
+      2  get_ticket         read          succeeded
+      4  get_order          read          succeeded
+      6  search_kb          read          succeeded
+      8  issue_refund       irreversible  succeeded
+     10  add_internal_note  reversible    succeeded
+     12  set_ticket_status  reversible    succeeded
+
+  what the second attempt did when it walked the same path again:
+      2  get_ticket         replayed
+      4  get_order          replayed
+      6  search_kb          replayed
+      8  issue_refund       replayed  <- the money did not move twice
+     10  add_internal_note  executed
+     12  set_ticket_status  executed
+
+One refund, across a real platform retry.
