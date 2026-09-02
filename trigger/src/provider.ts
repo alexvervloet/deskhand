@@ -124,6 +124,26 @@ function brief(messages: Message[]): string {
   return parts.join("\n");
 }
 
+/**
+ * Whether a human declined something earlier in this conversation.
+ *
+ * Matches the opening of the denial text `loop.ts` feeds back as a tool
+ * result. Coupled to that string on purpose: a mock that guessed at the shape
+ * of a denial could drift away from what the runtime actually sends and quietly
+ * stop noticing.
+ */
+function wasDeclined(messages: Message[]): boolean {
+  return messages.some(
+    (m) =>
+      typeof m.content !== "string" &&
+      m.content.some(
+        (b) =>
+          b.type === "tool_result" &&
+          String(b["content"] ?? "").includes("A human reviewed this action and declined it"),
+      ),
+  );
+}
+
 export class ScriptedProvider implements Provider {
   name = "mock";
   model = "mock";
@@ -223,6 +243,22 @@ export class DefaultMockProvider extends ScriptedProvider {
       ? Number.parseInt(total[1]!.replaceAll(",", ""), 10) * 100 + Number.parseInt(total[2]!, 10)
       : 1900;
 
+    // Did a human decline the refund earlier in this conversation?
+    //
+    // This is the one thing the mock reads from the whole transcript rather
+    // than from `brief`, and it is worth the exception. Without it the closing
+    // turn is a fixed string that claims a refund happened, so a denied run
+    // ends with "Refunded NW-1101" written next to zero refunds. The runtime
+    // was right and the summary was a lie, which on a public demo is worse
+    // than a bug: it is a bug that looks like working software.
+    //
+    // Reading it does not destabilise the plan the way reading the whole
+    // transcript did, because it changes only the text of turns that are
+    // already fixed in number. The script keeps its length and every earlier
+    // index still resolves to the same call, which is what a retried run
+    // depends on.
+    const declined = wasDeclined(messages);
+
     script.push(
       [call("get_order", { reference: orderRef })],
       [call("search_kb", { query: "refund policy window delivered" })],
@@ -236,11 +272,24 @@ export class DefaultMockProvider extends ScriptedProvider {
       [
         call("add_internal_note", {
           reference: ticketRef,
-          body: `Refund processed against ${orderRef} after human approval.`,
+          body: declined
+            ? `Refund against ${orderRef} was declined by a human. Leaving the order untouched ` +
+              "and escalating rather than retrying the same action."
+            : `Refund processed against ${orderRef} after human approval.`,
         }),
       ],
-      [call("set_ticket_status", { reference: ticketRef, status: "resolved" })],
-      text(`Refunded ${orderRef} and resolved ${ticketRef}.`),
+      [
+        call("set_ticket_status", {
+          reference: ticketRef,
+          status: declined ? "escalated" : "resolved",
+        }),
+      ],
+      text(
+        declined
+          ? `A human declined the refund against ${orderRef}, so no money moved. I left a note ` +
+            `on ${ticketRef} and escalated it for a person to decide.`
+          : `Refunded ${orderRef} and resolved ${ticketRef}.`,
+      ),
     );
     return script;
   }
