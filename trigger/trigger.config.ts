@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { syncEnvVars } from "@trigger.dev/build/extensions/core";
 
 /**
  * Deskhand's bounds, expressed where the platform can enforce them.
@@ -15,7 +16,10 @@ import { defineConfig } from "@trigger.dev/sdk";
  * the top, and that is what the idempotency ledger is still here to survive.
  */
 export default defineConfig({
-  project: process.env.TRIGGER_PROJECT_REF ?? "proj_deskhand_local",
+  // No default. A placeholder ref fails at deploy time with "Project not
+  // found", which is a worse error than the one below because it sounds like
+  // the project was deleted rather than never configured.
+  project: requireEnv("TRIGGER_PROJECT_REF"),
   dirs: ["./src/trigger"],
   runtime: "node-22",
   maxDuration: 900,
@@ -29,4 +33,51 @@ export default defineConfig({
       randomize: true,
     },
   },
+  build: {
+    extensions: [
+      /**
+       * Push the database URL to the deployed environment at deploy time.
+       *
+       * A deployed task runs on Trigger.dev's infrastructure and cannot reach
+       * the `localhost:5437` Postgres that `docker compose up -d db` starts, so
+       * the deployed slice needs a database reachable over the public internet.
+       * Marked secret, so the value is redacted in the dashboard and cannot be
+       * read back out of it.
+       *
+       * This runs on the machine doing the deploy, not in the task, so
+       * `DATABASE_URL` has to be set in that shell. It is deliberately not
+       * defaulted: silently deploying an agent that moves money against
+       * whatever database happens to be configured is not a mistake worth
+       * making convenient.
+       */
+      syncEnvVars(async () => {
+        const url = process.env.DATABASE_URL;
+        if (!url) {
+          throw new Error(
+            "DATABASE_URL is not set, so the deployed task would have no database to reach. " +
+              "Set it to a Postgres the public internet can resolve, and run the migrations " +
+              "and seed against it first.",
+          );
+        }
+        if (url.includes("localhost") || url.includes("127.0.0.1")) {
+          throw new Error(
+            `DATABASE_URL points at ${url.includes("localhost") ? "localhost" : "127.0.0.1"}, ` +
+              "which a deployed task cannot reach. Use a hosted Postgres for a deploy.",
+          );
+        }
+        return [{ name: "DATABASE_URL", value: url, isSecret: true }];
+      }),
+    ],
+  },
 });
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is not set. Create a project at https://cloud.trigger.dev, then run ` +
+        `${name}=proj_… npx trigger.dev@latest deploy`,
+    );
+  }
+  return value;
+}
