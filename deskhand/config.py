@@ -20,12 +20,18 @@ class Settings(BaseSettings):
 
     # --- Model ---
     anthropic_api_key: str | None = None
-    model_id: str = "claude-opus-5"
+    # Sonnet 5 rather than an Opus tier. This is a demo on a public URL doing
+    # short tool-calling turns over six seeded tickets, which is not work that
+    # repays the most capable model; Opus is one environment variable away if a
+    # route ever turns out to need it. The request shape below is unchanged by
+    # the choice — both take adaptive thinking and `effort`.
+    model_id: str = "claude-sonnet-5"
     # low | medium | high | xhigh | max. `high` is the API default; agentic work
     # is the case where xhigh earns its cost, so it is worth sweeping per route.
     model_effort: str = "high"
-    # A hard ceiling on tokens per model call. On Opus 5 thinking is on by
-    # default and counts against this, so it is sized for thinking + answer.
+    # A hard ceiling on tokens per model call. Thinking is adaptive on this
+    # model family and counts against this, so it is sized for thinking +
+    # answer rather than for the answer alone.
     max_tokens_per_call: int = 8192
 
     # --- Per-run bounds ---
