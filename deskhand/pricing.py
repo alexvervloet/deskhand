@@ -44,7 +44,7 @@ RATES: dict[str, Rate] = {
     "claude-opus-5": Rate(input=5_000, output=25_000),
     "claude-opus-4-8": Rate(input=5_000, output=25_000),
     "claude-fable-5": Rate(input=10_000, output=50_000),
-    "claude-sonnet-5": Rate(input=3_000, output=15_000),
+    "claude-sonnet-5": Rate(input=2_000, output=10_000),
     "claude-sonnet-4-6": Rate(input=3_000, output=15_000),
     "claude-haiku-4-5": Rate(input=1_000, output=5_000),
     # The scripted provider spends nothing. Naming it here rather than
