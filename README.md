@@ -191,7 +191,9 @@ in the run viewer, per step.
 Divergence replays a recorded run against a changed system prompt or model and
 reports the first decision that differs. It never executes a tool: the recorded
 result is handed back instead, so it is safe to point at runs that moved real
-money. That gives you a prompt-regression suite built from production traffic.
+money. Point it at a corpus of recorded runs and that is a prompt-regression
+suite. The runs here are my own rather than production traffic, of which this
+project has none, but nothing in the mechanism cares where a step log came from.
 Once the replayed model asks for something the original run never asked for
 there is no recorded result to hand back, so it tells you where behaviour
 changed, not what would have happened next.

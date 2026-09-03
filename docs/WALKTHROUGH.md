@@ -617,7 +617,8 @@ question.
 
 ```bash
 python -m deskhand.replay <run_id> --diverge
-python -m deskhand.replay <run_id> --system-prompt ./new-prompt.txt
+python -m deskhand.replay <run_id> \
+    --system-prompt examples/escalate-instead-of-refunding.txt
 ```
 
 Divergence replays a recorded run against a changed prompt or model. Each turn,
@@ -627,7 +628,32 @@ compared by tool name plus canonical arguments, never by prose, because two runs
 that both call `issue_refund` for the same amount have made the same decision
 even if they narrate it differently.
 
-That gives you a prompt-regression suite built from production traffic.
+Point it at a corpus of recorded runs and that is a prompt-regression suite. The
+runs here are my own rather than production traffic, of which this project has
+none, but nothing in the mechanism cares where a step log came from.
+
+**Watch for.** `--system-prompt` takes the *whole* prompt, not a patch. A file
+holding the one rule you want to add replaces the refund policy, the fence
+explanation and the approval rules along with it, and what you then measure is a
+model with no instructions rather than the change you meant to test. It diverges
+impressively and means nothing.
+[`examples/escalate-instead-of-refunding.txt`](../examples/escalate-instead-of-refunding.txt)
+is the real prompt with one paragraph appended, which is what testing a prompt
+change actually looks like. Generate your own the same way, from
+`deskhand.runtime.loop.SYSTEM_PROMPT`, rather than by retyping it.
+
+**Watch for.** Keyless, this reports a divergence that is entirely an artefact.
+The scripted provider accepts a system prompt and ignores it, deriving its
+trajectory from the messages alone — so it is not re-deciding the recorded run,
+it is replaying its own script, and it parts company with a real model's
+recorded trajectory almost immediately. Pointed at the run above it reports a
+confident `diverged at step 3` that says nothing about either prompt. The
+symmetric case is quieter and worse: replay a run the mock itself recorded and
+no prompt change can ever diverge, because the prompt is never read.
+
+Divergence is one of the few things here that means nothing without
+`ANTHROPIC_API_KEY` set, and unlike the rest of the keyless demo it does not
+announce that by degrading visibly — it produces a plausible report either way.
 
 **Watch for.** It never executes a tool. When the replayed model asks for a call,
 the *recorded* result is handed back. That is what makes it safe to point at runs

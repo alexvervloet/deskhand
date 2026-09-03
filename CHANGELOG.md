@@ -187,7 +187,7 @@ the database rather than from the model. The gaps were all in the space
   API at `GET /runs/{id}/replay?at=N`.
 - **`--diverge`** replays a recorded run against a changed system prompt or
   model and reports the first decision that differs — a prompt-regression tool
-  built out of production traffic.
+  that runs on recorded step logs.
 - Divergence **never executes a tool**: recorded results are handed back
   instead. Asserted by a test that replays an agent trying to issue a refund the
   original run never made, then checks the refunds table, ticket messages, step
