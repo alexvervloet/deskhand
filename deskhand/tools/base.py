@@ -94,6 +94,53 @@ class ToolOutcome:
 Handler = Callable[[ToolContext, dict[str, Any]], ToolOutcome]
 
 
+# Constraint keywords the Messages API refuses inside a `strict` tool schema.
+# Strict mode accepts a restricted subset of JSON Schema: it guarantees the
+# *shape* of the arguments — types, required keys, no extra properties — and
+# declines to police their range. Sending one is a 400 on every model call, and
+# it is a 400 the scripted provider cannot produce, so the whole test suite and
+# the whole keyless demo stay green while the real path is broken.
+#
+# Established by probing the API rather than by reading one error message and
+# guessing its neighbours: `minLength`, `maxLength`, `pattern`, `format`, `enum`
+# and `minItems` are all accepted. `exclusiveMaximum` is stripped with its
+# siblings without having been probed; if that is wrong the cost is local-only
+# enforcement, which is where every keyword here ends up anyway.
+_NUMERIC_REJECTS = frozenset(
+    {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"}
+)
+_STRICT_REJECTS: dict[str, frozenset[str]] = {
+    "integer": _NUMERIC_REJECTS,
+    "number": _NUMERIC_REJECTS,
+    "array": frozenset({"maxItems"}),
+}
+
+
+def _api_safe(schema: Any) -> Any:
+    """A copy of `schema` with the keywords strict mode refuses removed.
+
+    The constraints are not lost, only moved. `validate()` still runs the full
+    schema locally — before an approval is rendered for a human, and again
+    inside the savepoint in `invoke` — so a model proposing `amount_cents: 0`
+    gets a `ToolError` it can read and correct. That is the path a bad argument
+    was always meant to take. What changes is that the API no longer refuses it
+    on the model's behalf, so the refusal arrives one turn later and costs a
+    step.
+
+    Only the copy handed to the API is stripped. `self.parameters` keeps every
+    keyword, because it is the thing that still enforces them.
+    """
+    if isinstance(schema, list):
+        return [_api_safe(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    # Keyed on this node's own `type`, so a property that happens to be *named*
+    # "minimum" is untouched: the dict under `properties` has no `type` of its
+    # own and therefore rejects nothing.
+    rejected = _STRICT_REJECTS.get(schema.get("type", ""), frozenset())
+    return {key: _api_safe(value) for key, value in schema.items() if key not in rejected}
+
+
 @dataclass(frozen=True, slots=True)
 class ToolDef:
     name: str
@@ -121,11 +168,15 @@ class ToolDef:
         schema, which removes a whole category of defensive parsing from the
         handlers. It requires additionalProperties: false and an explicit
         `required` list, which the schemas here always have.
+
+        It also accepts only part of JSON Schema, so the schema is stripped to
+        the subset it will take. See `_api_safe`: the range constraints stay in
+        `self.parameters` and are still enforced by `validate()`.
         """
         return {
             "name": self.name,
             "description": self.description,
-            "input_schema": self.parameters,
+            "input_schema": _api_safe(self.parameters),
             "strict": True,
         }
 
