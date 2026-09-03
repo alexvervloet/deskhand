@@ -694,3 +694,60 @@ the moment to read the reference page, not the moment to assume a mapping. And
 when a document makes a claim in one section and leans on its opposite in
 another, no amount of rereading my own prose will find it. Only checking each
 claim against the source will.
+
+---
+
+## 19. The mock could not fail the way the API fails
+
+**Expected.** `strict: true` on a tool definition buys a guarantee that
+arguments validate against the schema, and the schemas here already had the
+`additionalProperties: false` and explicit `required` that strict mode asks
+for. There was nothing else to think about.
+
+**What happened.** The first real model call ever made by this project died:
+
+```
+anthropic.BadRequestError: 400
+tools.6.custom: For 'integer' type, property 'minimum' is not supported
+```
+
+Strict mode accepts a restricted subset of JSON Schema. It guarantees the
+*shape* of the arguments and refuses to carry their range: `minimum` and
+`maximum` on a numeric property, and `maxItems` on an array, are all rejected.
+Three schemas here used them, `issue_refund` first.
+
+Not an intermittent failure or a bad argument. No run could make a single model
+call. `tools.6` is `issue_refund`, which is only sixth because `api_schemas()`
+sorts by name for cache stability.
+
+**Why nothing caught it.** 125 tests, 25 trajectory evals and four CI jobs were
+green, and they were green because none of them sends a tool schema anywhere.
+The scripted provider takes `system`, `messages` and `tools` and reads only the
+messages. Every test in this repo drives that provider, on purpose, because
+determinism is what makes a trajectory eval assert on a path. The keyless demo
+has the same hole, so the deployed public demo could not have caught it either.
+
+The fault injector does not reach this. It makes *tools* fail, and the thing
+that failed was the request that describes the tools.
+
+**Fix.** `_api_safe()` in [deskhand/tools/base.py](deskhand/tools/base.py)
+strips the refused keywords from the copy handed to the API, and only that
+copy. `self.parameters` keeps them, and `validate()` still runs the full schema
+locally — before the approval preview is rendered and again inside the
+savepoint — so `amount_cents: 0` is still a `ToolError` the agent reads and
+corrects. The refusal now arrives one turn later and costs a step.
+
+Which keywords, established by probing the API with `count_tokens` rather than
+by reading the one error message and guessing its neighbours. That mattered:
+`minLength`, `maxLength`, `pattern`, `format`, `enum` and `minItems` are all
+accepted, and `maxItems` is not, which no amount of reasoning about the first
+error would have predicted.
+
+**Next time.** Every provider seam has a shape the mock does not model, and the
+mock's job is to be deterministic, which is the same thing as not being
+faithful. Worth asking of any test double: what does the real thing validate
+that this one accepts unconditionally? Here it was the request envelope, and
+the answer is that a keyless suite can prove the runtime correct and prove
+nothing at all about whether it can talk to a model. One smoke test that makes
+a single real call, kept out of the offline suite, would have found this on day
+one.
