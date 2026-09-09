@@ -21,7 +21,7 @@ hint: you can try to call 'close()' explicitly or to use the pool as context man
 `psycopg_pool` runs its own worker and scheduler threads. They are not daemon
 threads, so interpreter shutdown waits on them, times out, and complains. The
 queries all succeeded — the noise arrives *after* the useful output, which is
-exactly where it is most likely to be read as a failure.
+exactly where it's most likely to be read as a failure.
 
 **Fix.** `atexit.register(close_pool)` at the point the pool is created, in
 [deskhand/db.py](deskhand/db.py).
@@ -48,10 +48,10 @@ No knowledge-base article matches 'stale coffee refund window'.
 
 `plainto_tsquery` does the same thing.
 
-**Why it is worse than a bad search result.** The tool whose entire job is
+**Why it's worse than a bad search result.** The tool whose entire job is
 answering "am I allowed to do this" returned *there is no policy* when the
 policy existed and was one word away. An agent reading that reasonably
-concludes it is unconstrained and proceeds. A retrieval bug turned into a
+concludes it's unconstrained and proceeds. A retrieval bug turned into a
 permissions bug, and it would have shown up in a demo as the agent confidently
 refunding something outside the window.
 
@@ -106,7 +106,7 @@ arrive, that a `done` event closes the stream, and that the count was right.
 **What happened.** Running the real thing found a bug the test could not: the
 `status` and `done` events were built with `_run_summary(run | {"ticket_reference": None})`,
 because the query behind them did not join `tickets` and the field had to be
-filled with *something*. The client merges each status event into the run it is
+filled with *something*. The client merges each status event into the run it's
 displaying, so the run header would show `NW-1` until the first status arrived
 and then go blank — for the rest of the run.
 
@@ -141,8 +141,8 @@ Postgres `text` and `jsonb` cannot hold a NUL byte. The exception came from the
 *ledger write* in `invoke()` — which happens **after** the handler has already
 run. So the failure mode was: the refund is issued, the write recording that it
 was issued blows up, the transaction rolls back, and the run dies. On a real
-external side effect that would be money moved with no record of moving it. It
-is difficult to design a worse place for a crash.
+external side effect that would be money moved with no record of moving it. It's
+difficult to design a worse place for a crash.
 
 Real tools return NUL bytes more often than is comfortable: binary payloads
 mislabelled as text, truncated UTF-8, a C library handing over its buffer
@@ -390,11 +390,11 @@ person who wrote the defence had in mind.
 
 **Expected.** Four bounds — steps, tokens, spend, wall-clock — checked before
 every model call. Boundedness is the invariant I was least worried about,
-because it is the one made of arithmetic rather than judgement.
+because it's the one made of arithmetic rather than judgement.
 
 **What happened.** A run that suspends on an approval keeps its wall-clock
 deadline running. That is fine right up until somebody takes longer to answer
-than the run's entire budget, and then it is the worst failure shape available:
+than the run's entire budget, and then it's the worst failure shape available:
 the resume settles the pending tool call *before* the loop re-checks its bounds,
 so the refund executes, and the very next iteration ends the run on the deadline.
 Money gone, no confirmation email, no summary, ticket still open, and a
@@ -422,7 +422,7 @@ which the docstring is proud of — "a cap you verify afterwards is not a cap, i
 is an invoice." True, and incomplete: resolving a pending tool call is also an
 action, and it was the only path in the loop with no bound in front of it.
 
-**Next time.** For every limit, write down the quantity it is supposed to
+**Next time.** For every limit, write down the quantity it's supposed to
 measure, not just the condition it enforces. Then ask which parts of the elapsed
 time or spend belong to that quantity. Anywhere a run can be suspended waiting
 on something outside itself, the clock for the work almost certainly should not
@@ -624,7 +624,7 @@ been a misleading way to describe the change.
 The idempotency ledger did not go, and it should have been obvious sooner why.
 Trigger.dev retries a failed run by re-entering `run()` from the top, so a
 crash after a refund replays the refund. Their `idempotencyKey` covers the
-neighbouring case, and their docs say plainly that it is exactly-once task
+neighbouring case, and their docs say plainly that it's exactly-once task
 *creation*. I had read that sentence before starting and still expected the
 ledger to be redundant, because "durable execution" sounds like it should mean
 "my side effects happen once".
@@ -673,8 +673,8 @@ negation, two sections apart, and I proofread it twice without the collision
 registering.
 
 The correction is a better finding than the error was. `maxDuration` is wrong
-for `deadline_at` for two independent reasons rather than one: it is per
-attempt, and it is blind to elapsed time. An absolute deadline stamped at
+for `deadline_at` for two independent reasons rather than one: it's per
+attempt, and it's blind to elapsed time. An absolute deadline stamped at
 creation is the only thing that can answer "how long has this ticket been
 open".
 
