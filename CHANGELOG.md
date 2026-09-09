@@ -15,7 +15,7 @@ the database rather than from the model. The gaps were all in the space
 
 - **Fixed: the ticket subject reached the model unfenced.** `runs.create`
   interpolated `ticket['subject']` into the opening prompt, and that prompt is
-  the one message `transcript.rebuild` cannot fence — it is built before the run
+  the one message `transcript.rebuild` cannot fence — it's built before the run
   row exists, and the fence token is derived from the run id. A subject is a
   line a customer types into a form, so the single piece of untrusted text
   arriving as trusted narration was the one attached to the ticket being worked.
@@ -47,7 +47,7 @@ the database rather than from the model. The gaps were all in the space
   `approvals.request` builds the sentence a human reads, and it built it before
   anything validated what the model had sent — so an irreversible call missing a
   required property raised a `KeyError` out of the preview lambda and failed the
-  run, before any of the code that knows how to report a bad argument ran. It is
+  run, before any of the code that knows how to report a bad argument ran. It's
   now validated on the approval path and settled the way an unregistered tool
   already is: a failed result the agent corrects, with no approval row asking
   anyone to authorise a call that could never have executed.
@@ -124,8 +124,8 @@ the database rather than from the model. The gaps were all in the space
   its inverse and the ledger stores it, but no runtime path or endpoint reverts a
   failed run — the captured undo is real, the wiring is not. "Reversible" reads
   like a promise, so the module now states which half exists.
-- **Said plainly: `/usage` discloses deployment-wide spend to every tenant.** It
-  is there because the platform ceiling, not the per-org one, is what actually
+- **Said plainly: `/usage` discloses deployment-wide spend to every tenant.** It's
+  there because the platform ceiling, not the per-org one, is what actually
   stops a run, and a visitor watching a demo halt should see the number that
   stopped it. Sound for two seeded merchants, unsound for a real one, and now a
   stated decision with the fix for a real deployment written next to it.
