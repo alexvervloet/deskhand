@@ -137,7 +137,7 @@ to check that the agent survives nonsense. A box to tick.
 psycopg.DataError: PostgreSQL text fields cannot contain NUL (0x00) bytes
 ```
 
-Postgres `text` and `jsonb` cannot hold a NUL byte. The exception came from the
+Postgres `text` and `jsonb` can't hold a NUL byte. The exception came from the
 *ledger write* in `invoke()` — which happens **after** the handler has already
 run. So the failure mode was: the refund is issued, the write recording that it
 was issued blows up, the transaction rolls back, and the run dies. On a real
@@ -184,7 +184,7 @@ named for the job, and one line at the end of a `resilience` scenario about a
 tool returning garbage. Both prompt-injection evals passed with the fence gone,
 because the fence isn't what actually stops the attack. The risk class does. The fence removes
 structural ambiguity; the registry removes authority. Kill the fence and a
-fully obedient model still cannot escalate, so the outcome-shaped evals see
+fully obedient model still can't escalate, so the outcome-shaped evals see
 nothing wrong.
 
 Same shape for the idempotency ledger. Disable it and `crash-resume-pays-once`
@@ -301,7 +301,7 @@ Twenty-two of the thirty errors were in files no checker had ever read.
 
 **Pyright is stricter, and was right.** The remaining eight were real. The best
 of them: psycopg 3.3 types its `query` parameter as `LiteralString`, not `str`
-— deliberately, so a query cannot be assembled from a variable that might hold
+— deliberately, so a query can't be assembled from a variable that might hold
 request data. My `db.py` helpers took `str` and passed it straight through,
 which type-checked under mypy and quietly discarded the guarantee. Adopting
 `LiteralString` made one place fail: a test helper building an `UPDATE` from
@@ -324,7 +324,7 @@ runs.
 ## 10. The sanitiser reassembled the thing it was removing
 
 **Expected.** `quarantine()` strips any forged copy of the fence delimiter out
-of untrusted content before wrapping it, so a ticket body cannot close its own
+of untrusted content before wrapping it, so a ticket body can't close its own
 fence and carry on as though it were the system talking. There was already a
 test for exactly that, and it passed.
 
@@ -353,7 +353,7 @@ body containing whole markers, and never the split one. It asserted the
 property on the input shape I had thought of.
 
 **Severity, honestly.** Low. The token is `sha256("deskhand-fence:" + run_id)`,
-so a customer writing a ticket cannot know it. The reachable path is narrower:
+so a customer writing a ticket can't know it. The reachable path is narrower:
 the model sees the token in every tool result, `add_internal_note` is
 `REVERSIBLE` and therefore runs with no approval, and `get_ticket` reads notes
 back through `quarantine()`. That's a same-run write-and-read-back loop, so a
@@ -450,7 +450,7 @@ f"Work support ticket {ticket['reference']} (subject: {ticket['subject']})."
 ```
 
 The subject is a line a customer types into a form. `transcript.rebuild` fences
-every tool result and cannot fence the opening prompt, because the prompt is
+every tool result and can't fence the opening prompt, because the prompt is
 written before the run row exists and the fence token is derived from the run
 id. So the one message in the conversation with no fence around it was carrying
 the one field on the ticket that an attacker controls directly.
@@ -643,7 +643,7 @@ paying a customer twice, which is a claim about a database and stayed mine. The
 deletion table is the useful artifact, not the line count.
 
 Two smaller ones from the same port, worth recording because both cost a detour.
-Node's `--experimental-strip-types` cannot handle constructor parameter
+Node's `--experimental-strip-types` can't handle constructor parameter
 properties, since they need a transform rather than an erasure; `readonly x:
 string` in a constructor signature has to become an explicit field and an
 assignment. And test files that share seeded fixtures need
