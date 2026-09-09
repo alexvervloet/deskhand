@@ -47,7 +47,7 @@ that nothing in a tool result can reach. The attack is quoted, not obeyed.
 
 And a worker dying mid-run, with the customer refunded exactly once:
 
-![A worker dies after issuing a refund; another resumes and does not pay twice](demo/crash-resume.gif)
+![A worker dies after issuing a refund; another resumes and doesn't pay twice](demo/crash-resume.gif)
 
 *Recorded by [`demo/crash_resume.py`](demo/crash_resume.py), which drives the
 real loop against a real Postgres — every number in it is read back out of the
@@ -94,7 +94,7 @@ the next action from rows:
 > are there tool calls the model asked for that have no result yet?
 > → resolve those. otherwise → ask the model for the next turn.
 
-A worker that dies is not resuming a computation, it's reading a database. Any
+A worker that dies isn't resuming a computation, it's reading a database. Any
 worker, on any machine, at any later time, computes the same next action from the
 same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
@@ -191,11 +191,11 @@ in the run viewer, per step.
 Divergence replays a recorded run against a changed system prompt or model and
 reports the first decision that differs. It never executes a tool: the recorded
 result is handed back instead, so it's safe to point at runs that moved real
-money. Point it at a corpus of recorded runs and that is a prompt-regression
+money. Point it at a corpus of recorded runs and that's a prompt-regression
 suite. The runs here are my own rather than production traffic, of which this
 project has none, but nothing in the mechanism cares where a step log came from.
 Once the replayed model asks for something the original run never asked for
-there is no recorded result to hand back, so it tells you where behaviour
+there's no recorded result to hand back, so it tells you where behaviour
 changed, not what would have happened next.
 
 ## Architecture notes
@@ -205,8 +205,8 @@ Temporal is the right production answer and hides exactly the mechanism this
 project exists to show. So I took the mechanism out and put a platform
 underneath it, to find out how much of this was essential: [`trigger/`](trigger)
 is the runtime ported onto Trigger.dev, and
-[docs/TRIGGER-PORT.md](docs/TRIGGER-PORT.md) is what deleted and what did not.
-The win is not less code, it's a class of bug that is now unavailable. The
+[docs/TRIGGER-PORT.md](docs/TRIGGER-PORT.md) is what deleted and what didn't.
+The win isn't less code, it's a class of bug that is now unavailable. The
 idempotency ledger and the argument-hash binding on consent both stayed, and
 the second one got *more* load-bearing, because a platform that retries from
 the top can resume a diverged trajectory on an approval a human gave for a
@@ -215,13 +215,13 @@ different amount.
 **Exactly-once is honest about its assumption.** The idempotency ledger row is
 written in the *same transaction* as the tool's effect, which is what removes
 the usual claimed-but-unknown limbo. That works because every side effect here
-is a row in the same database. A tool calling a real payment API could not share
+is a row in the same database. A tool calling a real payment API couldn't share
 a transaction with the ledger and would need a third state plus reconciliation —
 stated in [deskhand/tools/invoke.py](deskhand/tools/invoke.py) rather than
 glossed over.
 
 **The knowledge-base tool uses Postgres full-text search, not embeddings.** This
-project is not about retrieval; the companion project is.
+project isn't about retrieval; the companion project is.
 
 **No float touches money in arithmetic.** Currency is integer cents, model cost
 is integer nanodollars rounded once to micros, and spend caps compare integers.
@@ -229,7 +229,7 @@ A float appears only where a number becomes a string for a human to read.
 
 **The step log is the trace.** Every model and tool call is already a row with
 tokens, cost, latency, arguments and result, joined to a run that knows who
-started it — so there is no second copy of that in a third-party product, and
+started it — so there's no second copy of that in a third-party product, and
 no tracing keys to configure. What a database is bad at is being *watched*, so
 [tracing.py](deskhand/tracing.py) emits one structured JSON line per event for a
 log collector. It carries identifiers and numbers, never content, and it cannot
@@ -239,8 +239,8 @@ raise: a tracer that throws turns a successful refund into a failed run.
 
 Deskhand is the second half of a pair with
 [Knowledge Desk](https://github.com/alexvervloet/knowledge-desk), which argues
-that the hard part of a retrieval application is not the RAG. This one argues
-the sequel: the hard part of an agent is not the loop.
+that the hard part of a retrieval application isn't the RAG. This one argues
+the sequel: the hard part of an agent isn't the loop.
 
 ## Stack
 
