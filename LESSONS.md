@@ -1,6 +1,6 @@
 # Lessons
 
-Things that did not go the way the plan assumed, written down while the detail
+Things that didn't go the way the plan assumed, written down while the detail
 was still fresh. Entries that are just "the plan worked" are omitted.
 
 ---
@@ -18,7 +18,7 @@ couldn't stop thread 'pool-1-worker-0' within 5.0 seconds
 hint: you can try to call 'close()' explicitly or to use the pool as context manager
 ```
 
-`psycopg_pool` runs its own worker and scheduler threads. They are not daemon
+`psycopg_pool` runs its own worker and scheduler threads. They aren't daemon
 threads, so interpreter shutdown waits on them, times out, and complains. The
 queries all succeeded — the noise arrives *after* the useful output, which is
 exactly where it's most likely to be read as a failure.
@@ -28,7 +28,7 @@ exactly where it's most likely to be read as a failure.
 
 **Next time.** Any pooled resource created at module scope gets its teardown
 registered in the same breath as its construction. The tell is a library that
-spawns threads you did not ask for; assume they need to be told to stop.
+spawns threads you didn't ask for; assume they need to be told to stop.
 
 ---
 
@@ -82,7 +82,7 @@ would have looked like a real regression to someone reading CI output.
 
 The obvious fix — reseed before every test that writes — was correct and took
 the suite from 2 seconds to 30. The cost was bcrypt: seeding hashes five demo
-accounts, bcrypt is deliberately slow, and that is per test rather than per
+accounts, bcrypt is deliberately slow, and that's per test rather than per
 session.
 
 **Fix.** Memoise the hash for the shared demo password once per process
@@ -93,7 +93,7 @@ still hashes per user. Suite back to 2.6 seconds, and now order-independent.
 **Next time.** Two things. Order-dependence between test modules is invisible
 until the second module that writes shows up, so establish per-test isolation
 when the *first* one does. And when a correctness fix makes the suite slow
-enough that people will start skipping it, that is a bug in the fix — find the
+enough that people will start skipping it, that's a bug in the fix — find the
 one expensive thing inside it rather than accepting the tradeoff.
 
 ---
@@ -103,9 +103,9 @@ one expensive thing inside it rather than accepting the tradeoff.
 **Expected.** The stream endpoint had a passing test. It asserted that steps
 arrive, that a `done` event closes the stream, and that the count was right.
 
-**What happened.** Running the real thing found a bug the test could not: the
+**What happened.** Running the real thing found a bug the test couldn't: the
 `status` and `done` events were built with `_run_summary(run | {"ticket_reference": None})`,
-because the query behind them did not join `tickets` and the field had to be
+because the query behind them didn't join `tickets` and the field had to be
 filled with *something*. The client merges each status event into the run it's
 displaying, so the run header would show `NW-1` until the first status arrived
 and then go blank — for the rest of the run.
@@ -120,7 +120,7 @@ which is the assertion the original test should have made.
 
 **Next time.** For an endpoint whose output a client merges into existing
 state, "did it emit" is the weak version of the question. The useful one is
-"is every field on every message correct", because a partial message does not
+"is every field on every message correct", because a partial message doesn't
 fail — it overwrites. And running the product end to end catches a class of
 thing that no unit test was ever going to; the first real click found two.
 
@@ -152,7 +152,7 @@ intact.
 replacing NUL with U+FFFD rather than dropping it — a result that had a NUL in
 it should look like it had a NUL in it.
 
-**Next time.** Nothing here is subtle in hindsight, and I would not have found
+**Next time.** Nothing here is subtle in hindsight, and I wouldn't have found
 it by thinking harder about the code. The lesson is about the *order of work*:
 the fault injector was on the plan as scaffolding for the evals, so it felt
 like tooling rather than testing. It paid for itself before the first eval it
@@ -182,7 +182,7 @@ Good. But deleting the fence around untrusted tool output:
 Only evals written specifically to assert *the fence exists* caught it: the one
 named for the job, and one line at the end of a `resilience` scenario about a
 tool returning garbage. Both prompt-injection evals passed with the fence gone,
-because the fence is not what actually stops the attack. The risk class does. The fence removes
+because the fence isn't what actually stops the attack. The risk class does. The fence removes
 structural ambiguity; the registry removes authority. Kill the fence and a
 fully obedient model still cannot escalate, so the outcome-shaped evals see
 nothing wrong.
@@ -202,7 +202,7 @@ during an incident.
 separately from the evals that assert the outcome is right. `every-tool-result-is-fenced`
 and `the-ledger-catches-a-double-execution` exist for exactly this reason and
 would otherwise look redundant next to the injection and crash-resume evals.
-They are not redundant; they are the only thing standing between a silent
+They aren't redundant; they're the only thing standing between a silent
 removal and production. (The companion project reaches the same conclusion from
 the other direction, in its exercise on removing an invisible layer.)
 
@@ -240,7 +240,7 @@ about, so the plan reads the ticket and stops reading.
 **Next time.** Neither decision was wrong and neither review would have caught
 this, because the interaction lives in the space between two files that never
 mention each other. The thing that found it was running the actual product on
-data I had not hand-picked — the same move that found the bugs in lesson 4.
+data I hadn't hand-picked — the same move that found the bugs in lesson 4.
 Worth generalising: for anything that recomputes a decision from accumulating
 context, ask what happens when the context grows to contain a word that changes
 the decision. "Stateless" and "reads everything" are a bad pair.
@@ -273,18 +273,18 @@ one copy of each line rather than two. A library has no business doing this. An
 application's dedicated event stream does, because the alternative is a stream
 that only works when somebody remembered to configure it.
 
-**Next time.** Two things I will actually change. Logging is configuration, not
+**Next time.** Two things I'll actually change. Logging is configuration, not
 code, so "it printed on my machine" is evidence about my machine — verify
 observability *in the deployed environment*, which took one `flyctl logs` and
 would have taken one at any point. And be suspicious of test helpers that make
 a thing work: `caplog` attaching a handler is convenient and it silently removed
 the exact failure mode from the suite. A test that passes because the harness
-configured something the product does not configure itself is testing the
+configured something the product doesn't configure itself is testing the
 harness.
 
 ---
 
-## 9. The type checker I was not running had thirty things to say
+## 9. The type checker I wasn't running had thirty things to say
 
 **Expected.** `mypy` clean on every commit, so the code is type-checked.
 
@@ -317,7 +317,7 @@ for the twenty "row could be None" errors that came from `fetch_one(...)["id"]`
 **Next time.** Two things. A type checker's scope is part of its configuration
 and deserves the same suspicion as its strictness — "mypy passes" meant much
 less than I thought it did, and nothing in the output said so. And if the
-editor and CI run different tools, the one CI does not run will drift until
+editor and CI run different tools, the one CI doesn't run will drift until
 someone opens the project and finds it full of red. Run in CI what the editor
 runs.
 
@@ -346,9 +346,9 @@ body.replace(closer, "")      # -> closer
 
 Verified against the real function on a real run id. The payload came back
 sitting outside the untrusted region, which is the one thing the docstring
-promised it could not do.
+promised it couldn't do.
 
-The existing test did not catch it because it checked the obvious attack, a
+The existing test didn't catch it because it checked the obvious attack, a
 body containing whole markers, and never the split one. It asserted the
 property on the input shape I had thought of.
 
@@ -356,15 +356,15 @@ property on the input shape I had thought of.
 so a customer writing a ticket cannot know it. The reachable path is narrower:
 the model sees the token in every tool result, `add_internal_note` is
 `REVERSIBLE` and therefore runs with no approval, and `get_ticket` reads notes
-back through `quarantine()`. That is a same-run write-and-read-back loop, so a
+back through `quarantine()`. That's a same-run write-and-read-back loop, so a
 persuaded model can plant the payload for itself. And the refund still needs a
 human either way, because the risk class was never reachable from content. The
-layer that was supposed to hold, held. That is the third time this project has
-measured that and I have stopped being surprised by it.
+layer that was supposed to hold, held. That's the third time this project has
+measured that and I've stopped being surprised by it.
 
 **Fix.** Replace rather than delete. A placeholder containing no angle bracket
-sits between the two halves, they are never adjacent, and no marker can span
-it, so one pass is provably enough and there is no fixed-point loop to reason
+sits between the two halves, they're never adjacent, and no marker can span
+it, so one pass is provably enough and there's no fixed-point loop to reason
 about. Substituting also keeps the forgery visible in the transcript, the run
 viewer and the replay, where deleting had been quietly erasing evidence that
 someone tried.
@@ -372,9 +372,9 @@ someone tried.
 **Next time.** Two things, and the second is the one I want to remember.
 
 Any sanitiser that removes rather than escapes has to be run to a fixed point,
-or it can synthesise the pattern it removes. Escaping does not have this
+or it can synthesise the pattern it removes. Escaping doesn't have this
 failure mode, which is a good reason to prefer it. This is the same bug as
-stripping `<script>` from `<scr<script>ipt>` and I did not recognise it because
+stripping `<script>` from `<scr<script>ipt>` and I didn't recognise it because
 it was wearing different clothes.
 
 And a test that asserts a property is only as good as the inputs it imagines.
@@ -393,7 +393,7 @@ every model call. Boundedness is the invariant I was least worried about,
 because it's the one made of arithmetic rather than judgement.
 
 **What happened.** A run that suspends on an approval keeps its wall-clock
-deadline running. That is fine right up until somebody takes longer to answer
+deadline running. That's fine right up until somebody takes longer to answer
 than the run's entire budget, and then it's the worst failure shape available:
 the resume settles the pending tool call *before* the loop re-checks its bounds,
 so the refund executes, and the very next iteration ends the run on the deadline.
@@ -403,7 +403,7 @@ made on the way out.
 
 The two numbers made it reachable rather than theoretical. The default deadline
 is 900 seconds; the demo sets an approval TTL of 1800. So the window is
-fifteen to thirty minutes, which is not an exotic amount of time for a person to
+fifteen to thirty minutes, which isn't an exotic amount of time for a person to
 take over a decision the whole product exists to make them take seriously. The
 README screenshot has both numbers on it — `DEADLINE 4:17:54 PM` next to
 `expires 8/28/2026, 4:02:54 PM` — and I had looked at that image many times.
@@ -425,7 +425,7 @@ action, and it was the only path in the loop with no bound in front of it.
 **Next time.** For every limit, write down the quantity it's supposed to
 measure, not just the condition it enforces. Then ask which parts of the elapsed
 time or spend belong to that quantity. Anywhere a run can be suspended waiting
-on something outside itself, the clock for the work almost certainly should not
+on something outside itself, the clock for the work almost certainly shouldn't
 be the clock for the wait — and the fix is to record the suspension, not to make
 the number bigger.
 
@@ -436,10 +436,10 @@ alone.
 
 ---
 
-## 12. The comment was already correct. The code was not.
+## 12. The comment was already correct. The code wasn't.
 
 **Expected.** A security review of my own project would turn up gaps in the
-places I had not thought about. The fence, the registry and the approval gate
+places I hadn't thought about. The fence, the registry and the approval gate
 had all been designed deliberately, so I expected findings around the edges.
 
 **What happened.** The first real finding was inside the thing I had thought
@@ -463,7 +463,7 @@ I wrote that sentence. It was false when I wrote it. The interpolation went in
 because a bare reference felt unhelpfully terse, and a subject line is one short
 line, and it makes the trajectory read better in the viewer.
 
-**What this means.** A comment stating a security property is not a test of that
+**What this means.** A comment stating a security property isn't a test of that
 property, and writing it down makes it *less* likely to be checked, because
 every subsequent reader takes it as established. The fence had four evals; the
 property the fence depends on had none. Nothing in the suite asserted anything
@@ -527,7 +527,7 @@ default, and `runs.create` sets the real value on every run.
 row with an explicit column list, and neither knew about the new column, so both
 got a ceiling of zero and every refund in them was refused.
 
-That is the default working exactly as intended, and for about a minute I read
+That's the default working exactly as intended, and for about a minute I read
 it as a bug in the default and considered backfilling a permissive value into
 the column definition.
 
@@ -568,12 +568,12 @@ a doc is the content.
 its own formatting.
 
 **Next time.** Read the file list a formatter prints before accepting the diff,
-not just the count. The interesting entries are the ones in a language you did
-not think you were formatting.
+not just the count. The interesting entries are the ones in a language you didn't
+think you were formatting.
 
 ---
 
-## 16. ESLint's type-checked rules found what tsc could not
+## 16. ESLint's type-checked rules found what tsc couldn't
 
 **Expected.** The frontend already ran `tsc` in `strict` with `noUnusedLocals`
 and `noUnusedParameters`, so ESLint would mostly be about style, and the
@@ -600,7 +600,7 @@ is honest about the wire, and honest about it means tsc has nothing left to
 check — the type-aware lint rules are where that gap gets closed.
 
 **Next time.** On a TypeScript project, `recommendedTypeChecked` earns its
-setup cost before any style rule does. And when a plugin's flat config does not
+setup cost before any style rule does. And when a plugin's flat config doesn't
 load, check for a `configs.flat` namespace before rewriting anything by hand.
 
 ---
@@ -621,7 +621,7 @@ the suspend and requeue pair, the transcript rebuild, and the whole worker
 process. Everything else stayed, and quoting the total either way would have
 been a misleading way to describe the change.
 
-The idempotency ledger did not go, and it should have been obvious sooner why.
+The idempotency ledger didn't go, and it should have been obvious sooner why.
 Trigger.dev retries a failed run by re-entering `run()` from the top, so a
 crash after a refund replays the refund. Their `idempotencyKey` covers the
 neighbouring case, and their docs say plainly that it's exactly-once task
@@ -680,16 +680,16 @@ open".
 
 Two things fell out of the same review. The port's headline line-count was
 unreproducible, not because the arithmetic was wrong but because the document
-never said which files it covered, so nobody could check it. That is the one
+never said which files it covered, so nobody could check it. That's the one
 kind of error a careful reader catches in five minutes, and it was in the
-document whose entire stance is careful accounting. There is now a
+document whose entire stance is careful accounting. There's now a
 `trigger/scripts/count-lines.mjs` that prints every number in it. And the step
 log's upsert overwrote `cost_micros` instead of adding it, so after a retry the
 step rows would have under-reported the bill while looking plausible. Invisible
 against a mock that reports zero cost, which is why the test that now covers it
 makes both attempts report a real one.
 
-**Next time.** When a platform's word matches a word in my own design, that is
+**Next time.** When a platform's word matches a word in my own design, that's
 the moment to read the reference page, not the moment to assume a mapping. And
 when a document makes a claim in one section and leans on its opposite in
 another, no amount of rereading my own prose will find it. Only checking each
@@ -697,7 +697,7 @@ claim against the source will.
 
 ---
 
-## 19. The mock could not fail the way the API fails
+## 19. The mock couldn't fail the way the API fails
 
 **Expected.** `strict: true` on a tool definition buys a guarantee that
 arguments validate against the schema, and the schemas here already had the
@@ -725,9 +725,9 @@ green, and they were green because none of them sends a tool schema anywhere.
 The scripted provider takes `system`, `messages` and `tools` and reads only the
 messages. Every test in this repo drives that provider, on purpose, because
 determinism is what makes a trajectory eval assert on a path. The keyless demo
-has the same hole, so the deployed public demo could not have caught it either.
+has the same hole, so the deployed public demo couldn't have caught it either.
 
-The fault injector does not reach this. It makes *tools* fail, and the thing
+The fault injector doesn't reach this. It makes *tools* fail, and the thing
 that failed was the request that describes the tools.
 
 **Fix.** `_api_safe()` in [deskhand/tools/base.py](deskhand/tools/base.py)
@@ -740,10 +740,10 @@ corrects. The refusal now arrives one turn later and costs a step.
 Which keywords, established by probing the API with `count_tokens` rather than
 by reading the one error message and guessing its neighbours. That mattered:
 `minLength`, `maxLength`, `pattern`, `format`, `enum` and `minItems` are all
-accepted, and `maxItems` is not, which no amount of reasoning about the first
+accepted, and `maxItems` isn't, which no amount of reasoning about the first
 error would have predicted.
 
-**Next time.** Every provider seam has a shape the mock does not model, and the
+**Next time.** Every provider seam has a shape the mock doesn't model, and the
 mock's job is to be deterministic, which is the same thing as not being
 faithful. Worth asking of any test double: what does the real thing validate
 that this one accepts unconditionally? Here it was the request envelope, and
