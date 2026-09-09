@@ -143,7 +143,7 @@ asymmetry: every other event in this system describes an attempt, but there's
 no attempt here. Either the row exists or the request failed.
 
 **Watch for.** The prompt is frozen rather than re-derived from the ticket at
-replay time. The ticket will have moved on. A trajectory you cannot reproduce isn't
+replay time. The ticket will have moved on. A trajectory you can't reproduce isn't
 an audit trail.
 
 ### 4. The worker finds it
@@ -244,7 +244,7 @@ that the call failed.
 
 **Watch for.** `sanitise()` replaces NUL bytes. That line exists because the
 fault injector's garbage payload found a real crash on its first run: Postgres
-`text` cannot hold a NUL, so a tool returning one took the run down from the
+`text` can't hold a NUL, so a tool returning one took the run down from the
 ledger write, *after* the side effect had already happened. Money moved, record
 didn't. The worst available place to fail.
 
@@ -266,7 +266,7 @@ step, which nobody watching an agent think will notice.
 
 **Watch for.** [api.ts](../frontend/src/api.ts) reads the stream through `fetch`
 rather than `EventSource`, and there's a paragraph at the top of the file about
-why. `EventSource` cannot send an `Authorization` header, so every tutorial
+why. `EventSource` can't send an `Authorization` header, so every tutorial
 reaches for `?token=...`, which puts a live session token into access logs,
 browser history, and any `Referer` the page later emits. Parsing the wire format
 by hand costs about twenty lines.
@@ -321,7 +321,7 @@ run view for whoever is watching.
 `POST /approvals/{id}/decide` goes through `ApproverDep`, which is
 `require_approver` in [deps.py](../deskhand/deps.py). Sign in as
 `viewer@northwind.test` and the buttons are replaced by a sentence explaining
-that your role can watch a run spend money and cannot authorise a penny of it.
+that your role can watch a run spend money and can't authorise a penny of it.
 The API returns 403 regardless of what the UI shows.
 
 `approvals.decide()` updates only a row that is still `pending` and still
@@ -333,7 +333,7 @@ exists because of a genuinely bad bug: the wall-clock deadline was bounding huma
 deliberation as well as agent work. A refund approved twenty minutes after it was
 requested executed, and then the run died on its deadline with the money gone and
 no summary written. Only measured wait on a human is ever added back, so a
-crash-looping run still cannot earn itself a fresh clock.
+crash-looping run still can't earn itself a fresh clock.
 
 **Watch for.** Approving something that already expired is rejected rather than
 accepted late. Resurrecting consent the process already declared stale isn't a
@@ -378,7 +378,7 @@ constraint in code. The prompt is advice.
 
 **Watch for.** Three limits, answering three different questions. The remaining
 balance stops one order being refunded twice. The run ceiling stops one run
-refunding four orders once each — which the balance check cannot see, because
+refunding four orders once each — which the balance check can't see, because
 each of those four fits comfortably inside its own order. The daily ceiling
 stops four runs doing it in turn. Only the first existed until a security
 review; the bounds elsewhere in the project all measure what a run costs to
@@ -429,7 +429,7 @@ the same backups and the same access control.
 at is being watched, so it emits one structured JSON line per event for a log
 collector. Those lines carry identifiers and numbers, never content.
 
-**Watch for.** `emit()` cannot raise, cannot block, and cannot care whether its
+**Watch for.** `emit()` can't raise, can't block, and can't care whether its
 arguments are serialisable, and there's a test that asserts it. A tracer that
 throws turns a successful refund into a failed run, which is strictly worse than
 having no tracing at all.
@@ -481,7 +481,7 @@ Run it. The agent reads the ticket, and the approval gate holds.
 There are two defences here and they aren't equally important. There's also a
 precondition underneath both, which is easy to miss and was wrong for months:
 the opening prompt names the ticket reference and quotes nothing from the
-ticket. It has to, because it's the only message `rebuild()` cannot fence.
+ticket. It has to, because it's the only message `rebuild()` can't fence.
 
 The visible one is the fence. `quarantine()` in
 [transcript.py](../deskhand/runtime/transcript.py) wraps every tool result in a
@@ -698,9 +698,9 @@ purpose, five ways: error, crash, latency, garbage, and hostile text arriving
 through a tool result. It's off unless a test installs it, inside a context
 manager, and there's deliberately no environment variable. A deployment that can
 be made to corrupt its own tool results by setting a variable is a worse
-deployment than one that cannot.
+deployment than one that can't.
 
-**Watch for.** There's an eval asserting the fault seam cannot change a risk
+**Watch for.** There's an eval asserting the fault seam can't change a risk
 class or reach around the approval gate. A testing seam that quietly widens the
 trust boundary would be a poor trade for better tests.
 
@@ -743,7 +743,7 @@ Fourteen failures, spread across every invariant in the project rather than
 sitting inside `consent`. Both injection evals go red, because the gate and not
 the fence is what stops an injected instruction from moving money. The
 durability and payout-ceiling evals go red because they need to reach the gate
-to set their scenario up at all: you cannot check that a ceiling refused a
+to set their scenario up at all: you can't check that a ceiling refused a
 refund when nothing ever suspends. The accountability eval goes red because
 "who authorised this" has no answer when nothing was authorised.
 
@@ -793,7 +793,7 @@ One failure, and it's not the dramatic one. `crash-resume-pays-once` still
 passes cheerfully with exactly-once disabled, because an orderly resume rebuilds
 the conversation from the step log, finds the refund's result row already
 sitting there, and never calls `invoke()` at all. The ledger covers the case the
-step log cannot: two callers at the same step, from a leasing bug or an approval
+step log can't: two callers at the same step, from a leasing bug or an approval
 callback that fires twice. `the-ledger-catches-a-double-execution` forces that
 path directly, which is why it's the only thing that notices.
 
@@ -842,7 +842,7 @@ collected in one place:
   runs. Behind several replicas the effective limit multiplies by the replica
   count. Covered at stop 1.
 - **`style-src` allows inline.** The UI sets style props on elements, which the
-  browser reads as inline styles, so the CSP cannot forbid them. `script-src`
+  browser reads as inline styles, so the CSP can't forbid them. `script-src`
   stays strict, which is the half that matters for a token in localStorage, and
   a test asserts the relaxation so widening it further has to be deliberate.
 - **The mock provider isn't a small model.** It's a handful of fixed
