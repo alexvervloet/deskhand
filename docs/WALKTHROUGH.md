@@ -116,7 +116,7 @@ no configuration that makes the demo look like a model without being one.
 **Watch for.** The spend bars at the bottom of the sidebar show two ceilings,
 per-merchant and service-wide. The second one is deliberately not scoped to your
 org, which is a real cross-tenant disclosure. The docstring on the `/usage`
-handler says so, explains why it is a sound trade for two seeded merchants and a
+handler says so, explains why it's a sound trade for two seeded merchants and a
 published password, and says what a real deployment should drop.
 
 ### 3. Pressing "Run the agent"
@@ -165,7 +165,7 @@ update runs set status = 'running', lease_owner = ..., lease_expires_at = now() 
 coordinating. Each takes a different row rather than blocking on the same one.
 
 **Watch for.** The `or` clause. A run still marked `running` whose lease has
-expired is a run whose worker died, and it is claimable again. Nothing has to
+expired is a run whose worker died, and it's claimable again. Nothing has to
 notice the death. No supervisor reaps anything. Dying, from the database's point
 of view, is just failing to renew.
 
@@ -187,7 +187,7 @@ repository, which is the argument the project exists to make.
 **Watch for what is absent.** No variable holds the run's position. Not a step
 counter, not a message list, not a state machine field. `_unresolved()` asks the
 database a question and any worker, on any machine, at any later time, gets the
-same answer. A worker that dies is not resuming a computation, it is reading
+same answer. A worker that dies is not resuming a computation, it's reading
 rows.
 
 **Watch for.** `transcript.rebuild()` is called inside the transaction, and then
@@ -219,7 +219,7 @@ frozen dataclass. For `get_ticket` the answer is no.
 and `invoke()` is handed its id and its sequence number. That ordering is not
 incidental. The step's `seq` is half of the idempotency key.
 
-[invoke()](../deskhand/tools/invoke.py) is the exactly-once machinery, and it is
+[invoke()](../deskhand/tools/invoke.py) is the exactly-once machinery, and it's
 short:
 
 ```
@@ -258,7 +258,7 @@ went away propagate, leave no ledger row, and let the step retry intact.
 Meanwhile the browser is holding `GET /runs/{id}/stream` open. Steps arrive as
 they land.
 
-It is server-sent events over a poll, not LISTEN/NOTIFY. The comment explains
+It's server-sent events over a poll, not LISTEN/NOTIFY. The comment explains
 the trade: polling holds no database connection between ticks, which matters
 more here than latency does, because this stream can stay open for as long as a
 human takes to answer an approval. The cost is up to half a second of lag on a
@@ -423,7 +423,7 @@ is a query, not an investigation:
 | What did the model see at step 7? | `transcript.rebuild(..., before_seq=7)` |
 
 **Watch for.** There is no tracing vendor here and no keys to configure. The step
-log *is* the trace, and it is in the database the app already depends on, under
+log *is* the trace, and it's in the database the app already depends on, under
 the same backups and the same access control.
 [tracing.py](../deskhand/tracing.py) exists only because what a database is bad
 at is being watched, so it emits one structured JSON line per event for a log
@@ -459,7 +459,7 @@ The run continues. The agent is expected to adapt.
 
 **Watch for.** The denial arrives as an `is_error` tool result, wrapped in the
 same fence as everything else. A human's words to the agent go through the same
-untrusted channel as a customer's. That is not paranoia about the human; it is
+untrusted channel as a customer's. That is not paranoia about the human; it's
 refusing to build a second, more trusted path into the prompt.
 
 **Watch for.** A denial and an expiry are different endings.
@@ -481,7 +481,7 @@ Run it. The agent reads the ticket, and the approval gate holds.
 There are two defences here and they are not equally important. There is also a
 precondition underneath both, which is easy to miss and was wrong for months:
 the opening prompt names the ticket reference and quotes nothing from the
-ticket. It has to, because it is the only message `rebuild()` cannot fence.
+ticket. It has to, because it's the only message `rebuild()` cannot fence.
 
 The visible one is the fence. `quarantine()` in
 [transcript.py](../deskhand/runtime/transcript.py) wraps every tool result in a
@@ -512,7 +512,7 @@ is evidence somebody tried, and it belongs in the transcript, the run viewer, an
 the replay.
 
 **Watch for, most of all.** Delete the fence entirely and 22 of 25 evals still
-pass. Do that one yourself if you do nothing else here, because it is the
+pass. Do that one yourself if you do nothing else here, because it's the
 uncomfortable consequence of defence in depth: removing a redundant layer
 changes almost nothing you can observe. Delete the
 approval gate instead and 14 of 25 fail. Only the load-bearing layer is loud.
@@ -542,7 +542,7 @@ it. The comment inside `crash_resume_pays_once` is precise about which mechanism
 saved it, which is a habit worth stealing.
 
 **Watch for.** The resumed run also *finishes the work that had not been done*. A
-run that repeats nothing but also completes nothing is not durable, it is stuck.
+run that repeats nothing but also completes nothing is not durable, it's stuck.
 The eval asserts both halves.
 
 **Watch for.** The `replayed` chip in the run viewer is rare, and that is
@@ -644,8 +644,8 @@ change actually looks like. Generate your own the same way, from
 
 **Watch for.** Keyless, this reports a divergence that is entirely an artefact.
 The scripted provider accepts a system prompt and ignores it, deriving its
-trajectory from the messages alone — so it is not re-deciding the recorded run,
-it is replaying its own script, and it parts company with a real model's
+trajectory from the messages alone — so it's not re-deciding the recorded run,
+it's replaying its own script, and it parts company with a real model's
 recorded trajectory almost immediately. Pointed at the run above it reports a
 confident `diverged at step 3` that says nothing about either prompt. The
 symmetric case is quieter and worse: replay a run the mock itself recorded and
@@ -659,7 +659,7 @@ announce that by degrading visibly — it produces a plausible report either way
 the *recorded* result is handed back. That is what makes it safe to point at runs
 that moved real money.
 
-**Watch for.** It is also the limitation, and the docstring states it without
+**Watch for.** It's also the limitation, and the docstring states it without
 hedging. Once the replayed model asks for something the original never asked for,
 there is no recorded result to hand back and the replay stops. Divergence tells
 you *where* behaviour changed, not what would have happened next.
@@ -695,7 +695,7 @@ is a claim about a list comprehension.
 
 **Watch for.** [faults.py](../deskhand/tools/faults.py) makes tools fail on
 purpose, five ways: error, crash, latency, garbage, and hostile text arriving
-through a tool result. It is off unless a test installs it, inside a context
+through a tool result. It's off unless a test installs it, inside a context
 manager, and there is deliberately no environment variable. A deployment that can
 be made to corrupt its own tool results by setting a variable is a worse
 deployment than one that cannot.
@@ -764,7 +764,7 @@ Three failures out of twenty-five, and not one of them is an injection eval.
 the last line of `garbage-does-not-derail-the-run` assert that the mechanism is
 *present*. Every eval that asserts an *outcome* still passes.
 
-That is the uncomfortable one, so it is worth being precise about why. The
+That is the uncomfortable one, so it's worth being precise about why. The
 injection eval from stop 14 drives a fully obedient model: it reads the forged
 instruction in NW-4 and calls `issue_refund` on the spot, no hesitation. It
 passes with the fence deleted, because `requires_approval` reads a frozen
@@ -775,7 +775,7 @@ approve.
 The fence and the registry defend the same attack at different depths. The fence
 removes structural ambiguity, which makes the model likelier to resist in the
 first place. The registry removes authority. Only one of them is load-bearing,
-and it is not the one with the red rule down the side of it in the UI.
+and it's not the one with the red rule down the side of it in the UI.
 
 If these evals only asked "did the right thing happen", deleting the fence would
 have been silent. No refund issued, nothing red, ship it, and the next model or
@@ -789,13 +789,13 @@ layer that asserts the mechanism instead.
 Have `idempotency_key` return `f"{run_id}:{seq}:{uuid.uuid4()}"`. Globally
 unique, unguessable, and completely inert.
 
-One failure, and it is not the dramatic one. `crash-resume-pays-once` still
+One failure, and it's not the dramatic one. `crash-resume-pays-once` still
 passes cheerfully with exactly-once disabled, because an orderly resume rebuilds
 the conversation from the step log, finds the refund's result row already
 sitting there, and never calls `invoke()` at all. The ledger covers the case the
 step log cannot: two callers at the same step, from a leasing bug or an approval
 callback that fires twice. `the-ledger-catches-a-double-execution` forces that
-path directly, which is why it is the only thing that notices.
+path directly, which is why it's the only thing that notices.
 
 The key looks like an identifier and is really a derivation. Its whole job is
 that two independent attempts at the same logical step arrive at the same
@@ -816,7 +816,7 @@ One failure, and the run inside it still stops. It stops for the wrong reason:
 identical call. The first message is true and nearly useless, because "reached
 the 24-step ceiling" is what a genuinely hard problem looks like, and also a
 stuck agent, and also a budget set too low. Those want three different
-responses. It is also twenty-one billed model calls that bought nothing.
+responses. It's also twenty-one billed model calls that bought nothing.
 
 A bound that stops a run is not the same as a bound that explains it. The seven
 bounds from stop 16 stay separate reasons precisely so that "why did it stop"
@@ -831,7 +831,7 @@ collected in one place:
 - **Nothing reverts.** Every reversible tool records its own inverse at execution
   time, the ledger stores it, and `apply_inverse` is tested. No runtime path,
   endpoint, or button ever calls it. The hard half exists (capturing the
-  information at the only moment it is knowable); the easy half does not
+  information at the only moment it's knowable); the easy half does not
   (deciding which steps to walk back, and who may ask). Said plainly in
   [reversible.py](../deskhand/tools/reversible.py), because "reversible" reads
   like a promise.
@@ -845,7 +845,7 @@ collected in one place:
   browser reads as inline styles, so the CSP cannot forbid them. `script-src`
   stays strict, which is the half that matters for a token in localStorage, and
   a test asserts the relaxation so widening it further has to be deliberate.
-- **The mock provider is not a small model.** It is a handful of fixed
+- **The mock provider is not a small model.** It's a handful of fixed
   trajectories chosen by keyword. The $19.00 in the demo approval is a regex
   fallback, not a judgment about the ticket. It exists to walk the runtime
   through its interesting states with no key and no network.
