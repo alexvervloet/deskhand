@@ -18,7 +18,7 @@ refund policy — and then stop, because the next thing it wants to do moves
 money. Approve it and it finishes; deny it and watch it adapt.
 
 Then sign in as `viewer@northwind.test` and try the same thing. That role can
-watch a run spend money and cannot authorise a penny of it.
+watch a run spend money and can't authorise a penny of it.
 
 Running against the scripted provider, so nothing here costs anything and every
 screen says so. The machinery being demonstrated — the approval gate, the
@@ -70,7 +70,7 @@ tries to break it:
 3. **Boundedness** — every run terminates and every run is capped on what it
    pays out. Step, token, wall-clock and spend caps are checked *before* each
    model call, with loop detection on repeated argument hashes; the deadline is
-   absolute, so a crash-looping run cannot earn itself a fresh clock. Money has
+   absolute, so a crash-looping run can't earn itself a fresh clock. Money has
    its own ceilings, per run and per merchant per day, checked at the point of
    payment so they hold even after a human clicks approve — a test approves a
    refund and asserts the ceiling refuses it anyway.
@@ -232,7 +232,7 @@ tokens, cost, latency, arguments and result, joined to a run that knows who
 started it — so there's no second copy of that in a third-party product, and
 no tracing keys to configure. What a database is bad at is being *watched*, so
 [tracing.py](deskhand/tracing.py) emits one structured JSON line per event for a
-log collector. It carries identifiers and numbers, never content, and it cannot
+log collector. It carries identifiers and numbers, never content, and it can't
 raise: a tracer that throws turns a successful refund into a failed run.
 
 ## Companion project
