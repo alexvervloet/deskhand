@@ -27,7 +27,7 @@ written. The fix was to record the moment of suspension and hand the elapsed
 wait back.
 
 On Trigger.dev a suspended waitpoint doesn't consume `maxDuration` at all, so
-the bug cannot happen and the column that fixed it has nothing to do. It went,
+the bug can't happen and the column that fixed it has nothing to do. It went,
 along with 203 other lines whose only job was keeping a process alive that wasn't
 in memory.
 
@@ -90,7 +90,7 @@ adapter that turns `wait.createToken` and `wait.forToken` into the four-method
 `Waiter` interface the loop asks for. The loop takes its suspension mechanism
 as an argument rather than importing it, which isn't testing ceremony. It's
 the measurement. Everything Trigger.dev contributes to this agent arrives
-through four methods, and the rest of the file cannot tell what's on the other
+through four methods, and the rest of the file can't tell what's on the other
 side of them.
 
 ## What survived
@@ -174,7 +174,7 @@ So it's wrong as a replacement for `deadline_at` twice over, for independent
 reasons:
 
 1. It bounds an **attempt**, not a run. Deskhand's deadline is absolute and
-   stamped once at creation, specifically so a crash-looping run cannot earn a
+   stamped once at creation, specifically so a crash-looping run can't earn a
    fresh clock on every resume. Under a platform that retries three times by
    default, a per-attempt ceiling is three fresh clocks.
 2. It counts **CPU time**, not elapsed time. An agent suspended for a day
@@ -184,7 +184,7 @@ The second is the same property that makes the approval gate cheap, and it's
 genuinely good: nobody is billed for a person thinking. The chat-agent docs
 state it outright, that `maxDuration` "measures active CPU time and excludes
 suspended waitpoint time, exactly like `wait.for`". It just means `maxDuration`
-cannot answer "how long has this ticket been open", which is the only question
+can't answer "how long has this ticket been open", which is the only question
 an absolute deadline is asked. An absolute deadline stamped at creation is the
 only thing that bounds that.
 
@@ -291,7 +291,7 @@ released. It sat there while a human decided. When it finished:
 
 The 133 seconds a person spent reading the approval screen cost nothing and
 counted for nothing. That's the `maxDuration` argument above, measured rather
-than quoted: a ceiling on CPU time cannot bound how long a ticket has been
+than quoted: a ceiling on CPU time can't bound how long a ticket has been
 open, because the waiting is free.
 
 **The gate holds on real infrastructure.** NW-4, whose ticket body carries a
@@ -356,7 +356,7 @@ runtime nobody can reason about.
   ledger.
 
 What the tests do establish is what the port still has to do for itself: a
-divergent retry cannot execute on a stale approval, a replay from the top doesn't
+divergent retry can't execute on a stale approval, a replay from the top doesn't
 refund twice, an obedient model reading a forged pre-approval still hits
 the gate, a payout ceiling holds after a human clicks approve, and a retry's
 spend lands in the step log. 27 tests, against a real database, no account
