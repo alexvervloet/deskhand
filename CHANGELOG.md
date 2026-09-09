@@ -15,7 +15,7 @@ the database rather than from the model. The gaps were all in the space
 
 - **Fixed: the ticket subject reached the model unfenced.** `runs.create`
   interpolated `ticket['subject']` into the opening prompt, and that prompt is
-  the one message `transcript.rebuild` cannot fence — it's built before the run
+  the one message `transcript.rebuild` can't fence — it's built before the run
   row exists, and the fence token is derived from the run id. A subject is a
   line a customer types into a form, so the single piece of untrusted text
   arriving as trusted narration was the one attached to the ticket being worked.
@@ -86,7 +86,7 @@ the database rather than from the model. The gaps were all in the space
   suspended and hands that wait back to the deadline on resume, so the bound
   covers agent work and not a person thinking. It stays absolute in the way that
   matters: only measured waiting is ever added, so a crash-looping run still
-  cannot earn a fresh clock. New eval `the-deadline-does-not-run-while-a-human-thinks`,
+  can't earn a fresh clock. New eval `the-deadline-does-not-run-while-a-human-thinks`,
   which fails if the extension is removed.
 - **Fixed: a corrected claim that had been wrong since it was written.** Deleting
   the fence fails *two* evals, not one — `every-tool-result-is-fenced` and, in a
@@ -98,7 +98,7 @@ the database rather than from the model. The gaps were all in the space
   about the mechanism rather than the outcome.
 - **Fixed: malformed ids returned 500.** A run or approval id that isn't a uuid
   reached Postgres, which rejects it outright, so `/runs/nonsense` was an
-  unhandled error rather than a 404. An id that cannot exist now gets the same
+  unhandled error rather than a 404. An id that can't exist now gets the same
   answer as one that doesn't.
 - **Fixed: a hallucinated tool name killed the run.** Every question the runtime
   asks about a tool is answered from the registry, and a name the model invented
@@ -131,7 +131,7 @@ the database rather than from the model. The gaps were all in the space
   stated decision with the fix for a real deployment written next to it.
 - **Removed** an unread `calls` list on the scripted provider that grew without
   bound in the inline worker, and **pinned** ruff, mypy and pyright in CI so an
-  upstream release cannot redden a pull request that changed nothing.
+  upstream release can't redden a pull request that changed nothing.
 - **Documented:** `CLIENT_IP_HEADER` and `RUN_WORKER_INLINE` were settings with
   real deployment consequences and no mention in `.env.example`. Several
   comments described things the code doesn't do — an open signup, a `worker`
@@ -205,7 +205,7 @@ the database rather than from the model. The gaps were all in the space
   event — run started, model call, tool call with its risk class, approval
   requested and decided, run finished — for whatever collects your logs.
   Identifiers and numbers only, never content.
-- The tracer cannot raise, cannot block, and doesn't care whether its arguments
+- The tracer can't raise, can't block, and doesn't care whether its arguments
   are serialisable. Asserted rather than assumed: a tracer that throws turns a
   successful refund into a failed run.
 
@@ -216,7 +216,7 @@ the database rather than from the model. The gaps were all in the space
   answer, against the real loop and a real database.
 - **Fault injection** — tools that fail, stall, return garbage, or return
   hostile text, on purpose. Off unless a test installs them; no environment
-  switch; cannot change a tool's risk class.
+  switch; can't change a tool's risk class.
 - Mutation-tested the gate: removing the approval check fails 11 of 19 evals,
   while removing the idempotency ledger or loop detection each fails exactly one
   and removing the fence fails two. That asymmetry is written up in LESSONS #6 and is what the
@@ -233,7 +233,7 @@ the database rather than from the model. The gaps were all in the space
   colouring, and spend against both the per-merchant and service ceilings.
   Amber means "a human must decide" and nothing else uses it.
 - The UI reads the risk model from `GET /tools` rather than restating it in
-  TypeScript, so the two cannot disagree.
+  TypeScript, so the two can't disagree.
 - The SSE stream is read through `fetch` rather than `EventSource`, keeping the
   session token in a header instead of a query string.
 - **Fixed:** streamed status events omitted the ticket reference, which blanked
@@ -251,7 +251,7 @@ the database rather than from the model. The gaps were all in the space
   with consent bound to a hash of the exact arguments.
 - **Bounds** — step, token, spend and wall-clock ceilings checked *before* each
   model call, plus loop detection on repeated argument hashes. The deadline is
-  absolute, so a crash-looping run cannot earn a fresh clock.
+  absolute, so a crash-looping run can't earn a fresh clock.
 - **Integrity** — every tool result is fenced with a per-run delimiter, forged
   delimiters neutralised, and risk classes frozen at import.
 - **Exactly-once execution** — the idempotency ledger row is written in the same
