@@ -67,7 +67,7 @@ gone. A suspended waitpoint holds no compute, does not count against
 
 ## Where it runs, and why there is no link
 
-It is deployed to Trigger.dev Cloud, in a project called `deskhand`, against a
+It's deployed to Trigger.dev Cloud, in a project called `deskhand`, against a
 Neon branch of the demo database. The task ids are `work-ticket` and
 `crash-probe`.
 
