@@ -93,7 +93,7 @@ appear in your own dashboard.
 ## Deploying it
 
 The tests and `run-local.ts` need no account. A real deploy needs two things
-this repository cannot provide for you.
+this repository can't provide for you.
 
 **A project.** Create one at [cloud.trigger.dev](https://cloud.trigger.dev) and
 take its `proj_…` ref.
