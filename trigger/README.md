@@ -62,10 +62,10 @@ the suspension: instead of a waitpoint it polls the approvals table.
 
 The difference is the thing worth paying for. That script has to stay running
 for as long as the human takes, and if you kill it while it waits, the run is
-gone. A suspended waitpoint holds no compute, does not count against
+gone. A suspended waitpoint holds no compute, doesn't count against
 `maxDuration` (which measures CPU time, not elapsed time), and comes back.
 
-## Where it runs, and why there is no link
+## Where it runs, and why there's no link
 
 It's deployed to Trigger.dev Cloud, in a project called `deskhand`, against a
 Neon branch of the demo database. The task ids are `work-ticket` and
@@ -100,7 +100,7 @@ take its `proj_…` ref.
 
 **A Postgres the public internet can reach.** A deployed task runs on
 Trigger.dev's infrastructure, so the `localhost:5437` container that
-`docker compose up -d db` starts is not reachable from it. Any hosted Postgres
+`docker compose up -d db` starts isn't reachable from it. Any hosted Postgres
 works; the free tier of a serverless provider is enough for a demo, and the
 data here is seeded fixtures rather than anything worth protecting.
 
@@ -117,7 +117,7 @@ TRIGGER_PROJECT_REF=proj_… npx trigger.dev@latest deploy
 ```
 
 The deploy pushes `DATABASE_URL` into the environment as a secret via the
-`syncEnvVars` extension in `trigger.config.ts`, so there is no dashboard step.
+`syncEnvVars` extension in `trigger.config.ts`, so there's no dashboard step.
 It refuses to deploy if the URL is missing or points at localhost, because
 deploying an agent that moves money against an unreachable database fails at
 the first tool call rather than at the first line.
@@ -139,11 +139,11 @@ carries on without it. `approve.ts` completes the waitpoint token, which is
 what wakes a run that is holding no compute at all. Those two halves are what
 `run-local.ts` can only pretend to do, because it has to sit there.
 
-## What is not here
+## What isn't here
 
 No UI, no replay, no divergence, and no port of the eval harness. The slice is
 NW-1 and NW-4 across the five invariants, which is what it takes to make the
 claims in the writeup testable. `send_customer_email` and `cancel_order` are the
 same shape as `issue_refund` and would demonstrate nothing further.
 
-Not deployed, either. See "What I did not verify" in the writeup.
+Not deployed, either. See "What I still haven't verified" in the writeup.
