@@ -88,7 +88,7 @@ The platform's whole footprint is
 33 lines: a task definition, a compute ceiling, a queue, a retry policy, and an
 adapter that turns `wait.createToken` and `wait.forToken` into the four-method
 `Waiter` interface the loop asks for. The loop takes its suspension mechanism
-as an argument rather than importing it, which is not testing ceremony. It is
+as an argument rather than importing it, which is not testing ceremony. It's
 the measurement. Everything Trigger.dev contributes to this agent arrives
 through four methods, and the rest of the file cannot tell what is on the other
 side of them.
@@ -124,7 +124,7 @@ expiry sweep, the wake-the-run dance, the suspend and requeue pair.
 `wait.createToken({ timeout })` even carries the TTL.
 
 What stays is `args_hash`, for a reason that has nothing to do with durability.
-**A token id is a capability to resume. It is not a statement about what was
+**A token id is a capability to resume. It's not a statement about what was
 consented to.** Whoever holds it can complete the waitpoint with any payload,
 and the run wakes holding that payload. Nothing in the platform knows this
 particular resume was supposed to mean "a human looked at a USD 19.00 refund
@@ -170,7 +170,7 @@ CPU time elapsed since the start of a single execution (which we call attempts)
 of the task. The CPU time is the time that the task has been actively running
 on the CPU, and does not include time spent waiting."
 
-So it is wrong as a replacement for `deadline_at` twice over, for independent
+So it's wrong as a replacement for `deadline_at` twice over, for independent
 reasons:
 
 1. It bounds an **attempt**, not a run. Deskhand's deadline is absolute and
@@ -180,7 +180,7 @@ reasons:
 2. It counts **CPU time**, not elapsed time. An agent suspended for a day
    waiting on a human burns almost none of it.
 
-The second is the same property that makes the approval gate cheap, and it is
+The second is the same property that makes the approval gate cheap, and it's
 genuinely good: nobody is billed for a person thinking. The chat-agent docs
 state it outright, that `maxDuration` "measures active CPU time and excludes
 suspended waitpoint time, exactly like `wait.for`". It just means `maxDuration`
@@ -208,7 +208,7 @@ reads them to decide what to do next. They are written because "who did what,
 at what cost, and how do I replay it" is invariant 5, and no amount of durable
 execution answers that for the merchant's auditor.
 
-**It is no longer append-only**, which is a real cost paid for a real reason. A
+**It's no longer append-only**, which is a real cost paid for a real reason. A
 retried attempt walks the same trajectory and reaches the same `seq`, so the
 insert became an upsert. In Python that could only have meant a bug.
 
@@ -218,7 +218,7 @@ so an upsert that *overwrote* `cost_micros` would leave
 `sum(steps.cost_micros)` short of `runs.cost_micros` after any retry, with both
 numbers looking plausible alone. Since accountability is now the step log's
 only job, that is not cosmetic. The upsert adds the accounting columns and
-overwrites only the description. It is checked by a test that reports a cost
+overwrites only the description. It's checked by a test that reports a cost
 from both attempts, because against the zero-cost scripted provider the bug and
 the fix produce the same number.
 
@@ -230,7 +230,7 @@ whole bug.
 ## `chat.agent()`, and why the gate still needs a hash
 
 Trigger.dev has a `chat.agent()` primitive with `needsApproval: true` on a
-tool, which expresses the gate itself better than my code does. It is declared
+tool, which expresses the gate itself better than my code does. It's declared
 on the tool, in backend code, unreachable from a tool result, which is exactly
 the property deskhand's frozen registry exists to guarantee.
 
@@ -314,7 +314,7 @@ taking on faith, and the whole idempotency argument rests on it, so
 [`crash-probe.ts`](../trigger/src/trigger/crash-probe.ts) is a second task that
 fails on purpose on real infrastructure, at the worst available moment: after
 the refund has committed and before anything else happens. Attempt two is given
-the ordinary provider, no memory of the first, and no hint that it is a retry.
+the ordinary provider, no memory of the first, and no hint that it's a retry.
 
 The platform recorded two attempts. The database recorded one refund. The step
 log says why:
@@ -404,6 +404,6 @@ human takes, and if you kill it while it waits, the run is gone.
 
 The one schema change the port needed is
 [`migrations/0007_waitpoint_token.sql`](../migrations/0007_waitpoint_token.sql),
-which carries the waitpoint token on the approval row. It is nullable, because
+which carries the waitpoint token on the approval row. It's nullable, because
 every approval written by the Python worker predates waitpoints and is still a
 valid record of a human saying yes.
