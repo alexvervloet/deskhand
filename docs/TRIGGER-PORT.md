@@ -26,13 +26,13 @@ and then the run died on its deadline with the money gone and no summary
 written. The fix was to record the moment of suspension and hand the elapsed
 wait back.
 
-On Trigger.dev a suspended waitpoint does not consume `maxDuration` at all, so
+On Trigger.dev a suspended waitpoint doesn't consume `maxDuration` at all, so
 the bug cannot happen and the column that fixed it has nothing to do. It went,
-along with 203 other lines whose only job was keeping a process alive that was
-not in memory.
+along with 203 other lines whose only job was keeping a process alive that wasn't
+in memory.
 
-Three mechanisms I expected to go with them did not, and one of them turned out
-to be doing more work here than it was doing in Python. That is the rest of
+Three mechanisms I expected to go with them didn't, and one of them turned out
+to be doing more work here than it was doing in Python. That's the rest of
 this document.
 
 ## What was deleted
@@ -56,14 +56,14 @@ values of the `run_status` enum, `queued` and `awaiting_approval`, describe
 states the platform now owns.
 
 **How these are counted.** `node trigger/scripts/count-lines.mjs` prints this
-table and the two totals below it. A counted line is non-blank, is not a
-comment-only line, and is not inside a docstring or block comment. The first
+table and the two totals below it. A counted line is non-blank, isn't a
+comment-only line, and isn't inside a docstring or block comment. The first
 version of this document quoted a total without saying which files it covered,
-which made it the one claim here a reader could not check.
+which made it the one claim here a reader couldn't check.
 
 Run over whole files rather than mechanisms, the seven Python modules the port
 replaces come to 1,025 lines and their eight TypeScript counterparts to 989.
-The only thing that pair establishes is that the port is not meaningfully
+The only thing that pair establishes is that the port isn't meaningfully
 smaller than what it replaced. The deletion is concentrated, not spread.
 
 ## What the loop became
@@ -74,11 +74,11 @@ a variable. Every iteration re-derives the next action from rows:
 > are there tool calls the model asked for that have no result yet?
 > resolve those. otherwise, ask the model for the next turn.
 
-In the port, `messages` is a variable. That is the port.
+In the port, `messages` is a variable. That's the port.
 
 The Python version was never clever for its own sake. It was the price of
 making a run resumable by a different process on a different machine.
-Trigger.dev pays that price, so the code that paid it is gone. What is left is
+Trigger.dev pays that price, so the code that paid it is gone. What's left is
 the loop anyone would write: ask the model, settle the tool calls it asked for,
 repeat. The README calls that loop the least interesting file in the
 repository. It still is.
@@ -88,9 +88,9 @@ The platform's whole footprint is
 33 lines: a task definition, a compute ceiling, a queue, a retry policy, and an
 adapter that turns `wait.createToken` and `wait.forToken` into the four-method
 `Waiter` interface the loop asks for. The loop takes its suspension mechanism
-as an argument rather than importing it, which is not testing ceremony. It's
+as an argument rather than importing it, which isn't testing ceremony. It's
 the measurement. Everything Trigger.dev contributes to this agent arrives
-through four methods, and the rest of the file cannot tell what is on the other
+through four methods, and the rest of the file cannot tell what's on the other
 side of them.
 
 ## What survived
@@ -104,7 +104,7 @@ from the point of failure.** Everything the loop did before the failure gets
 replayed, including the refund. Their own `idempotencyKey` solves the
 neighbouring problem, stopping a retrying parent from re-triggering a child
 task, and the docs are explicit that this is exactly-once task *creation*. A
-refund is not a task creation.
+refund isn't a task creation.
 
 So the ledger stays, with the same three-step protocol and the same
 deterministic `run_id:seq` key. The determinism requirement is stronger here.
@@ -136,8 +136,8 @@ situation arrives without anyone being hostile:
 
 1. Attempt one asks for USD 19.00 and opens a waitpoint.
 2. The attempt fails after the token exists. An uncaught error on the resume
-   path, an OOM, a restore that does not come back. Note this is *not* "a
-   worker dies while the human is deciding": there is no worker during the
+   path, an OOM, a restore that doesn't come back. Note this is *not* "a
+   worker dies while the human is deciding": there's no worker during the
    wait, which is the thing the platform is for.
 3. The platform re-enters `run()` from the top.
 4. Attempt two re-derives the trajectory and asks for USD 48.00.
@@ -148,7 +148,7 @@ is correct from the platform's point of view: a token was created, a person
 completed it, a run resumed. The only thing between it and the money is a hash
 comparison.
 
-That is [`tests/consent.test.ts`](../trigger/tests/consent.test.ts). The run
+That's [`tests/consent.test.ts`](../trigger/tests/consent.test.ts). The run
 ends `approval_denied` with zero refunds, and the neighbouring test confirms it
 refuses divergence rather than retries.
 
@@ -193,7 +193,7 @@ Worth noting for anyone relying on this: the `maxDuration` reference page lists
 never names `wait.forToken`. The behaviour is stated in the human-in-the-loop
 guide instead.
 
-Nothing else in `bounds.ts` has a platform counterpart, and that is not a gap.
+Nothing else in `bounds.ts` has a platform counterpart, and that's not a gap.
 Steps, tokens, dollars of inference and repeated identical tool calls are facts
 about an *agent*, and a job runner has no opinion about them.
 
@@ -204,7 +204,7 @@ about an *agent*, and a job runner has no opinion about them.
 In Python it was the resume mechanism. A worker arriving mid-trajectory rebuilt
 the conversation by replaying these rows, so they had to be complete, ordered
 and append-only or a resumed run would reach a different decision. Now nothing
-reads them to decide what to do next. They are written because "who did what,
+reads them to decide what to do next. They're written because "who did what,
 at what cost, and how do I replay it" is invariant 5, and no amount of durable
 execution answers that for the merchant's auditor.
 
@@ -217,7 +217,7 @@ tokens and money a second time, and `addUsage` accumulates those onto the run,
 so an upsert that *overwrote* `cost_micros` would leave
 `sum(steps.cost_micros)` short of `runs.cost_micros` after any retry, with both
 numbers looking plausible alone. Since accountability is now the step log's
-only job, that is not cosmetic. The upsert adds the accounting columns and
+only job, that's not cosmetic. The upsert adds the accounting columns and
 overwrites only the description. It's checked by a test that reports a cost
 from both attempts, because against the zero-cost scripted provider the bug and
 the fix produce the same number.
@@ -234,7 +234,7 @@ tool, which expresses the gate itself better than my code does. It's declared
 on the tool, in backend code, unreachable from a tool result, which is exactly
 the property deskhand's frozen registry exists to guarantee.
 
-I did not build on it, because deskhand is a headless backend agent with one
+I didn't build on it, because deskhand is a headless backend agent with one
 opening prompt and no conversation partner, while `chat.agent` is keyed on a
 `chatId` with a client sending messages. Wearing that shape would have made the
 comparison less honest.
@@ -255,11 +255,11 @@ So the matching is on `toolCallId` at every layer, and the tool's arguments
 travel on the client-held message. `toolCallId` establishes *which* call is
 being answered. Nothing in that chain establishes *what* was agreed to. An
 argument hash recorded server-side at request time is still the only thing that
-does, and `extractNewToolResults` does not close the gap: deduping on
+does, and `extractNewToolResults` doesn't close the gap: deduping on
 `toolCallId` prevents acting twice on one answer, not acting once on an answer
 whose arguments moved.
 
-I have not built the frontend half, so I have not watched a mutated payload go
+I haven't built the frontend half, so I haven't watched a mutated payload go
 through. But this is a reading of the documented mechanism rather than a guess
 about it.
 
@@ -269,7 +269,7 @@ The port is deployed and has run on Trigger.dev infrastructure, against a
 Postgres branch of the demo database. Two things I had taken on trust are now
 things I watched.
 
-There is no link to click, which is worth saying plainly rather than leaving
+There's no link to click, which is worth saying plainly rather than leaving
 you to notice. A Trigger.dev run lives under the account that deployed it and
 the dashboard needs a login, and the only public credential on offer is a
 Realtime token scoped to one run that expires in fifteen minutes. So the
@@ -290,7 +290,7 @@ released. It sat there while a human decided. When it finished:
 | cost | 0.067 cents |
 
 The 133 seconds a person spent reading the approval screen cost nothing and
-counted for nothing. That is the `maxDuration` argument above, measured rather
+counted for nothing. That's the `maxDuration` argument above, measured rather
 than quoted: a ceiling on CPU time cannot bound how long a ticket has been
 open, because the waiting is free.
 
@@ -301,11 +301,11 @@ human denied it, and no money moved. The ledger for the successful NW-1 run has
 exactly six rows, one per tool call, with `issue_refund` claimed once under key
 `<run>:8`.
 
-Deploying it also found a bug that 26 passing tests did not. The scripted
+Deploying it also found a bug that 26 passing tests didn't. The scripted
 provider had a fixed closing turn, so the first denied run finished by writing
 "Refunded NW-1101" into the step log next to zero refunds. Every invariant
 held. The summary was still false, which on a public demo is worse than a
-crash, because it looks like working software. There is now a
+crash, because it looks like working software. There's now a
 [test](../trigger/tests/invariants.test.ts) that a denied run says what
 actually happened, and the ticket escalates rather than resolving.
 
@@ -335,7 +335,7 @@ Step 8 is the answer to the question: the second attempt arrived at
 `<run>:8`, and handed back the recorded result instead of paying again. Delete
 the ledger and that row pays a second time.
 
-The approval was not asked twice either. The waitpoint token was already
+The approval wasn't asked twice either. The waitpoint token was already
 completed, and the idempotency key on it meant attempt two resolved the same
 token rather than opening a new one and putting the decision in front of a
 second person.
@@ -345,10 +345,10 @@ the production one. Deskhand's fault injector has no environment switch for the
 same reason: a runtime that can be told to misbehave by its configuration is a
 runtime nobody can reason about.
 
-## What I still have not verified
+## What I still haven't verified
 
 - **The port never calls a real model.** `getProvider()` returns the scripted
-  provider unconditionally; there is no Anthropic client in `trigger/` at all,
+  provider unconditionally; there's no Anthropic client in `trigger/` at all,
   where the Python service has a working one. So the trajectory is reproducible
   by construction rather than by luck, and that assumption is load-bearing for
   the idempotency key. A real model that diverges on retry claims a fresh key,
@@ -356,8 +356,8 @@ runtime nobody can reason about.
   ledger.
 
 What the tests do establish is what the port still has to do for itself: a
-divergent retry cannot execute on a stale approval, a replay from the top does
-not refund twice, an obedient model reading a forged pre-approval still hits
+divergent retry cannot execute on a stale approval, a replay from the top doesn't
+refund twice, an obedient model reading a forged pre-approval still hits
 the gate, a payout ceiling holds after a human clicks approve, and a retry's
 spend lands in the step log. 27 tests, against a real database, no account
 needed to run them.
@@ -377,8 +377,8 @@ elapsed time, I read it as elapsed time, and I had written a paragraph
 depending on the opposite two sections earlier without noticing the collision.
 
 Both were caught by checking rather than by rereading. The retry claim held up,
-the deadline claim did not, and I could not have told you in advance which was
-which. That is the argument for deploying the thing.
+the deadline claim didn't, and I couldn't have told you in advance which was
+which. That's the argument for deploying the thing.
 
 ## Running it
 
