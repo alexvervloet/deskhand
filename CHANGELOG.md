@@ -57,7 +57,7 @@ the database rather than from the model. The gaps were all in the space
   React's escaping was the only thing between customer ticket bodies and that,
   with nothing behind it. Full CSP, `nosniff`, `frame-ancestors 'none'`,
   `Referrer-Policy` and `Permissions-Policy` on every response, set in middleware
-  because the static mount is not a route anyone could remember to decorate.
+  because the static mount isn't a route anyone could remember to decorate.
   `script-src 'self'` is the load-bearing half; `style-src` has to allow inline
   because the UI sets style props, and a test asserts that relaxation so widening
   it further is deliberate.
@@ -96,10 +96,10 @@ the database rather than from the model. The gaps were all in the space
   places they appeared, and the exercise now runs the whole suite, which makes
   its own point better: two evals catch the deletion and both are assertions
   about the mechanism rather than the outcome.
-- **Fixed: malformed ids returned 500.** A run or approval id that is not a uuid
+- **Fixed: malformed ids returned 500.** A run or approval id that isn't a uuid
   reached Postgres, which rejects it outright, so `/runs/nonsense` was an
   unhandled error rather than a 404. An id that cannot exist now gets the same
-  answer as one that does not.
+  answer as one that doesn't.
 - **Fixed: a hallucinated tool name killed the run.** Every question the runtime
   asks about a tool is answered from the registry, and a name the model invented
   has no answer to any of them — so the lookup raised straight past the loop and
@@ -122,7 +122,7 @@ the database rather than from the model. The gaps were all in the space
   describes outcomes.
 - **Said plainly: nothing calls `apply_inverse`.** Every reversible tool records
   its inverse and the ledger stores it, but no runtime path or endpoint reverts a
-  failed run — the captured undo is real, the wiring is not. "Reversible" reads
+  failed run — the captured undo is real, the wiring isn't. "Reversible" reads
   like a promise, so the module now states which half exists.
 - **Said plainly: `/usage` discloses deployment-wide spend to every tenant.** It's
   there because the platform ceiling, not the per-org one, is what actually
@@ -134,7 +134,7 @@ the database rather than from the model. The gaps were all in the space
   upstream release cannot redden a pull request that changed nothing.
 - **Documented:** `CLIENT_IP_HEADER` and `RUN_WORKER_INLINE` were settings with
   real deployment consequences and no mention in `.env.example`. Several
-  comments described things the code does not do — an open signup, a `worker`
+  comments described things the code doesn't do — an open signup, a `worker`
   process group in `fly.toml`, and a no-float rule that `format_usd` breaks.
 
 ## Writing the system up, and a bug that fell out of it
@@ -192,8 +192,8 @@ the database rather than from the model. The gaps were all in the space
   instead. Asserted by a test that replays an agent trying to issue a refund the
   original run never made, then checks the refunds table, ticket messages, step
   log and run row are all unchanged.
-- Decisions are compared on tool name plus canonical arguments, so rewording is
-  not a divergence and a changed refund amount is.
+- Decisions are compared on tool name plus canonical arguments, so rewording isn't
+  a divergence and a changed refund amount is.
 
 ## Observability
 
@@ -205,7 +205,7 @@ the database rather than from the model. The gaps were all in the space
   event — run started, model call, tool call with its risk class, approval
   requested and decided, run finished — for whatever collects your logs.
   Identifiers and numbers only, never content.
-- The tracer cannot raise, cannot block, and does not care whether its arguments
+- The tracer cannot raise, cannot block, and doesn't care whether its arguments
   are serialisable. Asserted rather than assumed: a tracer that throws turns a
   successful refund into a failed run.
 
