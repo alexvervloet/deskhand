@@ -94,7 +94,7 @@ the next action from rows:
 > are there tool calls the model asked for that have no result yet?
 > → resolve those. otherwise → ask the model for the next turn.
 
-A worker that dies is not resuming a computation, it is reading a database. Any
+A worker that dies is not resuming a computation, it's reading a database. Any
 worker, on any machine, at any later time, computes the same next action from the
 same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
@@ -114,7 +114,7 @@ The distinction that makes them worth having:
 
 A [fault injector](deskhand/tools/faults.py) makes tools fail on purpose —
 error, crash, latency, garbage, and hostile text arriving through a tool
-result. It is off unless a test turns it on and has no environment switch, and
+result. It's off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
 **The gate has teeth.** Deliberately removing the approval check fails 14 of 25
@@ -190,7 +190,7 @@ in the run viewer, per step.
 
 Divergence replays a recorded run against a changed system prompt or model and
 reports the first decision that differs. It never executes a tool: the recorded
-result is handed back instead, so it is safe to point at runs that moved real
+result is handed back instead, so it's safe to point at runs that moved real
 money. Point it at a corpus of recorded runs and that is a prompt-regression
 suite. The runs here are my own rather than production traffic, of which this
 project has none, but nothing in the mechanism cares where a step log came from.
@@ -206,7 +206,7 @@ project exists to show. So I took the mechanism out and put a platform
 underneath it, to find out how much of this was essential: [`trigger/`](trigger)
 is the runtime ported onto Trigger.dev, and
 [docs/TRIGGER-PORT.md](docs/TRIGGER-PORT.md) is what deleted and what did not.
-The win is not less code, it is a class of bug that is now unavailable. The
+The win is not less code, it's a class of bug that is now unavailable. The
 idempotency ledger and the argument-hash binding on consent both stayed, and
 the second one got *more* load-bearing, because a platform that retries from
 the top can resume a diverged trajectory on an approval a human gave for a
