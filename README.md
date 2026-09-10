@@ -279,6 +279,14 @@ the second one got *more* load-bearing, because a platform that retries from
 the top can resume a diverged trajectory on an approval a human gave for a
 different amount.
 
+Compensation is deliberately *not* ported, and that's the cleaner half of the
+result. It has no wait to be suspended across — every item is one transaction,
+committed before the next is read — so it asks a durable execution platform for
+nothing, and retry-from-the-top is the one platform behaviour it has to defend
+against rather than benefit from. Durability turned out to be two jobs, one the
+platform does better and one that stayed mine. Compensation is entirely the
+second kind.
+
 **Exactly-once is honest about its assumption.** The idempotency ledger row is
 written in the *same transaction* as the tool's effect, which is what removes
 the usual claimed-but-unknown limbo. That works because every side effect here
