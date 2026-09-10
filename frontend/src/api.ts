@@ -120,6 +120,47 @@ export type Usage = {
   refund_budget_today_display: string;
 };
 
+export type CompensationItem = {
+  seq: number;
+  step_seq: number;
+  tool_name: string;
+  risk: string;
+  // "revert" or "report". The second is the line a person needs to read.
+  disposition: string;
+  describe: string;
+  status: string;
+  detail: string | null;
+  applied_at: string | null;
+};
+
+export type CompensationPlan = {
+  run_id: string;
+  run_status: string;
+  compensable: boolean;
+  blocked_reason: string | null;
+  // Bound to the list below. The request that follows carries it back, and a
+  // stale one is refused — so what is authorised is what was displayed.
+  plan_hash: string;
+  items: CompensationItem[];
+  revertable: number;
+  unrevertable: number;
+};
+
+export type Compensation = {
+  id: string;
+  run_id: string;
+  status: string;
+  reason: string;
+  stop_reason: string | null;
+  stop_detail: string | null;
+  requested_by_email: string | null;
+  attempt: number;
+  max_attempts: number;
+  created_at: string;
+  finished_at: string | null;
+  items: CompensationItem[];
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -206,6 +247,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ decision, reason: reason || null }),
     }),
+
+  // Reads only, and available to every role: seeing what a run did and what
+  // could be taken back is not a privileged action. Doing it is.
+  compensationPlan: (runId: string) =>
+    request<CompensationPlan>(`/runs/${runId}/compensation/plan`),
+  // The hash binds this request to the plan that was displayed. Without it,
+  // "undo this run" authorises whatever the ledger says by the time it lands.
+  compensate: (runId: string, planHash: string, reason: string) =>
+    request<Compensation>(`/runs/${runId}/compensation`, {
+      method: "POST",
+      body: JSON.stringify({ plan_hash: planHash, reason }),
+    }),
+  compensation: (id: string) => request<Compensation>(`/compensations/${id}`),
+  compensations: (runId: string) => request<Compensation[]>(`/runs/${runId}/compensations`),
 
   usage: () => request<Usage>("/usage"),
 };
