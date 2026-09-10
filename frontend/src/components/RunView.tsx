@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, streamRun, type Approval, type RunDetail, type Step, type User } from "../api";
+import CompensationPanel from "./Compensation";
 import Trajectory from "./Trajectory";
 
 export default function RunView({
@@ -123,6 +124,18 @@ export default function RunView({
           onDecided={() => void afterDecision()}
         />
       ))}
+
+      {/* Only once the run can no longer act. A compensation against a live
+          run races its worker for the same rows, so the server refuses it and
+          the screen does not offer it. */}
+      {!live && (
+        <CompensationPanel
+          runId={runId}
+          runStatus={run.status}
+          user={user}
+          onChanged={onChanged}
+        />
+      )}
 
       <Trajectory runId={runId} steps={steps} riskOf={riskOf} />
     </div>
