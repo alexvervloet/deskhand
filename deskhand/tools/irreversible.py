@@ -65,8 +65,23 @@ def _ceilings(ctx: ToolContext, amount: int, currency: str) -> None:
     pay. Locking the merchant serialises every payout it makes. Refunds are
     rare enough that the contention costs nothing, and a ceiling that holds
     only when nothing else is happening is not a ceiling.
+
+    **`for no key update`, not `for update`, and the difference is a deadlock.**
+    By the time a payout reaches this line its transaction has already inserted
+    an `audit_log` row for the approval it was granted, and that row's `org_id`
+    foreign key made Postgres take a `KEY SHARE` lock on this very org row.
+    `FOR UPDATE` conflicts with `KEY SHARE`, so asking for it here is a lock
+    *upgrade* — and two payouts for the same merchant, each holding `KEY SHARE`
+    and each waiting to upgrade, is a cycle. Postgres breaks it by killing one,
+    the worker marks that run failed, and a refund that was correct and
+    authorised simply does not happen.
+
+    `FOR NO KEY UPDATE` conflicts with itself, which is all the ceiling needs —
+    two payouts still serialise. It does not conflict with `KEY SHARE`, so it
+    cannot deadlock against a foreign key. Found by
+    `tests/test_concurrency.py`, not by reading; see LESSONS 27.
     """
-    ctx.cursor.execute("select id from orgs where id = %s for update", (ctx.org_id,))
+    ctx.cursor.execute("select id from orgs where id = %s for no key update", (ctx.org_id,))
 
     ctx.cursor.execute(
         "select r.max_refund_cents,"
