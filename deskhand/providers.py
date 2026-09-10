@@ -14,6 +14,7 @@ step log, and the run viewer, so a demo can never be mistaken for a model.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -140,6 +141,223 @@ class ClaudeProvider:
             model=self.model,
             latency_ms=latency_ms,
         )
+
+
+# --------------------------------------------------------------------- OpenAI
+
+
+class OpenAIProvider:
+    """A second model behind the same `Provider` protocol, for comparison.
+
+    **The seam was never neutral.** `transcript.rebuild` emits Anthropic content
+    blocks, `steps.content` stores them, `loop._unresolved` reads `type ==
+    "tool_use"` out of them, and `ModelReply.content` is replayed verbatim. That
+    is a reasonable thing for a project that runs on one provider, and it means
+    "swap the provider" is really "write an adapter". This class is the adapter,
+    and everything it does is translation:
+
+        Anthropic messages  ->  Chat Completions messages   (`_to_openai`)
+        Chat Completions reply -> Anthropic content blocks  (`_to_blocks`)
+
+    Nothing downstream can tell. The step log, the approval gate, the ledger and
+    the replay view all see the shape they have always seen.
+
+    Two differences from `ClaudeProvider` that are deliberate, and are stated in
+    the writeup rather than smoothed over:
+
+    * **No `strict`.** Anthropic and OpenAI accept different subsets of JSON
+      Schema in strict mode, and `_api_safe` in tools/base.py strips for
+      Anthropic's. Sending that to OpenAI is a coin flip on a 400. The
+      constraints are not lost — `ToolDef.validate()` runs the full schema
+      locally before anything executes, which is the path a bad argument was
+      always meant to take. It does mean invalid-argument counts are not
+      comparable between the two providers.
+    * **No cached-token accounting.** OpenAI reports cached input, but `Rate`
+      models Anthropic's cache economics (a tenth to read, 1.25x to write) and
+      OpenAI does not charge to write. Rather than report a number computed with
+      the wrong ratio, this reports zero and the comparison quotes billed input.
+    """
+
+    name = "openai"
+
+    def __init__(self, model: str | None = None, effort: str | None = None) -> None:
+        import openai
+
+        self.model = model or settings.openai_model_id
+        # Reasoning depth. `low` rather than the default because these runs are
+        # a dozen short tool-choosing turns, not one hard problem, and reasoning
+        # tokens are billed at the output rate.
+        self.effort = effort or settings.openai_reasoning_effort
+        self._client = openai.OpenAI(api_key=settings.openai_api_key)
+
+    def complete(
+        self,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+    ) -> ModelReply:
+        request: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, *_to_openai(messages)],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t["name"],
+                        "description": t["description"],
+                        "parameters": t["input_schema"],
+                    },
+                }
+                for t in tools
+            ],
+            # Reasoning models bill thinking as output and cap it under this,
+            # not under the retired `max_tokens`.
+            "max_completion_tokens": settings.max_tokens_per_call,
+            "reasoning_effort": self.effort,
+        }
+
+        started = time.monotonic()
+        response = self._client.chat.completions.create(**request)
+        latency_ms = int((time.monotonic() - started) * 1000)
+
+        choice = response.choices[0]
+        usage = response.usage
+        input_tokens = usage.prompt_tokens if usage else 0
+        output_tokens = usage.completion_tokens if usage else 0
+
+        return ModelReply(
+            content=_to_blocks(choice.message),
+            stop_reason=_stop_reason(choice.finish_reason),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            cost_micros=pricing.cost_micros(
+                self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            ),
+            provider=self.name,
+            model=self.model,
+            latency_ms=latency_ms,
+        )
+
+
+# OpenAI's finish reasons, mapped onto the vocabulary the loop already reads.
+# `content_filter` becomes `refusal` so it takes the path a safety decline takes
+# — the run ends `model_refusal` rather than being read as an empty answer.
+_FINISH_REASONS = {
+    "tool_calls": "tool_use",
+    "stop": "end_turn",
+    "length": "max_tokens",
+    "content_filter": "refusal",
+}
+
+
+def _stop_reason(finish_reason: str | None) -> str:
+    return _FINISH_REASONS.get(finish_reason or "stop", "end_turn")
+
+
+def _to_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Anthropic-shaped messages to Chat Completions messages.
+
+    The shapes disagree in one structural way rather than many cosmetic ones.
+    Anthropic puts tool results in a *user* message as `tool_result` blocks, and
+    a turn that resolved three calls is one message with three blocks. Chat
+    Completions wants one `role: "tool"` message per result. So a single message
+    can fan out into several, and the order has to survive it: a tool message
+    must follow the assistant message carrying the call it answers, or the API
+    rejects the conversation.
+    """
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        content = message["content"]
+        if isinstance(content, str):
+            out.append({"role": message["role"], "content": content})
+            continue
+
+        if message["role"] == "assistant":
+            text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
+            calls = [
+                {
+                    "id": b["id"],
+                    "type": "function",
+                    "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})},
+                }
+                for b in content
+                if b.get("type") == "tool_use"
+            ]
+            # An assistant turn with neither text nor calls is not a legal
+            # message. It also cannot happen: the loop ends a run whose turn had
+            # no tool calls, so a turn that is still in the history had one.
+            entry: dict[str, Any] = {"role": "assistant", "content": text or None}
+            if calls:
+                entry["tool_calls"] = calls
+            out.append(entry)
+            continue
+
+        # A user turn: tool results, or the opening prompt.
+        text_parts = []
+        for block in content:
+            if block.get("type") == "tool_result":
+                body = block.get("content")
+                if isinstance(body, list):
+                    body = "".join(b.get("text", "") for b in body if b.get("type") == "text")
+                out.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": block["tool_use_id"],
+                        # `is_error` has no home in this shape. The text already
+                        # reads as a failure — it is the message a ToolError
+                        # carried — so the model still sees what went wrong; it
+                        # just is not flagged as structurally an error the way
+                        # Anthropic flags it. Noted because it is a real
+                        # difference in what the two models are shown.
+                        "content": str(body),
+                    }
+                )
+            elif block.get("type") == "text":
+                text_parts.append(block.get("text", ""))
+        if text_parts:
+            out.append({"role": "user", "content": "\n".join(text_parts)})
+    return out
+
+
+def _to_blocks(message: Any) -> list[dict[str, Any]]:
+    """A Chat Completions reply back into Anthropic content blocks.
+
+    This is the half that has to be right, because whatever it returns is
+    written into `steps.content` and every later read of that run — the resume,
+    the replay, the compensation plan's step numbers — is a read of these
+    blocks.
+
+    `arguments` arrives as a JSON *string* and the model is not obliged to make
+    it parse. A tool call whose arguments are not JSON is handed on with an
+    empty input, which the schema then rejects, which the agent reads as a
+    ToolError and can correct. That is the same route a well-formed but invalid
+    argument takes, and it is a great deal better than an exception out of the
+    provider taking down a run that may already have moved money.
+    """
+    blocks: list[dict[str, Any]] = []
+    if message.content:
+        blocks.append({"type": "text", "text": message.content})
+    for call in message.tool_calls or []:
+        try:
+            arguments = json.loads(call.function.arguments or "{}")
+        except json.JSONDecodeError:
+            log.warning("model returned unparseable arguments for %s", call.function.name)
+            arguments = {}
+        if not isinstance(arguments, dict):
+            arguments = {}
+        blocks.append(
+            {
+                "type": "tool_use",
+                "id": call.id,
+                "name": call.function.name,
+                "input": arguments,
+            }
+        )
+    return blocks
 
 
 # -------------------------------------------------------------------- Scripted

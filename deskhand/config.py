@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     # low | medium | high | xhigh | max. `high` is the API default; agentic work
     # is the case where xhigh earns its cost, so it is worth sweeping per route.
     model_effort: str = "high"
+
+    # --- The comparison provider ---
+    # Only `evals/live.py` reaches for these. The service itself runs on Claude
+    # or on the scripted provider and has no OpenAI code path.
+    openai_api_key: str | None = None
+    openai_model_id: str = "gpt-5.4-mini"
+    # Low rather than the default: a run here is a dozen short tool-choosing
+    # turns, not one hard problem, and reasoning tokens bill at the output rate.
+    openai_reasoning_effort: str = "low"
     # A hard ceiling on tokens per model call. Thinking is adaptive on this
     # model family and counts against this, so it is sized for thinking +
     # answer rather than for the answer alone.
