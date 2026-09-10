@@ -12,3 +12,8 @@ anthropic==0.120.2
 # tests
 pytest==9.1.1
 httpx==0.28.1
+# Property-based search over crash schedules. tests/test_concurrency.py.
+hypothesis==6.168.0
+# The second model in the live comparison. evals/live.py only; the service has
+# no OpenAI code path.
+openai==2.54.0
