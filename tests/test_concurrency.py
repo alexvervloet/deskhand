@@ -87,6 +87,30 @@ TWO_PAYOUTS = [
 ]
 
 
+# A long trajectory, so the crash space stops being enumerable. Ten turns is
+# 1024 schedules; the parametrized sweep covers five turns exactly, and this is
+# what Hypothesis is actually for.
+LONG = [
+    [call("get_ticket", reference="NW-1")],
+    [call("set_priority", reference="NW-1", priority="high")],
+    [call("get_order", reference="NW-1042")],
+    [call("tag_ticket", reference="NW-1", tags=["quality"])],
+    [call("search_kb", query="refund policy window")],
+    [
+        call(
+            "issue_refund",
+            order_reference="NW-1042",
+            amount_cents=1900,
+            reason="Stale beans inside the refund window.",
+        )
+    ],
+    [call("send_customer_email", reference="NW-1", subject="Refunded", body="Sorry.")],
+    [call("add_internal_note", reference="NW-1", body="Refunded and emailed.")],
+    [call("set_ticket_status", reference="NW-1", status="resolved")],
+    text("Done."),
+]
+
+
 # Six concurrent runs share one 48.00 order in the leasing test, so each takes
 # a small bite rather than the whole thing.
 SMALL_REFUND = [
@@ -272,10 +296,13 @@ def test_the_sweep_actually_exercises_the_resume_path() -> None:
 # ------------------------------------------------------ 2. the wider space
 
 
+SCRIPTS = {"refund": REFUND, "two_payouts": TWO_PAYOUTS, "long": LONG}
+
+
 @DEEP
 @given(
-    die_at=st.frozensets(st.integers(min_value=0, max_value=4), max_size=5),
-    script_choice=st.sampled_from(["refund", "two_payouts"]),
+    die_at=st.frozensets(st.integers(min_value=0, max_value=9), max_size=10),
+    script_choice=st.sampled_from(sorted(SCRIPTS)),
 )
 def test_any_crash_schedule_on_any_trajectory(die_at: frozenset[int], script_choice: str) -> None:
     """The same claim, over trajectories exhaustion cannot enumerate.
@@ -283,8 +310,17 @@ def test_any_crash_schedule_on_any_trajectory(die_at: frozenset[int], script_cho
     `TWO_PAYOUTS` moves money and then sends an email, so a crash can land
     between two irreversible acts — the case where "did the first one already
     happen" and "did the second one already happen" have different answers.
+    `LONG` is ten turns, which is 1024 schedules and well past what the
+    parametrized sweep enumerates.
+
+    The first version of this strategy drew from `range(5)` across two scripts,
+    which is 64 possibilities — and `--hypothesis-show-statistics` said
+    "Stopped because nothing left to do" no matter how high `max_examples`
+    went. A property test over a space small enough to exhaust is a
+    parametrized test with extra machinery, and it was quietly reporting a
+    search it had not performed.
     """
-    script = REFUND if script_choice == "refund" else TWO_PAYOUTS
+    script = SCRIPTS[script_choice]
     clean_world, _ = _golden(script)
 
     _reseed()
@@ -295,10 +331,14 @@ def test_any_crash_schedule_on_any_trajectory(die_at: frozenset[int], script_cho
     assert crashed_world == clean_world, fingerprint.describe(clean_world, crashed_world)
 
 
-@DEEP
-@given(steal_after=st.integers(min_value=0, max_value=4))
+@pytest.mark.parametrize("steal_after", range(5))
 def test_a_run_stolen_mid_flight_is_not_paid_out_twice(steal_after: int) -> None:
     """A worker that merely *looks* dead, and a second one that believes it.
+
+    Parametrized rather than drawn, because there are five points a theft can
+    land at and enumerating five things is not a search. Hypothesis reported
+    "Stopped because nothing left to do" on this the moment it was asked for
+    statistics, which is the tool saying the same thing.
 
     Worth being precise about what a lease does, because the first version of
     this test asserted something the system correctly does not do. An expired
