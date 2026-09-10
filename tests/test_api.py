@@ -722,3 +722,76 @@ def test_another_merchant_cannot_see_or_compensate_this_run() -> None:
         ).status_code
         == 404
     )
+
+
+def test_the_screen_stops_offering_a_walk_back_once_nothing_is_left() -> None:
+    """An irreversible item never leaves a plan, so the offer has to.
+
+    Otherwise a run that refunded keeps showing "walk back these 0" forever,
+    and every press writes a compensation that changes nothing.
+    """
+    headers = login(OWNER)
+    run_id = _finished_run_that_changed_a_ticket(headers)
+    plan = client.get(f"/runs/{run_id}/compensation/plan", headers=headers).json()
+    client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": plan["plan_hash"], "reason": "triaged wrong"},
+        headers=headers,
+    )
+
+    from deskhand.worker import compensate_once
+
+    assert compensate_once("test-worker") is True
+
+    after = client.get(f"/runs/{run_id}/compensation/plan", headers=headers).json()
+    assert after["compensable"] is False
+    assert after["revertable"] == 0
+    assert "changed nothing that can be walked back" in after["blocked_reason"]
+
+
+def test_a_run_whose_only_mark_was_a_refund_is_read_but_not_offered() -> None:
+    headers = login(OWNER)
+    created = client.post("/runs", json={"ticket_reference": "NW-1"}, headers=headers)
+    run_id = created.json()["id"]
+    script = [
+        [call("issue_refund", order_reference="NW-1042", amount_cents=1900, reason="stale")],
+        text("Refunded."),
+    ]
+    assert drive_run(run_id, ScriptedProvider(script=script)) == "awaiting_approval"
+    approval = client.get("/approvals", headers=headers).json()[0]
+    client.post(
+        f"/approvals/{approval['id']}/decide", json={"decision": "approved"}, headers=headers
+    )
+    assert drive_run(run_id, ScriptedProvider(script=script)) == "succeeded"
+
+    plan = client.get(f"/runs/{run_id}/compensation/plan", headers=headers).json()
+    assert plan["compensable"] is False
+    assert plan["revertable"] == 0
+    assert plan["unrevertable"] == 1
+    # The item is still there. Nothing to press, something to read.
+    assert plan["items"][0]["tool_name"] == "issue_refund"
+    assert "money left the merchant's account" in plan["items"][0]["describe"]
+
+    refused = client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": plan["plan_hash"], "reason": "try anyway"},
+        headers=headers,
+    )
+    assert refused.status_code == 409
+    assert "nothing left that can be reverted" in refused.json()["detail"]
+
+
+def test_a_finished_run_is_reachable_from_its_ticket() -> None:
+    """The navigation this feature needed and the app did not have.
+
+    `open_run_id` names only a run that can still act, so everything a finished
+    run leads to — the replay, the cost, the compensation plan — was reachable
+    only by having been on the screen when it finished.
+    """
+    headers = login(OWNER)
+    run_id = _finished_run_that_changed_a_ticket(headers)
+
+    ticket = client.get("/tickets/NW-2", headers=headers).json()
+    assert ticket["open_run_id"] is None, "the run is finished and should not be 'open'"
+    assert [r["id"] for r in ticket["runs"]] == [run_id]
+    assert ticket["runs"][0]["status"] == "succeeded"

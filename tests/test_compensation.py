@@ -133,7 +133,7 @@ def test_a_read_only_run_has_nothing_to_compensate() -> None:
 
     with connection() as conn, conn.cursor() as cur:
         assert compensation.plan(cur, run_id) == []
-        with pytest.raises(compensation.PlanError, match="nothing to compensate"):
+        with pytest.raises(compensation.PlanError, match="changed nothing that can be walked back"):
             compensation.create(
                 cur,
                 org_id=org_id(),
@@ -162,6 +162,57 @@ def test_a_call_that_changed_nothing_is_not_in_the_plan() -> None:
     assert recorded["inverse"] is None
     with connection() as conn, conn.cursor() as cur:
         assert compensation.plan(cur, run_id) == []
+
+
+def test_a_plan_with_nothing_left_to_revert_is_not_offered() -> None:
+    """An irreversible act never leaves a plan.
+
+    It is never marked `reverted`, so it is in every future plan for this run
+    forever. Without this refusal the screen would keep offering to walk the
+    run back, with a count of zero, and every press would write a compensation
+    that changed nothing and finished `partial`.
+    """
+    run_id = start_run("NW-1")
+    script = [
+        [call("issue_refund", order_reference="NW-1042", amount_cents=1900, reason="damaged")],
+        text("Refunded."),
+    ]
+    assert drive(run_id, ScriptedProvider(script=script)) == "awaiting_approval"
+    _approve_pending(run_id)
+    assert drive(run_id, ScriptedProvider(script=script)) == "succeeded"
+
+    with connection() as conn, conn.cursor() as cur:
+        items = compensation.plan(cur, run_id)
+        # The refund is still in the plan, because "what could not be taken
+        # back" is the thing worth reading.
+        assert [i["disposition"] for i in items] == ["report"]
+        with pytest.raises(compensation.PlanError, match="nothing left that can be reverted"):
+            compensation.create(
+                cur,
+                org_id=org_id(),
+                run_id=run_id,
+                requested_by=user_id("owner@northwind.test"),
+                reason="try anyway",
+                expected_plan_hash=compensation.plan_hash(items),
+            )
+
+
+def test_a_second_compensation_is_not_offered_once_everything_revertable_is_gone() -> None:
+    run_id = two_priority_changes()
+    assert apply(authorise(run_id)) == "applied"
+    with (
+        connection() as conn,
+        conn.cursor() as cur,
+        pytest.raises(compensation.PlanError, match="changed nothing that can be walked back"),
+    ):
+        compensation.create(
+            cur,
+            org_id=org_id(),
+            run_id=run_id,
+            requested_by=user_id("owner@northwind.test"),
+            reason="again",
+            expected_plan_hash=compensation.plan_hash([]),
+        )
 
 
 # --------------------------------------------------------------- consent
