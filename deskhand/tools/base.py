@@ -154,6 +154,15 @@ class ToolDef:
     # Human-readable summary of what executing this will do, rendered on the
     # approval screen. Takes the validated arguments.
     preview: Callable[[dict[str, Any]], str] | None = None
+    # What this tool does that cannot be taken back, in one plain sentence.
+    # Required for IRREVERSIBLE tools and rejected for the others, enforced in
+    # `register`. It is the line a compensation screen shows against an act it
+    # is telling somebody it cannot fix, and it belongs here for the same
+    # reason the risk class does: both are claims about the tool that nothing
+    # at runtime may edit. A wrong risk class lets money move without consent;
+    # a wrong sentence here tells a person during an incident that something is
+    # recoverable when it is not.
+    irreversible_note: str | None = None
 
     def validate(self, args: dict[str, Any]) -> None:
         try:
@@ -191,6 +200,16 @@ def register(tool: ToolDef) -> ToolDef:
         raise RuntimeError(f"tool {tool.name!r} must set additionalProperties: false")
     if "required" not in tool.parameters:
         raise RuntimeError(f"tool {tool.name!r} must declare `required`")
+    # You cannot add a tool that moves something irrecoverable without saying
+    # what it is. The alternative is a compensation screen that falls back to
+    # "this tool did something that cannot be undone", which is exactly the
+    # sentence a person cannot act on.
+    if tool.risk is RiskClass.IRREVERSIBLE and not tool.irreversible_note:
+        raise RuntimeError(f"irreversible tool {tool.name!r} must say what it cannot take back")
+    if tool.risk is not RiskClass.IRREVERSIBLE and tool.irreversible_note:
+        raise RuntimeError(
+            f"tool {tool.name!r} is {tool.risk} and has no irreversible note to give"
+        )
     _REGISTRY[tool.name] = tool
     return tool
 

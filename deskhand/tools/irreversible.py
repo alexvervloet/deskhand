@@ -186,6 +186,10 @@ register(
             f"Refund {_money(a['amount_cents'])} against order {a['order_reference']}"
             f" — {a['reason']}"
         ),
+        irreversible_note=(
+            "money left the merchant's account. Putting it back is a charge, which is "
+            "a new decision somebody has to make outside this system"
+        ),
     )
 )
 
@@ -254,6 +258,10 @@ register(
         ),
         handler=_send_customer_email,
         preview=lambda a: f"Email the customer on {a['reference']}: {a['subject']!r}",
+        irreversible_note=(
+            "the email was sent. It may already have been read, and nothing here can "
+            "recall it — only send another one"
+        ),
     )
 )
 
@@ -310,5 +318,9 @@ register(
         ),
         handler=_cancel_order,
         preview=lambda a: f"Cancel order {a['order_reference']} — {a['reason']}",
+        irreversible_note=(
+            "the order was cancelled and the shipment stopped. The row can be edited "
+            "back; the warehouse cannot"
+        ),
     )
 )
