@@ -187,6 +187,70 @@ evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
 
+## Searching the crash space
+
+The exactly-once claim was the best-defended thing in this repo: two evals,
+three unit tests, a demo GIF. All of them prove the mechanism works *on the
+schedule I thought of* — `crash-resume-pays-once` kills a worker at turn 3, and
+turn 3 is a number I chose.
+
+[tests/test_concurrency.py](tests/test_concurrency.py) attacks the same claim
+from three directions, and states it more strongly than "the customer is not
+refunded twice":
+
+> For **any** crash schedule, the world after the run finishes is identical to
+> the world after an uncrashed run of the same trajectory.
+
+Two fingerprints, both computed from rows and both naming exactly what they
+exclude. The **world** is refunds, emails, ticket state and internal notes. The
+**trajectory** is the step log and the ledger, minus ids, timestamps and the
+`replayed` flag — a crash should leave no trace in the trajectory *at all*,
+because a resumed worker rebuilds the same history and asks for the same turn.
+
+**Exhaustive where it can be.** A five-turn trajectory admits 32 crash
+schedules and a five-item compensation admits 26, so both are enumerated rather
+than sampled. There is no seed here that could have been luckier. Hypothesis
+covers what enumeration cannot — longer trajectories, a run stolen mid-flight
+by a second worker, two irreversible acts with a crash between them — at 25
+examples in CI and as many as you like locally:
+
+```bash
+DESKHAND_FUZZ_EXAMPLES=2000 python -m pytest tests/test_concurrency.py
+```
+
+**And real threads, because a simulated race is not one.** Four workers sharing
+a queue with nothing but Postgres between them; two threads calling `invoke()`
+for the same step at the same instant; four threads racing to claim the same
+compensation item.
+
+### It found a deadlock in ninety seconds
+
+Not in exactly-once, which held under every schedule the search could reach. In
+the payout ceiling, which defends a different invariant and which all four
+properties merely happened to cross.
+
+`_ceilings` locked the merchant row with `SELECT ... FOR UPDATE` before reading
+the daily total. By the time a payout gets there, its own transaction already
+holds a `KEY SHARE` lock on that row — `runs.audit()` inserted an `audit_log`
+row for the approval, and that row's `org_id` foreign key took one. `FOR
+UPDATE` conflicts with `KEY SHARE`, so the request is a lock *upgrade*, and two
+payouts for the same merchant each waiting to upgrade is a cycle.
+
+Nothing moved: the transaction rolls back, so there is no refund and no ledger
+row. The damage is the other kind. The worker catches the error and marks the
+run **failed permanently**, so a refund a human approved simply does not
+happen, and the reason on the record is a database error.
+
+The fix is one clause. `FOR NO KEY UPDATE` conflicts with itself — two payouts
+still serialise, which is all the ceiling needs — and not with `KEY SHARE`, so
+it cannot deadlock against a foreign key. The regression test fails 5 times out
+of 5 with the old clause and passes 5 out of 5 with the new one.
+
+Every existing test drives one worker. The two evals that mention concurrency
+*simulate* it, written by somebody who already knew which race to re-enact.
+Neither has two transactions open at the same instant, and a lock cycle needs
+exactly that. Written up as [LESSONS 27](LESSONS.md).
+
 ## Two real models against the invariants
 
 Everything above is green against a scripted provider, which is deliberate —
@@ -298,8 +362,8 @@ a single thing failing — every mechanism behaves, and the answer is wrong.
 
 Working end to end and deployed: schema, tool registry, durable runtime,
 approval gate, compensation, HTTP API with a live trajectory stream, React UI,
-fault injection, the eval gate, and a live comparison harness that points real
-models at the invariants. Green in CI on a clean checkout — tests, evals,
+fault injection, the eval gate, a concurrency search over crash schedules, and
+a live comparison harness that points real models at the invariants. Green in CI on a clean checkout — tests, evals,
 ruff, mypy, pyright, a dependency audit, a secret scan of the full history, and
 an ESLint and type-check pass over the frontend.
 
