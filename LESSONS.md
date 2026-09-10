@@ -751,3 +751,140 @@ the answer is that a keyless suite can prove the runtime correct and prove
 nothing at all about whether it can talk to a model. One smoke test that makes
 a single real call, kept out of the offline suite, would have found this on day
 one.
+
+---
+
+## 20. The undo that had been tested since the day it was written, and lied
+
+**Expected.** `apply_inverse` was the one part of the revert story that already
+existed. Every reversible tool had recorded its inverse since the tool layer
+was written, `apply_inverse` dispatched on the recorded `op`, and a test drove
+it end to end: change a priority, apply the inverse, read the value back. The
+work left to do was the plan on top of it. The function underneath was done.
+
+**What happened.** Writing the plan meant asking what happens when an inverse
+cannot do its job — the ticket deleted, the note already removed by hand — and
+the answer was that nothing happens. Every branch is a single `UPDATE` or
+`DELETE` keyed by an id captured at write time. Postgres does not raise when a
+statement matches no rows. It updates zero rows and reports success.
+
+So an inverse naming a row that is gone returns cleanly, and the caller writes
+`reverted` against something it did not revert. In a compensation that is the
+worst available failure: the item is marked done, the plan moves on, and the
+record of the incident now says a thing was walked back that is still sitting
+there. An audit trail that overstates what it undid is worse than one that
+stops.
+
+The same statements also had no `org_id` filter. That one was never reachable —
+the handlers that capture an inverse already scope their lookups to the org, so
+every id in the ledger is in-tenant by construction — but the guarantee lived
+two modules away from the code relying on it, and the new caller doubled the
+number of places that had to keep it true.
+
+**Why nothing caught it.** The test that had exercised `apply_inverse` since
+the day it was written always had the row present. It asserted the value came
+back, which is the outcome, and the outcome is right whenever the precondition
+holds. Nothing asked what the function does when it does not.
+
+It also had exactly one caller, and that caller was the test. A function whose
+only caller is its own test has never had its contract questioned by anybody,
+and every assumption it makes is still sitting there unexamined however long it
+has been green.
+
+**Fix.** Every branch scopes to `ctx.org_id`, and `apply_inverse` raises when
+`cur.rowcount == 0` — see [deskhand/tools/reversible.py](deskhand/tools/reversible.py).
+The compensation turns that into a `blocked` status, which is a state a person
+clears rather than one a retry does.
+
+**Next time.** "A statement ran" and "a statement did something" are different
+claims, and SQL reports the first one. Any write whose success is recorded
+somewhere else needs `rowcount` checked, because the recording is the part that
+becomes a lie. And the more specific tell: code with one caller has one
+assumption baked into it that nobody has met yet, and adding the second caller
+is when you find out which.
+
+---
+
+## 21. The most important sentence on the screen came from a guess
+
+**Expected.** A compensation plan renders one line per item. For a reversible
+act the line comes from the recorded inverse — "restore priority to normal" is
+a straight read of `{"op": "set_priority", "priority": "normal"}`. For an
+irreversible act there is no inverse to read, so the renderer fills in a
+sentence of its own.
+
+**What happened.** The sentence it filled in was `f"{tool_name} moved something
+this system cannot take back"`. Which is true, and useless. Driving the real
+app end to end and reading the plan back was what made that obvious:
+
+```
+revert | step 12 | set_ticket_status  | restore status to open
+revert | step 10 | add_internal_note  | delete the note it added
+CANNOT | step  8 | issue_refund       | issue_refund moved something this
+                                        system cannot take back
+```
+
+Two lines that tell you exactly what will happen, and then the only line that
+matters — the one saying this part is not going to be fixed — reduced to a
+restatement of the tool's name. A person reading that during an incident learns
+nothing they could act on. They need to know that the money is out, that
+putting it back is a charge, and that the charge is a decision somebody makes
+outside this system.
+
+**Why it happened.** The line was written where it was rendered. The renderer
+is in the runtime and it knew nothing about the tools beyond their names, so
+the only sentence it could produce was one about names. It was a guess written
+in the module that had the least information available to make it.
+
+**Fix.** `irreversible_note` is now a field on `ToolDef` next to `risk`, and
+`register()` refuses an irreversible tool that omits it and a non-irreversible
+tool that supplies one. The plan reads it from the registry. Same frozen
+dataclass, same import-time population, same rule that nothing at runtime edits
+it — because a wrong risk class lets money move without consent, and a wrong
+sentence here tells a person that something is recoverable when it is not.
+Those are closer to the same kind of mistake than they look.
+
+**Next time.** A claim about a thing belongs next to the thing's declaration,
+not in the code that displays it. The tell is a renderer reaching for an
+f-string with a bare identifier in it: that is the moment it has run out of
+information and is padding. And the reason this was caught at all is that the
+app got run and the output got read. The tests all passed on that string.
+
+---
+
+## 22. The scripted provider is stateless, which is not the same as replayable
+
+**Expected.** Testing that a stale plan is refused needs a run whose ledger
+changes between the preview and the request. Straightforward: drive a run,
+preview the plan, re-queue the run, drive it again with a longer script that
+does one more thing, then submit the old hash and watch it bounce.
+
+**What happened.** It did not bounce. The plan was identical, because the
+second drive did nothing at all.
+
+`ScriptedProvider` derives which turn to serve from the history it is handed,
+counting assistant messages, rather than from a counter of its own. That is
+deliberate and it is the right design — a resumed run rebuilds its messages
+from the step log, and a provider with private state would return the wrong
+turn and make the crash-resume tests pass for the wrong reason. The docstring
+says so.
+
+What the docstring does not say, because it was written for resumption, is what
+happens when you hand a resumed run a *different* script. The run already had
+three assistant turns on it. Index three in the new script was the closing text
+block, so the provider served that, the run ended immediately, and the extra
+tool call sitting at index three of what I had written was never reached.
+
+The test failed for a reason that looked like the feature was broken.
+
+**Fix.** The script for a resumed run has to carry the turns already taken:
+
+```python
+provider(script=[*RAISE_TWICE, [call("set_ticket_status", ...)], text("One more.")])
+```
+
+**Next time.** Statelessness makes a test double resumable and makes it
+*positional*. Any test that drives one run twice is really writing one script
+across both drives, and the second call's script starts where the first one's
+history ended. Worth stating in the provider's own docstring rather than
+learning per test.
