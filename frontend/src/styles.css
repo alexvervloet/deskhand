@@ -713,3 +713,54 @@ button.peek:hover {
   color: var(--accent);
   border-color: var(--accent-dim);
 }
+
+/* ---------------------------------------------------------- run history */
+
+.run-history {
+  margin: 1.25rem 0;
+}
+
+.run-history .label {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  margin-bottom: 3px;
+  font-size: 12.5px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.run-row:hover {
+  border-color: var(--line);
+}
+
+.run-row .when {
+  color: var(--text-dim);
+}
+
+.run-row .why {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.run-row .cost {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
