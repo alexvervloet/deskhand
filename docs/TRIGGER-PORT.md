@@ -345,6 +345,63 @@ the production one. Deskhand's fault injector has no environment switch for the
 same reason: a runtime that can be told to misbehave by its configuration is a
 runtime nobody can reason about.
 
+## The part that hasn't been ported, and why that's the finding
+
+Deskhand can now walk a finished run back: a plan over the ledger, authorised
+by a person, applied newest-first, honest about the third of it that has no
+inverse. `trigger/` has none of that, and after working out what porting it
+would involve I stopped, because the answer is more interesting than the port.
+
+**A compensation asks a durable execution platform for nothing.**
+
+Take the doc's own test — what was the mechanism *for*. The lease in
+`compensations` looks exactly like the lease in `runs`, and the lease in `runs`
+is for keeping a process resumable across a wait, which is the thing
+Trigger.dev does properly and which I should never have written by hand.
+
+A compensation has no wait in it. Each item is one `UPDATE` inside one
+transaction, committed before the next is read. There is no model call, no
+waitpoint, no minutes-long gap where a machine would be sitting idle holding
+state in memory. The whole thing runs in milliseconds and the only reason it is
+resumable at all is that the item statuses are rows. Put it on a platform whose
+central offer is "your function can be suspended and restored across a wait"
+and you are paying for a capability the workload does not use.
+
+**And the platform's central move is actively wrong here.**
+
+Retry-from-the-top is the behaviour that made `args_hash` more load-bearing on
+Trigger.dev than it was in Python: attempt two re-derives the trajectory, asks
+for a different amount, and resolves attempt one's waitpoint. Every step is
+correct from the platform's point of view and the wrong money leaves.
+
+A compensation has the identical shape one level up, and it is worse because
+the input is larger. `run()` re-entering from the top would re-run the plan
+builder. The plan is a query over `tool_invocations`, and between attempt one
+and attempt two that table can have moved — another compensation, a re-queued
+run, a person fixing something by hand. Attempt two would build a different
+plan and apply it under a person's authorisation of the first one.
+
+Which is why the plan is frozen into `compensation_items` at the moment it is
+authorised, with the inverse payload copied onto the row rather than read back
+through the ledger at apply time. On Postgres that is a choice about audit
+trails. On a platform that retries from the top it is the only thing standing
+between "walk back these four acts" and "walk back whatever four acts exist
+now". The port would need those rows exactly as they are, plus code whose job
+is to stop the retry doing the thing the retry is for.
+
+**What it would gain.** Traces, a dashboard, and retries with backoff instead
+of a lease that expires. Real, and not nothing — the `blocked` status exists
+partly because there was no better place to surface a stuck compensation.
+
+**What it would remove.** Nothing. Not the frozen plan, not the conditional
+claim, not the partial unique index, not the ordering. Every mechanism in
+`compensation.py` is a claim about a database.
+
+That is a cleaner result than either half of the forward port. Durability
+turned out to be two jobs, one of which the platform does better and one of
+which stayed mine. Compensation is entirely the second kind, which is why
+`trigger/` not having it is a statement rather than a gap.
+
 ## What I still haven't verified
 
 - **The port never calls a real model.** `getProvider()` returns the scripted
