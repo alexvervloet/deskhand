@@ -503,26 +503,32 @@ def _brief(messages: list[dict[str, Any]]) -> str:
 def _refundable(messages: list[dict[str, Any]]) -> int:
     """What the goods on this order came to, in cents, shipping excluded.
 
-    Read from `get_order`'s item lines across the whole transcript rather than
-    from its `total:`, because a customer asking for a refund on what they
-    bought is not asking for their postage back. Shipping is identified by SKU
-    prefix, which is a convention of the seed data and is fine for a fake.
+    Read from `get_order`'s item lines rather than from its `total:`, because a
+    customer asking for a refund on what they bought is not asking for their
+    postage back. Shipping is identified by SKU prefix, a convention of the
+    seed data and fine for a fake.
 
-    **Only results that are an order.** `get_ticket` returns the customer's own
-    words into this same transcript, fenced, and a reader that scanned every
-    result would let a customer set the refund by typing an item line into a
-    ticket body. The fenced region opens with the fence marker, so requiring
-    the result to *begin* with `Order ` is enough to keep this reading the
-    system's own output. It is a fake and not a defence — the amount it
-    produces is still gated, still capped, and still shown to a person — but a
-    fake that can be steered by a ticket body is a worse demo of this runtime
-    than one that cannot.
+    **Which results to read is decided structurally, not textually.** Every
+    tool result reaching the model is fenced, `get_ticket`'s included — so the
+    customer's own words are in this transcript, and any rule of the form "read
+    the results that look like an order" is a rule a ticket body can satisfy.
+    The first attempt at this required the text to begin with `Order `, which a
+    fence makes impossible and which cost a demo that never reached the
+    approval gate at all. So the tool_use blocks are walked first to learn
+    which id belongs to which tool, and only results whose call was `get_order`
+    are read. A ticket body cannot forge a tool_use id.
 
-    Falls back to zero item lines meaning zero, which `issue_refund` rejects as
-    an invalid argument — visibly, in the trajectory, rather than by quietly
-    substituting a number nobody chose. That is the failure mode the constant
-    this replaced did not have, and having it is the point.
+    Zero item lines means zero, which `issue_refund` rejects as an invalid
+    argument — visibly, in the trajectory, rather than by quietly substituting
+    a number nobody chose. That is the failure mode the constant this replaced
+    did not have, and having it is the point.
     """
+    from_order: set[str] = set()
+    for message in messages:
+        for block in message.get("content") or []:
+            if isinstance(block, dict) and block.get("name") == "get_order":
+                from_order.add(block["id"])
+
     total = 0
     for message in messages:
         content = message.get("content")
@@ -531,10 +537,10 @@ def _refundable(messages: list[dict[str, Any]]) -> int:
         for block in content:
             if block.get("type") != "tool_result":
                 continue
+            if block.get("tool_use_id") not in from_order:
+                continue
             inner = block.get("content")
             body = inner if isinstance(inner, str) else str(inner)
-            if not body.startswith("Order "):
-                continue
             for quantity, sku, dollars, cents in _ORDER_ITEM.findall(body):
                 if sku.startswith("SHIP"):
                     continue
