@@ -62,7 +62,9 @@ tries to break it:
    crash, and never re-executes a completed side effect.
    [A test](tests/test_runtime.py) kills a worker after it has already refunded a
    customer, lets the lease expire, has a second worker claim the run, and
-   asserts exactly one refund exists.
+   asserts exactly one refund exists. The same claim holds backwards: a worker
+   that dies half way through walking a run back does not re-apply the inverse
+   it already applied.
 2. **Consent** — no irreversible tool executes without a recorded human approval
    bound to that exact run, step, and argument hash. A test approves a $19.00
    refund, rewrites the pending call to $48.00 mid-flight, and asserts the
@@ -98,9 +100,72 @@ A worker that dies isn't resuming a computation, it's reading a database. Any
 worker, on any machine, at any later time, computes the same next action from the
 same rows. See [deskhand/runtime/loop.py](deskhand/runtime/loop.py).
 
+## Walking a finished run back
+
+The sentence at the top of this README is about a run that fails part way
+through. The other half of it is a run that finishes and is *wrong*, and the
+question of what happens to everything it already did.
+
+Every reversible tool has recorded its own inverse since the day the tool layer
+was written — the prior value of whatever it overwrote, captured at the one
+moment it is knowable rather than guessed at afterwards. A compensation is the
+plan that applies them.
+
+```
+revert | step 12 | set_ticket_status  | restore status to open
+revert | step 10 | add_internal_note  | delete the note it added
+CANNOT | step  8 | issue_refund       | money left the merchant's account.
+                                        Putting it back is a charge, which is a
+                                        new decision somebody has to make
+                                        outside this system
+```
+
+Two of those three happen. The compensation finishes `partial`, not `applied`,
+and the third line is the reason the word is *compensation* rather than *undo*.
+Undo promises something that is false for a third of that list, and a status
+that reads as a clean revert is the most misleading thing this system could say
+after an incident.
+
+Four things about it are worth more than the feature itself.
+
+**The plan is a query over the ledger.** Not the conversation, not a model, not
+anything a tool returned. A recovery path that asks a language model which
+effects to undo has put an untrusted decision at exactly the moment the system
+is known to have got something wrong — and the ticket that caused the trouble
+is still sitting there with whatever it says in it. Point the planner at `NW-4`,
+whose body contains a forged instruction, and it produces the same shape it
+produces for a clean ticket.
+
+**Order is the whole content of correctness.** Inverses apply newest first. A
+run that moved a ticket `normal → high → urgent` recorded "back to normal" then
+"back to high"; apply those in the order they were captured and the ticket
+lands on `high`, a value it really held for one step and was never meant to
+keep. Reverse one `order by` and two evals go red with nothing failing — every
+transaction commits, the ledger stays consistent, exactly-once holds, and the
+answer is wrong. That deletion is in the walkthrough because it is the one a
+reviewer would have waved through.
+
+**Authorising it is bound to the plan that was displayed.** `GET
+.../compensation/plan` writes nothing and returns a hash; the request that
+follows carries the hash back and is refused if the ledger moved underneath it.
+It is `args_hash` one level up: that binding stops a person who approved a
+$19.00 refund from having approved a $1,900.00 one, and this one stops "undo
+this run" from being a blank cheque against whatever the ledger says by the
+time it lands.
+
+**It is not a run and not a set of steps.** Not a run, because there is no
+model in it. Not steps, because `steps` is the trajectory, and appending rows
+to a finished run after the fact would make `replay` describe a conversation
+that never happened.
+
+Exactly-once comes from the same argument the idempotency ledger makes, in a
+different table: an item flips to `reverted` in the same transaction as the
+inverse's effect, and a partial unique index makes a leasing bug a constraint
+violation rather than a ticket that quietly gets un-tagged twice.
+
 ## Evals that assert on the path, not the answer
 
-`python -m evals.run` — 25 trajectory evals across the five invariants, wired
+`python -m evals.run` — 32 trajectory evals across the five invariants, wired
 as a required CI job. They drive the real loop, the real tools and a real
 Postgres; only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically.
@@ -117,7 +182,7 @@ error, crash, latency, garbage, and hostile text arriving through a tool
 result. It's off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
-**The gate has teeth.** Deliberately removing the approval check fails 14 of 25
+**The gate has teeth.** Deliberately removing the approval check fails 15 of 32
 evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
@@ -130,16 +195,18 @@ load-bearing parts, at the absences that are harder to spot, and at the places
 where the honest answer is "this is a demo and here is the seam". Those seams
 are collected in one list near the end rather than left for you to find.
 
-It ends with four one-line deletions to try yourself, each with the eval count
-it produces. Delete the fence around untrusted content and 22 of 25 evals still
+It ends with five one-line deletions to try yourself, each with the eval count
+it produces. Delete the fence around untrusted content and 29 of 32 evals still
 pass, which is the uncomfortable half of defence in depth. Delete the approval
-check instead and 14 of 25 fail. Only the load-bearing layer is loud.
+check instead and 15 of 32 fail. Only the load-bearing layer is loud. And
+reverse one `order by` in the compensation planner and two evals go red without
+a single thing failing — every mechanism behaves, and the answer is wrong.
 
 ## Status
 
 Working end to end and deployed: schema, tool registry, durable runtime,
-approval gate, HTTP API with a live trajectory stream, React UI, fault
-injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
+approval gate, compensation, HTTP API with a live trajectory stream, React UI,
+fault injection, and the eval gate. Green in CI on a clean checkout — tests, evals,
 ruff, mypy, pyright, a dependency audit, a secret scan of the full history, and
 an ESLint and type-check pass over the frontend.
 
@@ -249,7 +316,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — eighteen entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — twenty-two entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
