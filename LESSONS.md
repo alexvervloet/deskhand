@@ -888,3 +888,68 @@ provider(script=[*RAISE_TWICE, [call("set_ticket_status", ...)], text("One more.
 across both drives, and the second call's script starts where the first one's
 history ended. Worth stating in the provider's own docstring rather than
 learning per test.
+
+---
+
+## 23. Three green suites, and a feature you could not get to
+
+**Expected.** The compensation work was done. 153 tests, 32 trajectory evals,
+ruff, mypy, pyright, tsc and ESLint all green, and I had driven the whole thing
+end to end over HTTP — logged in, started a run, approved a refund, read the
+plan back, requested a compensation, watched the worker apply it, confirmed the
+ticket had moved and the money had not. Every endpoint the UI calls, exercised
+against real data with real shapes.
+
+Opening a browser was the formality.
+
+**What happened.** Two bugs in about ten minutes, and neither was reachable
+from anything I had run.
+
+**One: you could not get to a finished run.** The panel only renders on a run
+that can no longer act, which is correct — a compensation against a live run
+races its worker. The ticket screen's only link to a run is `open_run_id`, and
+that query says `status in ('queued','running','awaiting_approval')`. It goes
+null the moment a run ends.
+
+So the only way to see a finished run was to have been looking at it when it
+finished. Come back later, reload the page, or open the ticket fresh, and there
+was no path. That predates compensation — the replay view and the cost
+breakdown had been behind the same wall for the whole life of the project — and
+nobody noticed because the demo script is "press the button and watch", which
+never leaves the screen.
+
+Worse, an effect re-set `runId` from `open_run_id` on every refresh of the
+ticket list. So even reaching a finished run by hand, the next refresh threw
+you back out of it. Two independent mechanisms, both invisible, both agreeing
+that a finished run is not a thing you look at.
+
+**Two: the offer never went away.** An irreversible act is never marked
+`reverted`, which is the point — nothing took it back. Which means it stays in
+every future plan for that run, forever. After a successful compensation the
+screen cheerfully offered to walk the run back again: *0 to revert · 1 that
+cannot be taken back*, with a live button. Pressing it would have written
+another compensation, changed nothing, and finished `partial`.
+
+**Why nothing caught either.** Every test asked the server a question and
+checked the answer. Both bugs are about the *sequence* of screens a person
+moves through, and neither produces a wrong answer to any single question.
+`/runs/{id}/compensation/plan` was right every time. `open_run_id` was right
+every time — it does name only a run that can still act, which is exactly what
+it is for. The second bug is a right answer to the wrong question: "is there
+anything in the plan" instead of "is there anything to press".
+
+**Fix.** `TicketDetail` carries the ticket's run history and the ticket pane
+lists it; the jump to a live run is guarded by a ref so a refresh cannot move
+you. `create()` refuses a plan with no revertable items, and the endpoint says
+`compensable: false` with the count of what stays on the record, while still
+listing it — nothing to press, something to read.
+
+**Next time.** This is [LESSONS 4](#4-a-green-test-suite-and-a-broken-screen)
+happening again, with better tests and the same hole. An API test asks one
+question. A person arrives, leaves, comes back, reloads, and presses the same
+button twice, and none of those are questions.
+
+The specific tell, which I would like to remember: **a feature that renders
+under a condition needs a check that you can reach the condition.** The panel's
+condition is "this run is over", and I never asked how somebody gets to a run
+that is over. Ten minutes with the real screen beat eight hours of green.
