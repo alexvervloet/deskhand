@@ -953,3 +953,73 @@ The specific tell, which I would like to remember: **a feature that renders
 under a condition needs a check that you can reach the condition.** The panel's
 condition is "this run is over", and I never asked how somebody gets to a run
 that is over. Ten minutes with the real screen beat eight hours of green.
+
+---
+
+## 24. The smoke test entry 19 asked for, and the two 400s it found
+
+**Expected.** [LESSONS 19](#19-the-mock-couldnt-fail-the-way-the-api-fails) ends
+with a recommendation to myself: *"One smoke test that makes a single real call,
+kept out of the offline suite, would have found this on day one."* Building the
+live comparison was the first chance to take my own advice, so `evals/live.py`
+got a `--smoke` mode before it got a runner. One call per provider, a fraction
+of a cent, run before anything expensive.
+
+I expected it to pass. The Claude request shape had been in production since
+the project started, and the OpenAI one had just been written against the SDK's
+own generated types rather than against a doc page.
+
+**What happened.** Both failed, on the first call, for unrelated reasons.
+
+```
+claude   400  adaptive thinking is not supported on this model
+openai   400  Function tools with reasoning_effort are not supported for
+              gpt-5.4-mini in /v1/chat/completions. To use function tools, use
+              /v1/responses or set reasoning_effort to 'none'.
+```
+
+Neither is a bug in the runtime. Both are the same *class* of bug as entry 19:
+a request-envelope constraint that no offline test can see, because the
+scripted provider takes `system`, `messages` and `tools` and reads only the
+messages.
+
+**The Claude one is the more interesting.** `ClaudeProvider` sends `thinking:
+{type: "adaptive"}` and `output_config: {effort: ...}`, and that has been
+correct every day of this project — for `claude-sonnet-5`, which is what
+`settings.model_id` names. Adaptive thinking arrived with the 4.6 family.
+Haiku 4.5 predates it and rejects both parameters. So the provider was not
+wrong; it was *specialised to one model* while presenting itself as the
+provider for a family, and the first time anything pointed it at a different
+member of that family, every call 400ed.
+
+The fix is a set of exact model ids rather than a prefix rule. `claude-haiku-`
+as a prefix would be shorter and would give the wrong answer for
+`claude-haiku-5` the day it ships, and the way you find that out is a 400 on
+every call.
+
+**The OpenAI one I could not have reasoned my way to.** Function tools and
+reasoning effort are individually supported and jointly refused, on that
+endpoint, for that model. No amount of reading the type stubs finds that —
+both parameters exist, both are correctly typed, and the SDK assembles the
+request happily. It is a server-side compatibility rule, and the error message
+is the documentation.
+
+**What it cost to find.** $0.004 and about ninety seconds. What it would have
+cost otherwise: the first failure of a 24-run sweep, after the harness, the
+scenarios, the invariant checks and the report were all written and reviewed —
+or worse, a partial sweep where one provider worked and the other did not, and
+half a comparison table that looked publishable.
+
+**Next time.** Two things, and the second is the one I keep having to relearn.
+
+A smoke test is not a small integration test. It is one call whose only job is
+to prove the *envelope* is acceptable, and it belongs before the thing it
+protects, not after. It is cheap enough that there is no argument against
+running it every time.
+
+And: **a provider class that has only ever talked to one model is a provider
+class for one model.** Every default in it — thinking mode, effort, token cap,
+which parameters are even legal — is a claim about that model wearing the
+costume of a claim about the API. This is the same shape as entry 20, where a
+function with one caller had one unexamined assumption baked in. Adding the
+second caller is when you find out.
