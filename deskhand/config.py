@@ -35,9 +35,10 @@ class Settings(BaseSettings):
     # or on the scripted provider and has no OpenAI code path.
     openai_api_key: str | None = None
     openai_model_id: str = "gpt-5.4-mini"
-    # Low rather than the default: a run here is a dozen short tool-choosing
-    # turns, not one hard problem, and reasoning tokens bill at the output rate.
-    openai_reasoning_effort: str = "low"
+    # `none`, and not by choice: gpt-5.4-mini refuses function tools alongside
+    # any other reasoning effort on /v1/chat/completions and points you at
+    # /v1/responses. Found by `python -m evals.live --smoke`.
+    openai_reasoning_effort: str = "none"
     # The Claude side of the live comparison. Separate from `model_id` so the
     # comparison names its own model rather than inheriting whatever the
     # service happens to be configured with today.

@@ -67,6 +67,19 @@ class Provider(Protocol):
 # --------------------------------------------------------------------- Claude
 
 
+# Models that reject adaptive thinking and `output_config.effort`.
+#
+# Keyed on the exact model id rather than matched on a prefix. A prefix rule
+# would be shorter and would give the wrong answer for `claude-haiku-5` on the
+# day it ships — and the way you find out is a 400 on every call, which is the
+# most expensive kind of wrong this file can be. An unlisted model gets the
+# current-generation request shape, and adding one here is a one-line change
+# with the API's own error message pointing at it.
+#
+# Established by a real call, not by reading: `python -m evals.live --smoke`.
+NO_ADAPTIVE_THINKING = frozenset({"claude-haiku-4-5"})
+
+
 class ClaudeProvider:
     """The real thing.
 
@@ -105,11 +118,16 @@ class ClaudeProvider:
             "model": self.model,
             "max_tokens": settings.max_tokens_per_call,
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-            "thinking": {"type": "adaptive"},
-            "output_config": {"effort": self.effort},
             "tools": tools,
             "messages": messages,
         }
+        # Adaptive thinking and `output_config.effort` arrived together with the
+        # 4.6 family. On a model that predates them each is a 400 on every
+        # call — not a warning, not a degraded response — so a model that does
+        # not take them gets neither, rather than one and a crash.
+        if self.model not in NO_ADAPTIVE_THINKING:
+            request["thinking"] = {"type": "adaptive"}
+            request["output_config"] = {"effort": self.effort}
 
         started = time.monotonic()
         response = self._client.messages.create(**request)
@@ -184,9 +202,11 @@ class OpenAIProvider:
         import openai
 
         self.model = model or settings.openai_model_id
-        # Reasoning depth. `low` rather than the default because these runs are
-        # a dozen short tool-choosing turns, not one hard problem, and reasoning
-        # tokens are billed at the output rate.
+        # `none`. Not a cost decision — a hard constraint, and one that only a
+        # real call surfaces: gpt-5.4-mini refuses function tools together with
+        # any other reasoning effort on /v1/chat/completions and tells you to
+        # use /v1/responses instead. It happens to make the comparison cleaner,
+        # because the Claude side of it runs a model with no thinking either.
         self.effort = effort or settings.openai_reasoning_effort
         self._client = openai.OpenAI(api_key=settings.openai_api_key)
 
