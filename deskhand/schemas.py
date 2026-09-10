@@ -63,6 +63,9 @@ class TicketMessage(BaseModel):
 
 class TicketDetail(TicketSummary):
     messages: list[TicketMessage]
+    # Every run this ticket has had, newest first. `open_run_id` names only one
+    # that can still act; this is how you get back to one that cannot.
+    runs: list[RunSummary] = []
 
 
 class StartRunRequest(BaseModel):

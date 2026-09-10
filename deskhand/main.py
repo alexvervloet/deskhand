@@ -300,7 +300,27 @@ def get_ticket(reference: str, caller: CallerDep) -> Any:
         "  from ticket_messages where ticket_id = %s order by created_at",
         (row["id"],),
     )
-    return _ticket_summary(row) | {"messages": messages}
+    # Every run this ticket has ever had, not just a live one.
+    #
+    # `open_run_id` above names only a run that can still act, which is the
+    # right answer for "what should this screen jump to". It is the wrong
+    # answer for "how do I get back to what happened", and for most of this
+    # project's life that question had no answer at all: a run that finished
+    # while you were watching stayed on screen, and a run that finished before
+    # you arrived was unreachable. Everything a finished run leads to — the
+    # replay, the cost, the compensation plan — was behind a screen you could
+    # only reach by not leaving it.
+    history = fetch_all(
+        "select r.*, t.reference as ticket_reference from runs r"
+        "  join tickets t on t.id = r.ticket_id"
+        " where r.ticket_id = %s order by r.created_at desc limit 20",
+        (row["id"],),
+    )
+    return {
+        **_ticket_summary(row),
+        "messages": messages,
+        "runs": [_run_summary(r) for r in history],
+    }
 
 
 def _ticket_summary(row: dict[str, Any]) -> dict[str, Any]:
@@ -602,6 +622,9 @@ def compensation_plan(run_id: str, caller: CallerDep) -> Any:
     with connection() as conn, conn.cursor() as cur:
         items = compensation.plan(cur, run_id)
 
+    revertable = sum(1 for i in items if i["disposition"] == compensation.REVERT)
+    unrevertable = len(items) - revertable
+
     compensable, blocked = True, None
     if run["status"] not in compensation.TERMINAL_RUN_STATUSES:
         compensable = False
@@ -609,6 +632,16 @@ def compensation_plan(run_id: str, caller: CallerDep) -> Any:
     elif not items:
         compensable = False
         blocked = "this run changed nothing that can be walked back"
+    elif revertable == 0:
+        # The plan still lists the irreversible acts, because "what could not
+        # be taken back" is the thing worth reading. There is just nothing to
+        # press, and an irreversible item never leaves a plan — so offering the
+        # button here would offer it forever.
+        compensable = False
+        blocked = (
+            f"nothing left that can be reverted; {unrevertable} irreversible "
+            f"{'act' if unrevertable == 1 else 'acts'} stay on the record"
+        )
 
     return {
         "run_id": run_id,
@@ -617,8 +650,8 @@ def compensation_plan(run_id: str, caller: CallerDep) -> Any:
         "blocked_reason": blocked,
         "plan_hash": compensation.plan_hash(items),
         "items": [_plan_item_view(i) for i in items],
-        "revertable": sum(1 for i in items if i["disposition"] == compensation.REVERT),
-        "unrevertable": sum(1 for i in items if i["disposition"] == compensation.REPORT),
+        "revertable": revertable,
+        "unrevertable": unrevertable,
     }
 
 
