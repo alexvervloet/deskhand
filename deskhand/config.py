@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     max_spend_usd_per_run: Decimal = Decimal("2.00")
     loop_detection_threshold: int = 3
 
+    # A compensation makes no model calls and its plan cannot grow, so steps,
+    # tokens and spend have nothing to bound. The only way it can fail to
+    # terminate is by crashing and being re-claimed forever, so that is the one
+    # thing bounded here. Reaching it leaves the compensation `blocked`, which
+    # is a state a person has to clear rather than one a retry can.
+    max_compensation_attempts: int = 3
+
     # --- Payout ceilings ---
     # What the agent may hand back to customers, as opposed to what it costs to
     # run. These are the only bounds in this file denominated in the merchant's
