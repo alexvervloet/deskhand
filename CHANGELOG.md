@@ -67,6 +67,18 @@ and the easy half didn't: deciding which acts to walk back, and who may ask.
 - Seven new trajectory evals, one per invariant plus resilience and ordering,
   taking the gate from 25 to 32. Deleting the approval check now fails 15 of
   32.
+- **Fixed: a finished run was unreachable.** The ticket screen's only link to
+  a run is `open_run_id`, which names a run that can still act and goes null
+  the moment one ends — and an effect re-set it on every list refresh, so even
+  reaching a finished run by hand threw you back out on the next tick. The
+  replay view and the cost breakdown had been behind that wall for the life of
+  the project. `TicketDetail` now carries the ticket's run history.
+  [LESSONS 23](LESSONS.md).
+- **Fixed: the walk-back offer never went away.** An irreversible act is never
+  marked `reverted`, so it stays in every future plan for that run. After a
+  successful compensation the screen kept offering to walk the run back, with
+  a count of zero and a live button. A plan with nothing revertable in it is
+  now refused, and still listed — nothing to press, something to read.
 - `trigger/` deliberately does not have this, and the reasoning is a new
   section of [TRIGGER-PORT.md](docs/TRIGGER-PORT.md): a compensation has no
   wait to be suspended across, so it asks a durable execution platform for
