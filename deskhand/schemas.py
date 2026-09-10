@@ -153,3 +153,58 @@ class UsageResponse(BaseModel):
 
 LoginResponse.model_rebuild()
 RunDetail.model_rebuild()
+
+
+class CompensationItemView(BaseModel):
+    seq: int
+    step_seq: int
+    tool_name: str
+    risk: str
+    # 'revert' or 'report'. The second is the one a person needs to read.
+    disposition: str
+    describe: str
+    status: str
+    detail: str | None = None
+    applied_at: datetime | None = None
+
+
+class CompensationPlan(BaseModel):
+    """What a compensation for this run would do, before anyone authorises it.
+
+    `plan_hash` comes back so the request that follows can be bound to this
+    exact list. A client that submits a stale hash is refused, which is the
+    same device `approvals.args_hash` uses one level down.
+    """
+
+    run_id: str
+    run_status: str
+    # False when the run can still act. A compensation would race its worker.
+    compensable: bool
+    blocked_reason: str | None = None
+    plan_hash: str
+    items: list[CompensationItemView]
+    revertable: int
+    unrevertable: int
+
+
+class CompensationRequest(BaseModel):
+    # Bound to the plan that was displayed. Not optional: "revert this run"
+    # without naming what "this" was is a blank cheque against whatever the
+    # ledger says by the time the request lands.
+    plan_hash: str
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class CompensationView(BaseModel):
+    id: str
+    run_id: str
+    status: str
+    reason: str
+    stop_reason: str | None
+    stop_detail: str | None
+    requested_by_email: str | None
+    attempt: int
+    max_attempts: int
+    created_at: datetime
+    finished_at: datetime | None
+    items: list[CompensationItemView]
