@@ -511,11 +511,11 @@ against the only payload its author had imagined. It passed for months. See
 is evidence somebody tried, and it belongs in the transcript, the run viewer, and
 the replay.
 
-**Watch for, most of all.** Delete the fence entirely and 22 of 25 evals still
+**Watch for, most of all.** Delete the fence entirely and 29 of 32 evals still
 pass. Do that one yourself if you do nothing else here, because it's the
 uncomfortable consequence of defence in depth: removing a redundant layer
 changes almost nothing you can observe. Delete the
-approval gate instead and 14 of 25 fail. Only the load-bearing layer is loud.
+approval gate instead and 15 of 32 fail. Only the load-bearing layer is loud.
 
 ### 15. The worker dies at the worst moment
 
@@ -670,11 +670,112 @@ from tool results and skipped denial steps entirely, so a prompt tested against 
 run containing a failure or a human "no" was tested against a run that never had
 one. Two copies of "what the model saw" drift, and this one drifted.
 
-### 19. The flow that runs before any of yours
+### 19. Walking a run back
+
+Everything up to here is about a run doing the right thing, or being stopped
+before it does the wrong one. This stop is the other case: the run finished, it
+was wrong, and something has to happen to what it already did.
+
+Open a finished run in the UI and there is a panel under the bounds. Or ask for
+the plan directly:
+
+```bash
+curl -s localhost:8000/runs/$RUN/compensation/plan -H "Authorization: Bearer $TOKEN"
+```
+
+For the NW-1 run that refunded and closed the ticket, three items:
+
+```
+revert | step 12 | set_ticket_status  | restore status to open
+revert | step 10 | add_internal_note  | delete the note it added
+CANNOT | step  8 | issue_refund       | money left the merchant's account.
+                                        Putting it back is a charge, which is a
+                                        new decision somebody has to make
+                                        outside this system
+```
+
+Press the button and two of the three happen. The compensation finishes
+`partial`, not `applied`, and it says why.
+
+**Watch for the word.** It is `compensation`, not `undo` and not `revert`.
+Undo promises something that is false for a third of that list. The naming is
+load-bearing in the same way `approval_expired` and `approval_denied` being
+separate stop reasons is: a status that flattens two different situations into
+one gets read as the more comfortable of them.
+
+**Watch for where the plan comes from.**
+[`compensation.plan()`](../deskhand/runtime/compensation.py) is a query over
+`tool_invocations`. Not the conversation, not the model, not a tool result.
+A recovery path that asks a language model which effects to undo has put an
+untrusted decision at exactly the moment the system is known to have got
+something wrong — and the ticket that caused the problem is still sitting there
+with whatever it says in it. Run the same plan over NW-4, whose body contains a
+forged instruction, and you get the same shape you get over a clean ticket.
+There is an eval for that.
+
+**Watch for the order.** Newest first, and this is the whole content of
+correctness rather than a tidiness preference. A run that moved one ticket
+`normal → high → urgent` recorded the inverses "back to normal" and "back to
+high", in that order. Apply them in the order they were captured and the ticket
+lands on `high` — a value it genuinely held for one step and was never meant to
+keep. Apply them backwards and it lands where the run found it. Each inverse
+restores the state its own call overwrote, which is only true while every later
+call has already been walked back.
+
+**Watch for what is *not* a step.** A compensation writes nothing to `steps`.
+The step log is the trajectory, and appending rows to a finished run after the
+fact would make `replay` describe a conversation that never happened. The
+compensation is its own object with its own rows, and the run's account of
+itself stays exactly what it was.
+
+**Watch for the hash.** Two endpoints, and the split is the consent mechanism
+rather than REST manners. `GET .../compensation/plan` writes nothing and returns
+a `plan_hash`; `POST .../compensation` recomputes the plan and refuses anything
+that no longer hashes to what the caller was shown. It is `approvals.args_hash`
+one level up: that binding stops a person who approved a $19.00 refund from
+having approved a $1,900.00 one, and this one stops a person who authorised
+walking back four specific acts from having authorised whatever the ledger says
+a moment later. Try it:
+
+```bash
+curl -s -X POST localhost:8000/runs/$RUN/compensation \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"plan_hash":"0000","reason":"from memory"}'
+# 409 — the plan changed since it was shown
+```
+
+**Watch for who may.** Reading a plan is open to every role including `viewer`,
+and requesting one takes the same `ApproverDep` an approval decision does.
+Seeing what a system did and what it could take back is not a privileged
+action. Doing it is.
+
+**Watch for the exactly-once mechanism, which is the ledger's argument in a
+different table.** An item flips to `reverted` in the *same transaction* as the
+inverse's effect, by a conditional update that a second attempt loses. Crash
+before the commit and neither happened; crash after and both did. There is also
+a partial unique index on `(invocation_id) where status = 'reverted'`, so a
+leasing bug becomes a constraint violation rather than a ticket that quietly
+gets un-tagged twice.
+
+**Watch for the failure mode.** An inverse that raises leaves the compensation
+`blocked`, the remaining items `skipped`, and nothing after it applied. Walking
+past a failure would mean applying an inverse whose precondition — that every
+later effect is already gone — is no longer true. Nothing here knows which
+items are independent of each other, and guessing wrong writes a state neither
+the run nor the compensation intended. `blocked` is also deliberately not
+`failed`: it is a state a person clears, not one a retry does.
+
+**Watch for the bound.** A compensation makes no model calls and its plan
+cannot grow, so steps, tokens and spend have nothing to bound. The only way it
+can fail to terminate is by crashing and being re-claimed forever, so that is
+what `max_attempts` bounds — and reaching it leaves everything untouched rather
+than half-applied.
+
+### 20. The flow that runs before any of yours
 
 ```bash
 python -m pytest -q
-python -m evals.run                 # all 21
+python -m evals.run                 # all 32
 python -m evals.run consent         # one invariant
 ```
 
@@ -715,8 +816,8 @@ that make the point concrete.
 
 ## Part five. Break it yourself
 
-Everything above is a claim. Here's how to check four of them, at about five
-minutes each. On a clean checkout the suite passes 25 of 25:
+Everything above is a claim. Here's how to check five of them, at about five
+minutes each. On a clean checkout the suite passes 32 of 32:
 
 ```bash
 docker compose up -d db && python -m deskhand.migrate
@@ -727,25 +828,28 @@ Each change below is one line, and `git checkout <file>` puts it back.
 
 | Delete | In | Evals that fail |
 |---|---|---|
-| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 14 of 25 |
-| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 25 |
-| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 25 |
-| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 25 |
+| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 15 of 32 |
+| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 32 |
+| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 32 |
+| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 32 |
+| The order a compensation applies inverses in | [runtime/compensation.py](../deskhand/runtime/compensation.py) | 2 of 32 |
 
 Write your prediction down before you run each one. The gap between the guess
 and the result is the part worth having.
 
-### 20. Delete the approval gate
+### 21. Delete the approval gate
 
 In `requires_approval`, return `False` instead of asking the registry.
 
-Fourteen failures, spread across every invariant in the project rather than
+Fifteen failures, spread across every invariant in the project rather than
 sitting inside `consent`. Both injection evals go red, because the gate and not
 the fence is what stops an injected instruction from moving money. The
 durability and payout-ceiling evals go red because they need to reach the gate
 to set their scenario up at all: you can't check that a ceiling refused a
-refund when nothing ever suspends. The accountability eval goes red because
-"who authorised this" has no answer when nothing was authorised.
+refund when nothing ever suspends. The accountability evals go red because
+"who authorised this" has no answer when nothing was authorised — including the
+compensation one, which needs a refund to have actually happened before it can
+check that the walk-back reports it as untouchable.
 
 Two integrity evals live. Scoping a read to the ticket's own customer, and
 keeping customer text out of the opening prompt, are enforced elsewhere and don't
@@ -753,7 +857,7 @@ care. That's the shape the next one is about.
 
 This is what a load-bearing mechanism looks like when you remove it.
 
-### 21. Delete the fence
+### 22. Delete the fence
 
 Last line of `quarantine()`, return `cleaned` instead of wrapping it in the
 delimiters. Tool output now reaches the model with nothing marking where a
@@ -784,7 +888,7 @@ boundary finds out for you. Defence in depth makes each individual layer
 invisible to outcome testing, which is the argument for writing one eval per
 layer that asserts the mechanism instead.
 
-### 22. Make the idempotency key unique
+### 23. Make the idempotency key unique
 
 Have `idempotency_key` return `f"{run_id}:{seq}:{uuid.uuid4()}"`. Globally
 unique, unguessable, and completely inert.
@@ -806,7 +910,7 @@ You wouldn't have found this in production for a long time either. The orderly
 path is covered by the step log, so you would learn the ledger was inert during
 the one incident it existed to survive.
 
-### 23. Delete loop detection
+### 24. Delete loop detection
 
 Have `_looping()` always return `None`. The step cap, token cap, spend cap and
 deadline are untouched, so every run still terminates.
@@ -823,18 +927,63 @@ bounds from stop 16 stay separate reasons precisely so that "why did it stop"
 has a specific answer. Collapse them into one catch-all and termination is still
 guaranteed, with every bit of information about what went wrong thrown away.
 
+### 25. Reverse the order a compensation walks in
+
+In `plan()`, change `order by s.seq desc` to `order by s.seq asc`. One word.
+The plan still contains exactly the right items, every inverse still applies
+cleanly, no statement fails, and the compensation reports `applied`.
+
+Two failures, and neither of them is about an error.
+
+`compensation-restores-the-state-the-run-found` drives a run that moves one
+ticket `normal → high → urgent`. The recorded inverses are "back to normal" and
+"back to high". Applied newest-first the ticket lands on `normal`. Applied in
+capture order it lands on `high` — a value it really held, for one step, on the
+way through. Not a corruption, not an obviously wrong value, and nothing
+anywhere reports a problem. Just the wrong one.
+
+`compensation-does-not-revert-twice-across-a-crash` goes red for the same
+reason rather than a second one, which is worth knowing: the crash-resume
+scenario asserts the final value too, and a reversed plan lands on the same
+wrong value whether or not anything was applied twice.
+
+That is the shape of an ordering bug and it is why this one gets an eval rather
+than a comment. Every mechanism in the system behaves correctly. The
+transaction commits, the ledger is consistent, exactly-once holds, the audit
+row is written, and the answer is wrong. Nothing that watches for *failures*
+can see it — you have to assert the value, which means knowing what the value
+should have been, which means the eval has to encode the argument about why
+newest-first is the only order that composes.
+
+Worth pausing on before you `git checkout`: this is the one deletion in this
+list that a reviewer would have waved through. `order by` with no direction is
+a plausible thing to write and reads as a style choice.
+
 ## What this tour doesn't show you
 
 A guide who only points at the good exhibits is selling something. The seams,
 collected in one place:
 
-- **Nothing reverts.** Every reversible tool records its own inverse at execution
-  time, the ledger stores it, and `apply_inverse` is tested. No runtime path,
-  endpoint, or button ever calls it. The hard half exists (capturing the
-  information at the only moment it's knowable); the easy half doesn't
-  (deciding which steps to walk back, and who may ask). Said plainly in
-  [reversible.py](../deskhand/tools/reversible.py), because "reversible" reads
-  like a promise.
+- **A compensation compensates for nothing it cannot invert.** For the
+  irreversible third of the ledger it reports and stops. Offering to send an
+  apology email or issue a counter-charge would mean a new irreversible act,
+  chosen by something — and the only thing here capable of composing one is the
+  model, which is the one participant deliberately kept out of the recovery
+  path. So the walk-back ends at the boundary of what has a recorded inverse
+  and the rest is handed to a person with a sentence saying what it is. That is
+  a real limit, not a phase-two note: the honest version of this feature and
+  the ambitious version disagree about whether a model belongs in an incident.
+- **A blocked compensation has no resume.** You request a fresh one, and it
+  re-plans around whatever the first managed to apply — the ledger knows what
+  was already reverted, so nothing is walked back twice. What's missing is the
+  smaller thing: a "try that item again" button for the case where somebody
+  fixed the obstruction by hand.
+- **Reverting is not un-happening.** A ticket that was `resolved` for six hours
+  was in the resolved queue for six hours, and whoever read it read it. The
+  compensation restores a value; it cannot restore the fact that nobody saw the
+  old one. Stated in [reversible.py](../deskhand/tools/reversible.py), and it's
+  the reason an email is an irreversible tool rather than a reversible one with
+  a clever inverse.
 - **Exactly-once assumes one database.** Covered at stop 15.
 - **The `/usage` endpoint leaks across tenants**, on purpose, for the demo.
   Covered at stop 2.
@@ -855,7 +1004,7 @@ collected in one place:
 
 ## Where to go next
 
-[LESSONS.md](../LESSONS.md) for the eleven things that didn't go according to
+[LESSONS.md](../LESSONS.md) for the twenty-two things that didn't go according to
 plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.
