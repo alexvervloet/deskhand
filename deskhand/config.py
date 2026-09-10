@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # Low rather than the default: a run here is a dozen short tool-choosing
     # turns, not one hard problem, and reasoning tokens bill at the output rate.
     openai_reasoning_effort: str = "low"
+    # The Claude side of the live comparison. Separate from `model_id` so the
+    # comparison names its own model rather than inheriting whatever the
+    # service happens to be configured with today.
+    live_claude_model: str = "claude-haiku-4-5"
     # A hard ceiling on tokens per model call. Thinking is adaptive on this
     # model family and counts against this, so it is sized for thinking +
     # answer rather than for the answer alone.
