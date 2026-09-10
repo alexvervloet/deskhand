@@ -39,7 +39,12 @@ export type TicketMessage = {
   created_at: string;
 };
 
-export type TicketDetail = Ticket & { messages: TicketMessage[] };
+export type TicketDetail = Ticket & {
+  messages: TicketMessage[];
+  // Every run this ticket has had, newest first. `open_run_id` names only
+  // one that can still act; this is how you get back to one that cannot.
+  runs: Run[];
+};
 
 export type Step = {
   seq: number;
