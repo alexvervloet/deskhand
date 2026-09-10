@@ -267,6 +267,41 @@ def test_get_order_reports_what_is_left_to_refund(cur, org) -> None:
     assert "No refunds have been issued" in out.result
 
 
+def test_an_irreversible_tool_must_say_what_it_cannot_take_back() -> None:
+    """The registry refuses one that does not.
+
+    The alternative is a compensation screen falling back to "this tool did
+    something that cannot be undone", which is precisely the sentence a person
+    cannot act on during an incident. Declaring it next to the risk class means
+    the same frozen dataclass carries both claims, and neither can be edited at
+    runtime.
+    """
+    for tool in tools.all_tools():
+        if tool.risk is RiskClass.IRREVERSIBLE:
+            assert tool.irreversible_note, f"{tool.name} does not say what it cannot take back"
+        else:
+            assert tool.irreversible_note is None, f"{tool.name} has a note it cannot need"
+
+    from deskhand.tools.base import register
+
+    with pytest.raises(RuntimeError, match="must say what it cannot take back"):
+        register(
+            tools.ToolDef(
+                name="burn_it_all",
+                risk=RiskClass.IRREVERSIBLE,
+                description="x",
+                parameters={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "additionalProperties": False,
+                },
+                handler=lambda ctx, args: tools.ToolOutcome("done"),
+            )
+        )
+    assert not tools.is_registered("burn_it_all"), "a refused tool was registered anyway"
+
+
 # -------------------------------------------------------- reversible tools
 
 
