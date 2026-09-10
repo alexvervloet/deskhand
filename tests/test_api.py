@@ -604,3 +604,121 @@ def test_starting_runs_is_throttled_per_merchant() -> None:
         for _ in range(31)
     }
     assert 429 in seen, "an unbounded loop of run starts should eventually be refused"
+
+
+# --------------------------------------------------------------- compensation
+
+
+def _finished_run_that_changed_a_ticket(headers: dict) -> str:
+    """Start a run over the API and drive it to a finish that left a mark."""
+    created = client.post("/runs", json={"ticket_reference": "NW-2"}, headers=headers)
+    assert created.status_code == 201, created.text
+    run_id = created.json()["id"]
+    assert (
+        drive_run(
+            run_id,
+            ScriptedProvider(
+                script=[
+                    [call("set_priority", reference="NW-2", priority="urgent")],
+                    text("Bumped it."),
+                ]
+            ),
+        )
+        == "succeeded"
+    )
+    return run_id
+
+
+def test_the_plan_is_readable_by_a_viewer_and_actionable_only_by_an_approver() -> None:
+    """Seeing what a system did and what it could take back is not privileged.
+    Doing it is."""
+    owner = login(OWNER)
+    run_id = _finished_run_that_changed_a_ticket(owner)
+
+    viewer = login(VIEWER)
+    plan = client.get(f"/runs/{run_id}/compensation/plan", headers=viewer)
+    assert plan.status_code == 200, plan.text
+    body = plan.json()
+    assert body["compensable"] is True
+    assert body["revertable"] == 1
+    assert body["items"][0]["describe"] == "restore priority to normal"
+
+    refused = client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": body["plan_hash"], "reason": "wrong call"},
+        headers=viewer,
+    )
+    assert refused.status_code == 403
+    assert fetch_all("select id from compensations where run_id = %s", (run_id,)) == []
+
+
+def test_a_compensation_request_must_carry_the_plan_it_was_shown() -> None:
+    headers = login(OWNER)
+    run_id = _finished_run_that_changed_a_ticket(headers)
+
+    stale = client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": "0" * 64, "reason": "from memory"},
+        headers=headers,
+    )
+    assert stale.status_code == 409
+    assert "changed since it was shown" in stale.json()["detail"]
+
+
+def test_a_compensation_runs_and_reports_what_it_did() -> None:
+    headers = login(OWNER)
+    run_id = _finished_run_that_changed_a_ticket(headers)
+
+    plan = client.get(f"/runs/{run_id}/compensation/plan", headers=headers).json()
+    created = client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": plan["plan_hash"], "reason": "triaged wrong"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    compensation_id = created.json()["id"]
+    assert created.json()["status"] == "queued"
+    assert created.json()["requested_by_email"] == OWNER
+
+    from deskhand.worker import compensate_once
+
+    assert compensate_once("test-worker") is True
+
+    view = client.get(f"/compensations/{compensation_id}", headers=headers).json()
+    assert view["status"] == "applied"
+    assert [i["status"] for i in view["items"]] == ["reverted"]
+
+    ticket = client.get("/tickets/NW-2", headers=headers).json()
+    assert ticket["priority"] == "normal"
+
+
+def test_a_live_run_is_not_compensable() -> None:
+    headers = login(OWNER)
+    created = client.post("/runs", json={"ticket_reference": "NW-2"}, headers=headers)
+    run_id = created.json()["id"]
+
+    plan = client.get(f"/runs/{run_id}/compensation/plan", headers=headers).json()
+    assert plan["compensable"] is False
+    assert "cancel it first" in plan["blocked_reason"]
+
+    refused = client.post(
+        f"/runs/{run_id}/compensation",
+        json={"plan_hash": plan["plan_hash"], "reason": "too soon"},
+        headers=headers,
+    )
+    assert refused.status_code == 409
+
+
+def test_another_merchant_cannot_see_or_compensate_this_run() -> None:
+    run_id = _finished_run_that_changed_a_ticket(login(OWNER))
+    other = login(OTHER_ORG)
+
+    assert client.get(f"/runs/{run_id}/compensation/plan", headers=other).status_code == 404
+    assert (
+        client.post(
+            f"/runs/{run_id}/compensation",
+            json={"plan_hash": "0" * 64, "reason": "not mine"},
+            headers=other,
+        ).status_code
+        == 404
+    )
