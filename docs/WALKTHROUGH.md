@@ -1004,7 +1004,7 @@ collected in one place:
 
 ## Where to go next
 
-[LESSONS.md](../LESSONS.md) for the twenty-two things that didn't go according to
+[LESSONS.md](../LESSONS.md) for the twenty-three things that didn't go according to
 plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.
