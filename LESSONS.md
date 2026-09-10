@@ -1182,3 +1182,84 @@ same transcript as the attacker-controlled text, and every argument this
 project makes about why you cannot pattern-match your way out of injection
 applies to it exactly as written. The demo does not get a pass on the thesis it
 is demonstrating.
+
+---
+
+## 27. The lock that deadlocked against its own audit row
+
+**Expected.** Exactly-once was the best-defended claim in this project. Two
+evals, three unit tests, a demo GIF, and a paragraph in the README. Fuzzing it
+was supposed to be a formality that produced a sentence about how large a
+search had found nothing — I wrote that expectation into the plan, under a
+heading called "the honest risk".
+
+Four concurrent workers found a deadlock in about ninety seconds.
+
+```
+DeadlockDetected: deadlock detected
+DETAIL:  Process 47936 waits for ShareLock on transaction 52297;
+         blocked by process 47937.
+         Process 47937 waits for ShareLock on transaction 52300;
+         blocked by process 47936.
+CONTEXT: while locking tuple (0,1) in relation "orgs"
+```
+
+**What happened.** `_ceilings` takes `SELECT id FROM orgs ... FOR UPDATE`
+before checking the merchant's daily payout total. The comment above it is
+right about *why* — locking the order serialises two runs fighting over one
+order and does nothing about two runs refunding different orders of the same
+merchant, so the merchant row is what has to be locked.
+
+What it did not account for is that by the time a payout reaches that line, its
+own transaction already holds a lock on that row. `loop._settle` calls
+`runs.audit()` to record `approval.granted` before invoking the tool, and that
+INSERT's `org_id` foreign key makes Postgres take a `KEY SHARE` lock on the
+merchant.
+
+`FOR UPDATE` conflicts with `KEY SHARE`. So the request is a lock *upgrade*, and
+two payouts for the same merchant, each holding `KEY SHARE` and each waiting to
+upgrade, is a cycle with no way out. Postgres picks one and kills it.
+
+**What that costs in production.** Nothing moves — the transaction rolls back,
+so there is no refund and no ledger row, and the exactly-once claim is
+untouched. The damage is the other kind. `worker.work_once` catches the
+exception and marks the run **failed** with `STOP_ERROR`, permanently. A refund
+that a human looked at and approved simply does not happen, the run cannot
+retry, and the reason on the record is a database error rather than anything
+about support.
+
+The invariant held. The system was still wrong.
+
+**The fix is one clause.** `FOR NO KEY UPDATE` conflicts with itself, which is
+everything the ceiling needs — two payouts still serialise, and the daily total
+is still read under a lock. It does not conflict with `KEY SHARE`, so it cannot
+deadlock against a foreign key. Confirmed against a two-connection probe before
+being applied, and the regression test fails 5 times out of 5 with the old
+clause and passes 5 out of 5 with the new one.
+
+**Why nothing caught it.** Every existing test drives one worker. The two evals
+that mention concurrency simulate it — `crash-resume-pays-once` kills a worker
+and lets the lease lapse, `the-ledger-catches-a-double-execution` calls
+`invoke` twice in sequence. Both are re-enactments of a race, written by
+somebody who already knew which race to re-enact. Neither has two transactions
+open at the same instant, and a lock cycle needs exactly that.
+
+**Next time.** Three things.
+
+A simulated race tests the mechanism you thought of. Two real threads test the
+locks. They are not the same test and the first one reads like the second.
+
+Any `SELECT ... FOR UPDATE` deserves the question "what does this transaction
+already hold on that row?", and the answer is frequently "a foreign key lock I
+did not write and cannot see", because the INSERT that took it names a
+different table. Grep for `FOR UPDATE`, then grep for every INSERT in the same
+transaction with an FK to the locked table.
+
+And the one I want to keep: **I wrote "a fuzzer that finds nothing proves less
+than it looks like" into the plan as a hedge against wasting an afternoon, and
+that sentence was the most confident thing in the document.** The claim being
+fuzzed was not the one that broke. Exactly-once held under every schedule the
+search could reach; what broke was availability, in a mechanism defending a
+different invariant, on a code path all four properties merely happened to
+cross. Fuzzing found it because it ran the system, not because it was aimed at
+it.
