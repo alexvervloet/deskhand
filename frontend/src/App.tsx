@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   hasToken,
@@ -56,13 +56,24 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
     api.health().then(setHealth).catch(() => undefined);
   }, [refresh]);
 
+  // Which ticket we last jumped to a run for. The jump belongs to *arriving*
+  // at a ticket, and this effect also runs on every refresh of the list — so
+  // without the guard, refreshing set `runId` back to `open_run_id`, which is
+  // null once a run finishes. Reading a finished run meant being thrown back
+  // to the ticket the moment anything else changed, which is why nothing a
+  // finished run leads to was reachable.
+  const jumpedFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!selected) return;
     api
       .ticket(selected)
       .then((t) => {
         setDetail(t);
-        setRunId(t.open_run_id);
+        if (jumpedFor.current !== selected) {
+          jumpedFor.current = selected;
+          setRunId(t.open_run_id);
+        }
       })
       .catch((e) => setError((e as Error).message));
   }, [selected, tickets]);
@@ -172,7 +183,11 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
         )}
 
         {selected && detail && !runId && (
-          <TicketPane detail={detail} onRun={() => void start(detail.reference)} />
+          <TicketPane
+            detail={detail}
+            onRun={() => void start(detail.reference)}
+            onOpenRun={setRunId}
+          />
         )}
 
         {runId && (
@@ -194,7 +209,15 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
   );
 }
 
-function TicketPane({ detail, onRun }: { detail: TicketDetail; onRun: () => void }) {
+function TicketPane({
+  detail,
+  onRun,
+  onOpenRun,
+}: {
+  detail: TicketDetail;
+  onRun: () => void;
+  onOpenRun: (id: string) => void;
+}) {
   return (
     <div>
       <div className="run-head">
@@ -212,6 +235,24 @@ function TicketPane({ detail, onRun }: { detail: TicketDetail; onRun: () => void
           </button>
         </div>
       </div>
+
+      {/* Every run this ticket has had, not only one that can still act.
+          Without this a finished run was reachable only by having been on it
+          when it finished — and everything a finished run leads to, the
+          replay and the cost and the compensation plan, was behind that. */}
+      {detail.runs.length > 0 && (
+        <div className="run-history">
+          <div className="label">runs</div>
+          {detail.runs.map((past) => (
+            <button key={past.id} className="run-row" onClick={() => onOpenRun(past.id)}>
+              <span className={`chip ${past.status}`}>{past.status}</span>
+              <span className="when">{new Date(past.created_at).toLocaleString()}</span>
+              <span className="why">{past.stop_reason ?? "in flight"}</span>
+              <span className="cost">{past.cost_display}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {detail.messages.map((message, i) => (
         <div key={i} className="step">
