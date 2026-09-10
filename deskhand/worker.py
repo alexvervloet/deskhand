@@ -1,4 +1,10 @@
-"""The worker: claim a run, drive it, repeat.
+"""The worker: claim something, drive it, repeat.
+
+Two queues, one process. Runs go forwards through the agent loop; compensations
+go backwards through a plan over the ledger. They share a worker because they
+share the only thing that coordinates anything here, which is Postgres, and
+because a deployment that needs a second process type to be able to undo
+anything has made undoing the harder half of its operations story.
 
     python -m deskhand.worker
 
@@ -22,7 +28,7 @@ from types import FrameType
 
 from deskhand.db import connection
 from deskhand.providers import Provider, get_provider
-from deskhand.runtime import approvals, loop, runs
+from deskhand.runtime import approvals, compensation, loop, runs
 
 log = logging.getLogger("deskhand")
 
@@ -45,7 +51,16 @@ def worker_id() -> str:
 
 
 def work_once(me: str, provider: Provider) -> bool:
-    """Claim and drive at most one run. True if there was work to do."""
+    """Claim and drive at most one unit of work. True if there was any.
+
+    Compensations are drained first. A run is a live trajectory that can be
+    picked up again at any time; a compensation is somebody standing over a
+    system that has already done the wrong thing, waiting for it to stop being
+    wrong. Under load the second one should not queue behind the first.
+    """
+    if compensate_once(me):
+        return True
+
     with connection() as conn, conn.cursor() as cur:
         approvals.expire_stale(cur)
         run = runs.claim_next(cur, me, LEASE_SECONDS)
@@ -77,6 +92,35 @@ def work_once(me: str, provider: Provider) -> bool:
                     stop_detail=f"{type(exc).__name__}: {exc}",
                 )
                 conn.commit()
+    return True
+
+
+def compensate_once(me: str) -> bool:
+    """Claim and drive at most one compensation. True if there was work to do."""
+    with connection() as conn, conn.cursor() as cur:
+        comp = compensation.claim_next(cur, me, LEASE_SECONDS)
+        conn.commit()
+
+    if comp is None:
+        return False
+
+    comp_id = str(comp["id"])
+    log.info("claimed compensation %s (attempt %d)", comp_id, comp["attempt"])
+
+    with connection() as conn:
+        try:
+            status = compensation.advance(conn, comp_id, me, LEASE_SECONDS)
+            log.info("compensation %s -> %s", comp_id, status)
+        except compensation.LeaseLost:
+            log.warning("lost the lease on compensation %s; another worker has it", comp_id)
+        except Exception as exc:  # noqa: BLE001
+            # Deliberately not marked `blocked` here. A crash outside
+            # `advance` — a connection that went away, a bug in this function —
+            # says nothing about whether an inverse is safe to apply, and the
+            # attempt counter already bounds how many times this can repeat.
+            # Leaving the lease to expire lets a healthy worker try again and
+            # lets the bound end it if none is.
+            log.exception("compensation %s crashed: %s", comp_id, exc)
     return True
 
 
