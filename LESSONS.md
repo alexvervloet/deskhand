@@ -1263,3 +1263,61 @@ search could reach; what broke was availability, in a mechanism defending a
 different invariant, on a code path all four properties merely happened to
 cross. Fuzzing found it because it ran the system, not because it was aimed at
 it.
+
+---
+
+## 28. The property test that was not searching anything
+
+**Expected.** With the deadlock fixed, the remaining job was to run the search
+wide and record how large it had been. I set `DESKHAND_FUZZ_EXAMPLES=2000`,
+watched 65 tests pass, and started writing "2000 examples per property" into
+the README.
+
+**What happened.** The sweep finished in 158 seconds. At roughly 220ms an
+example — a reseed plus two full runs against a real Postgres — 2000 examples
+across three properties should have taken the better part of half an hour. The
+arithmetic did not work, so I asked for statistics instead of publishing the
+number:
+
+```
+- Stopped because nothing left to do
+- Stopped because nothing left to do
+```
+
+Hypothesis had exhausted the strategies and stopped. `die_at` drew from
+`frozensets(integers(0, 4), max_size=5)` — 32 possibilities — crossed with two
+scripts, so 64 in total. `steal_after` drew from `integers(0, 4)`: five. Every
+value of `max_examples` above those numbers bought exactly nothing, and the
+tests had been reporting a search they were not performing since the moment
+they were written.
+
+**Two different fixes, because they are two different mistakes.**
+
+The crash-schedule property *should* be searching a large space and was pointed
+at a small one. It now draws over ten turns and three scripts, including one
+ten-turn trajectory with two irreversible acts — 1024 schedules for that script
+alone. `--hypothesis-show-statistics` now says "Stopped because
+settings.max_examples", which is the tool confirming the budget is the binding
+constraint rather than the strategy.
+
+The theft property has five places a theft can land, and that is a property of
+the scenario rather than a limitation of the strategy. It is now
+`@pytest.mark.parametrize("steal_after", range(5))` — deterministic, no seed,
+no shrinking machinery, and it says plainly that five cases are five cases.
+
+**Next time.** `--hypothesis-show-statistics` is not a debugging tool for when
+a property fails. It is how you find out whether the property ran, and it
+belongs in the first invocation of any new property test rather than the
+hundredth.
+
+The tell was arithmetic. A search that finishes far faster than the per-example
+cost implies did not do what was asked, and "the tests passed" is compatible
+with the tests having examined sixty-four things and reported two thousand.
+
+And the shape underneath, which is the same one as
+[entry 26](#26-the-regex-that-could-not-match-and-the-fix-that-broke-the-demo):
+a mechanism that silently does nothing looks exactly like a mechanism that
+works. The dead regex always took its fallback; the exhausted strategy always
+stopped early. Neither raised, neither logged, and both were sitting under a
+green suite. What caught this one was refusing to publish a number I had not
+measured — which is a habit rather than a test, and considerably less reliable.
