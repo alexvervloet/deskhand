@@ -11,6 +11,12 @@ Same Postgres, same schema, same seed data as the Python service. A refund this
 issues is indistinguishable from one `deskhand.worker` issues. Only the runtime
 moved.
 
+**A slice, not a copy.** The forward path is here; compensation isn't. That's
+deliberate and the reasoning is a section of the writeup — a compensation has
+no wait to be suspended across, so it asks the platform for nothing, and
+retry-from-the-top is the one platform behaviour it actively has to defend
+against.
+
 ## Run it
 
 ```bash
