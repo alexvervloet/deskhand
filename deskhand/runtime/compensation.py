@@ -217,7 +217,19 @@ def create(
 
     items = plan(cur, run_id)
     if not items:
-        raise PlanError("this run has nothing to compensate")
+        raise PlanError("this run changed nothing that can be walked back")
+
+    # A plan made entirely of `report` items has nothing to do. It is also
+    # permanent: an irreversible act is never marked `reverted`, so it stays in
+    # every future plan for this run forever. Without this the UI would keep
+    # offering to walk back a run that had already been walked back, with a
+    # count of zero, and each press would write a compensation that changed
+    # nothing and finished `partial`.
+    if not any(item["disposition"] == REVERT for item in items):
+        raise PlanError(
+            f"nothing left that can be reverted; {len(items)} irreversible "
+            f"{'act' if len(items) == 1 else 'acts'} stay on the record"
+        )
 
     actual = plan_hash(items)
     if actual != expected_plan_hash:
