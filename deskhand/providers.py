@@ -462,7 +462,8 @@ def call(name: str, **args: Any) -> dict[str, Any]:
 # reach the interesting states, not to parse English.
 _ORDER_REF = re.compile(r"\b([A-Z]{2}-\d{3,})\b")
 _TICKET_REF = re.compile(r"\b([A-Z]{2}-\d{1,2})\b")
-_TOTAL = re.compile(r"total: ([\d,]+)\.(\d{2}) ")
+# One line of `get_order`'s item list: "  2x Ethiopia Guji, ... (BEAN-ETH-12) @ 19.00 USD".
+_ORDER_ITEM = re.compile(r"^\s*(\d+)x .*?\(([A-Z][\w-]*)\) @ ([\d,]+)\.(\d{2}) USD", re.M)
 
 
 def _brief(messages: list[dict[str, Any]]) -> str:
@@ -499,6 +500,48 @@ def _brief(messages: list[dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
+def _refundable(messages: list[dict[str, Any]]) -> int:
+    """What the goods on this order came to, in cents, shipping excluded.
+
+    Read from `get_order`'s item lines across the whole transcript rather than
+    from its `total:`, because a customer asking for a refund on what they
+    bought is not asking for their postage back. Shipping is identified by SKU
+    prefix, which is a convention of the seed data and is fine for a fake.
+
+    **Only results that are an order.** `get_ticket` returns the customer's own
+    words into this same transcript, fenced, and a reader that scanned every
+    result would let a customer set the refund by typing an item line into a
+    ticket body. The fenced region opens with the fence marker, so requiring
+    the result to *begin* with `Order ` is enough to keep this reading the
+    system's own output. It is a fake and not a defence — the amount it
+    produces is still gated, still capped, and still shown to a person — but a
+    fake that can be steered by a ticket body is a worse demo of this runtime
+    than one that cannot.
+
+    Falls back to zero item lines meaning zero, which `issue_refund` rejects as
+    an invalid argument — visibly, in the trajectory, rather than by quietly
+    substituting a number nobody chose. That is the failure mode the constant
+    this replaced did not have, and having it is the point.
+    """
+    total = 0
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if block.get("type") != "tool_result":
+                continue
+            inner = block.get("content")
+            body = inner if isinstance(inner, str) else str(inner)
+            if not body.startswith("Order "):
+                continue
+            for quantity, sku, dollars, cents in _ORDER_ITEM.findall(body):
+                if sku.startswith("SHIP"):
+                    continue
+                total += int(quantity) * (int(dollars.replace(",", "")) * 100 + int(cents))
+    return total
+
+
 class DefaultMockProvider(ScriptedProvider):
     """The trajectory used when there is no API key and no explicit script.
 
@@ -507,6 +550,19 @@ class DefaultMockProvider(ScriptedProvider):
     enough to walk the runtime through a full run — including suspending on an
     irreversible call and resuming after a human decides — with no key and no
     network.
+
+    **Two different reads, on purpose.** Which shape to take is decided from
+    `_brief`, which stops at the first tool result — see its docstring for the
+    demo that decision exists because of. The *amount* is read from the whole
+    transcript instead, because the order it comes from is fetched two turns
+    after the branch is chosen. Reading a detail late cannot destabilise a
+    branch that was already decided; reading the branch late could, and did.
+
+    That distinction was missing until two real models disagreed with this
+    class. `_TOTAL` used to search `_brief` for a string that only ever appears
+    in `get_order`'s output — a regex that structurally could not match, whose
+    fallback of $19.00 was therefore always taken, on an order of two $19.00
+    bags whose customer said both were stale. See LESSONS 26.
     """
 
     def __init__(self) -> None:
@@ -562,8 +618,7 @@ class DefaultMockProvider(ScriptedProvider):
             ]
             return plan
 
-        total = _TOTAL.search(seen)
-        amount = int(total.group(1).replace(",", "")) * 100 + int(total.group(2)) if total else 1900
+        amount = _refundable(messages)
 
         plan += [
             [call("get_order", reference=order_ref)],
