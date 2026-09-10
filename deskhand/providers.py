@@ -154,6 +154,16 @@ class ScriptedProvider:
     the next turn; if the provider held a private counter, resuming would
     return the wrong turn and the crash-resume tests would pass for the wrong
     reason. So the turn index is *derived* from the history it is given.
+
+    Which makes a script *positional*, and that catches people out. Driving one
+    run twice with two different scripts does not start the second script at
+    its own first entry: the run already has assistant turns on it, and the
+    index lands wherever that history says. A second drive has to carry the
+    turns already taken —
+
+        provider(script=[*FIRST_SCRIPT, [call("...")], text("...")])
+
+    — or it silently serves the wrong turn and the test fails somewhere else.
     """
 
     script: list[list[dict[str, Any]]]
