@@ -43,6 +43,15 @@ jobs:
       - name: Tests
         run: python -m pytest -q
 
+      # The exhaustive half of the concurrency search runs here unconditionally
+      # — every crash schedule a five-turn trajectory admits, and every one a
+      # five-item compensation admits, which is 58 enumerated cases and no
+      # randomness. The Hypothesis half runs at 25 examples by default; the
+      # deep sweep is a command somebody runs, not something CI waits for:
+      #   DESKHAND_FUZZ_EXAMPLES=2000 python -m pytest tests/test_concurrency.py
+      - name: Concurrency search
+        run: python -m pytest tests/test_concurrency.py -q
+
       # The merge gate. Asserts properties of the agent's *path* — that no
       # irreversible tool ran without consent, that a crash never double-pays,
       # that every run terminates — against the real loop and a real database.
