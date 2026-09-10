@@ -37,7 +37,7 @@ from hypothesis import strategies as st
 from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.providers import ScriptedProvider, call, text
-from deskhand.runtime import approvals, loop, runs
+from deskhand.runtime import approvals, compensation, loop, runs
 from deskhand.tools.invoke import invoke
 from tests import fingerprint
 from tests.conftest import _reseed
@@ -486,3 +486,234 @@ def test_many_workers_sharing_a_queue_do_not_collide() -> None:
 
     keys = fetch_all("select idempotency_key from tool_invocations")
     assert len(keys) == len({k["idempotency_key"] for k in keys}), "a key was claimed twice"
+
+
+# ---------------------------------------- 4. the same treatment, backwards
+
+
+COMPENSABLE = [
+    [call("set_priority", reference="NW-1", priority="high")],
+    [call("tag_ticket", reference="NW-1", tags=["escalated"])],
+    [call("set_priority", reference="NW-1", priority="urgent")],
+    [call("add_internal_note", reference="NW-1", body="Triaged.")],
+    [call("set_ticket_status", reference="NW-1", status="pending")],
+    text("Triaged and noted."),
+]
+
+
+def _finished_run_with_five_effects() -> str:
+    run_id = _start()
+    _claim(run_id, "w")
+    with connection() as conn:
+        assert (
+            loop.advance(conn, run_id, "w", ScriptedProvider(script=[list(t) for t in COMPENSABLE]))
+            == "succeeded"
+        )
+    return run_id
+
+
+def _authorise(run_id: str) -> str:
+    owner = fetch_one("select id from users where email = 'owner@northwind.test'")
+    org = fetch_one("select id from orgs where slug = 'northwind'")
+    assert owner is not None and org is not None
+    with connection() as conn, conn.cursor() as cur:
+        items = compensation.plan(cur, run_id)
+        cid = compensation.create(
+            cur,
+            org_id=str(org["id"]),
+            run_id=run_id,
+            requested_by=str(owner["id"]),
+            reason="fuzzing",
+            expected_plan_hash=compensation.plan_hash(items),
+        )
+        conn.commit()
+    return cid
+
+
+def _apply_through(compensation_id: str, die_before: frozenset[int]) -> str:
+    """Drive a compensation to a terminal status, dying before chosen items.
+
+    The crash lands *before* an item's transaction opens, which is the window a
+    worker actually dies in — between two commits. A death inside the
+    transaction is the case `_claim_item` and the effect sharing one commit
+    already makes safe.
+    """
+    died: set[int] = set()
+    for attempt in range(40):
+        worker = f"comp-{attempt}"
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "update compensations set status = 'running', lease_owner = %s,"
+                "                         lease_expires_at = now() + interval '60 seconds',"
+                "                         attempt = 1"
+                " where id = %s",
+                (worker, compensation_id),
+            )
+            conn.commit()
+
+        pending = fetch_one(
+            "select seq from compensation_items where compensation_id = %s"
+            "   and status = 'pending' order by seq limit 1",
+            (compensation_id,),
+        )
+        if pending is not None:
+            seq = int(pending["seq"])
+            if seq in die_before and seq not in died:
+                died.add(seq)
+                continue  # the worker dies here; the lease simply lapses
+
+        with connection() as conn:
+            return compensation.advance(conn, compensation_id, worker)
+    raise AssertionError("compensation never terminated")
+
+
+COMP_SCHEDULES = [
+    frozenset(subset) for size in range(4) for subset in itertools.combinations(range(1, 6), size)
+]
+
+
+@pytest.mark.parametrize(
+    "die_before", COMP_SCHEDULES, ids=lambda s: "+".join(map(str, sorted(s))) or "clean"
+)
+def test_every_compensation_crash_schedule_lands_on_the_same_state(
+    die_before: frozenset[int],
+) -> None:
+    """Walking a run back, interrupted at every combination of points.
+
+    Compensation has a failure mode a forward run does not: its items are
+    ordered because each inverse restores what its own call overwrote, so a
+    *partial* application lands the ticket on a value neither the run nor the
+    compensation intended. A crash schedule that re-applied an item, or skipped
+    one, or applied them out of order would show up here as a ticket in the
+    wrong state — not as an error.
+    """
+    _reseed()
+    clean_run = _finished_run_with_five_effects()
+    assert _apply_through(_authorise(clean_run), frozenset()) == "applied"
+    clean_world = fingerprint.world()
+
+    _reseed()
+    run_id = _finished_run_with_five_effects()
+    compensation_id = _authorise(run_id)
+    assert _apply_through(compensation_id, die_before) == "applied"
+
+    crashed_world = fingerprint.world()
+    assert crashed_world == clean_world, fingerprint.describe(clean_world, crashed_world)
+
+    # Every item applied exactly once. The partial unique index would have
+    # raised on a second, but a *skipped* item raises nothing at all and is
+    # only visible here.
+    statuses = fetch_all(
+        "select status::text as status from compensation_items"
+        " where compensation_id = %s order by seq",
+        (compensation_id,),
+    )
+    assert [r["status"] for r in statuses] == ["reverted"] * 5, statuses
+
+
+def test_only_one_thread_can_claim_an_item_to_revert() -> None:
+    """The compensation twin of the ledger race, at the point it happens.
+
+    `_claim_item` flips an item to `reverted` in the same transaction as the
+    inverse's effect, by a conditional update on `status = 'pending'`. Four
+    threads hitting that update at once is the race; exactly one may win.
+
+    Worth saying why the *world* is not the assertion here. These inverses
+    restore absolute values — "set priority to high" applied twice leaves the
+    priority high — so a double application of this particular op would be
+    invisible in the ticket. `delete_message` would not be: the second attempt
+    finds no row and `apply_inverse` raises rather than reporting a revert that
+    did not happen. The claim is what has to be exclusive, and it is the claim
+    that is asserted.
+    """
+    _reseed()
+    run_id = _finished_run_with_five_effects()
+    compensation_id = _authorise(run_id)
+    item = fetch_one(
+        "select id from compensation_items where compensation_id = %s and seq = 1",
+        (compensation_id,),
+    )
+    assert item is not None
+
+    barrier = threading.Barrier(4)
+    won: list[bool] = []
+    lock = threading.Lock()
+
+    def race() -> None:
+        with connection() as conn, conn.cursor() as cur:
+            barrier.wait(timeout=10)
+            claimed = compensation._claim_item(cur, str(item["id"]))
+            conn.commit()
+        with lock:
+            won.append(claimed)
+
+    threads = [threading.Thread(target=race) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=20)
+
+    assert sum(won) == 1, f"{sum(won)} threads claimed the same item"
+
+
+def test_many_workers_sharing_the_compensation_queue_apply_each_item_once() -> None:
+    """Four workers, one compensation, no coordination but the lease.
+
+    A compensation is ordered, so this is stricter than the forward case: two
+    workers making progress at once could apply items out of order and land the
+    ticket on a value neither the run nor the compensation intended. The world
+    fingerprint is what would show it.
+    """
+    _reseed()
+    clean_run = _finished_run_with_five_effects()
+    assert _apply_through(_authorise(clean_run), frozenset()) == "applied"
+    clean_world = fingerprint.world()
+
+    _reseed()
+    run_id = _finished_run_with_five_effects()
+    compensation_id = _authorise(run_id)
+    errors: list[BaseException] = []
+
+    def worker(name: str) -> None:
+        try:
+            for _ in range(40):
+                with connection() as conn, conn.cursor() as cur:
+                    claimed = compensation.claim_next(cur, name)
+                    conn.commit()
+                if claimed is None:
+                    row = fetch_one(
+                        "select status::text as status from compensations where id = %s",
+                        (compensation_id,),
+                    )
+                    if row is not None and row["status"] not in ("queued", "running"):
+                        return
+                    continue
+                try:
+                    with connection() as conn:
+                        compensation.advance(conn, str(claimed["id"]), name)
+                except compensation.LeaseLost:
+                    continue
+        except BaseException as exc:  # noqa: BLE001 - collected and re-raised
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(f"c{i}",)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=60)
+
+    assert not errors, f"a worker raised: {errors[0]!r}"
+    row = fetch_one(
+        "select status::text as status from compensations where id = %s", (compensation_id,)
+    )
+    assert row is not None and row["status"] == "applied", row
+
+    statuses = fetch_all(
+        "select status::text as status from compensation_items"
+        " where compensation_id = %s order by seq",
+        (compensation_id,),
+    )
+    assert [r["status"] for r in statuses] == ["reverted"] * 5, statuses
+
+    crashed_world = fingerprint.world()
+    assert crashed_world == clean_world, fingerprint.describe(clean_world, crashed_world)
