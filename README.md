@@ -207,16 +207,28 @@ exclude. The **world** is refunds, emails, ticket state and internal notes. The
 `replayed` flag — a crash should leave no trace in the trajectory *at all*,
 because a resumed worker rebuilds the same history and asks for the same turn.
 
-**Exhaustive where it can be.** A five-turn trajectory admits 32 crash
-schedules and a five-item compensation admits 26, so both are enumerated rather
-than sampled. There is no seed here that could have been luckier. Hypothesis
-covers what enumeration cannot — longer trajectories, a run stolen mid-flight
-by a second worker, two irreversible acts with a crash between them — at 25
-examples in CI and as many as you like locally:
+**Exhaustive where enumeration is possible, and only there.** 63 cases are
+enumerated rather than sampled: all 32 crash schedules of a five-turn
+trajectory, all 26 of a five-item compensation, and the 5 points a theft can
+land at. There is no seed in any of them that could have been luckier.
+
+Hypothesis covers the one space enumeration cannot reach — crash schedules over
+a ten-turn trajectory, which is 1024 for that script alone, across three
+scripts including one with two irreversible acts. 25 examples in CI, and as
+many as you have patience for locally:
 
 ```bash
-DESKHAND_FUZZ_EXAMPLES=2000 python -m pytest tests/test_concurrency.py
+DESKHAND_FUZZ_EXAMPLES=1500 python -m pytest tests/test_concurrency.py
+# 69 passed in 422s. Hypothesis reports "Stopped because
+# settings.max_examples=1500" — the budget binds, not the strategy.
 ```
+
+That last line is load-bearing and I nearly published the wrong number without
+it. The first version of the strategy drew from a space of 64, so every
+`max_examples` above 64 bought nothing and the test reported a search it had
+not performed. `--hypothesis-show-statistics` said "Stopped because nothing
+left to do", which is the tool telling you your property test is a
+parametrized test wearing a costume. [LESSONS 28](LESSONS.md).
 
 **And real threads, because a simulated race is not one.** Four workers sharing
 a queue with nothing but Postgres between them; two threads calling `invoke()`

@@ -16,11 +16,18 @@ space instead.
   [tests/fingerprint.py](tests/fingerprint.py), each naming what it excludes —
   the trajectory one excludes `replayed`, which is the mechanism's own signal
   and is asserted separately.
-- **Exhaustive where enumeration is possible.** All 32 crash schedules of a
-  five-turn trajectory and all 26 of a five-item compensation, so there is no
-  seed that could have been luckier. Hypothesis covers the rest: longer
-  trajectories, a run stolen mid-flight, crashes between two irreversible acts.
-  `DESKHAND_FUZZ_EXAMPLES` turns it up.
+- **Exhaustive where enumeration is possible, and only there.** 63 enumerated
+  cases: all 32 crash schedules of a five-turn trajectory, all 26 of a
+  five-item compensation, and the 5 points a theft can land at. Hypothesis
+  covers the one space enumeration cannot — crash schedules over a ten-turn
+  trajectory across three scripts. `DESKHAND_FUZZ_EXAMPLES=1500` runs 69 tests
+  in 422s with the budget binding rather than the strategy.
+- **Fixed: a property test that was searching sixty-four things and reporting
+  two thousand.** The original strategy drew from a space small enough to
+  exhaust, so `max_examples` above 64 bought nothing and
+  `--hypothesis-show-statistics` said "Stopped because nothing left to do". The
+  crash-schedule strategy was widened; the theft test, whose space really is
+  five cases, became a `parametrize`. [LESSONS 28](LESSONS.md).
 - **Real threads, not simulated races.** Four workers sharing a queue; two
   threads calling `invoke()` for the same step at the same instant; four
   threads racing to claim one compensation item.
