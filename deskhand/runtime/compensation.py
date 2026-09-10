@@ -129,7 +129,7 @@ def plan(cur: psycopg.Cursor[DictRow], run_id: str) -> list[dict[str, Any]]:
                 "risk": row["risk"],
                 "inverse": row["inverse"],
                 "disposition": REVERT if revertable else REPORT,
-                "describe": _describe(row["tool_name"], row["risk"], row["inverse"], row["args"]),
+                "describe": describe(row["tool_name"], row["risk"], row["inverse"], row["args"]),
             }
         )
     return items
@@ -154,7 +154,7 @@ def plan_hash(items: list[dict[str, Any]]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _describe(tool_name: str, risk: str, inverse: dict[str, Any] | None, args: Any) -> str:
+def describe(tool_name: str, risk: str, inverse: dict[str, Any] | None, args: Any) -> str:
     """One line a human reads before authorising. Deliberately plain.
 
     Rendered from the tool name and the *inverse*, both of which this system

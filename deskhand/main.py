@@ -22,10 +22,12 @@ from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Annotated, Any
 
+import psycopg
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from psycopg.rows import DictRow
 
 from deskhand import pricing, schemas, tracing
 from deskhand.auth import new_session_token, session_expiry, verify_password
@@ -34,7 +36,7 @@ from deskhand.db import connection, fetch_all, fetch_one
 from deskhand.deps import ApproverDep, CallerDep
 from deskhand.providers import get_provider
 from deskhand.ratelimit import auth_limiter, run_limiter
-from deskhand.runtime import approvals, runs, transcript
+from deskhand.runtime import approvals, compensation, runs, transcript
 from deskhand.runtime.loop import SYSTEM_PROMPT
 from deskhand.tools import all_tools
 
@@ -580,6 +582,100 @@ def decide_approval(approval_id: str, body: schemas.DecideRequest, caller: Appro
 # ---------------------------------------------------------------------- usage
 
 
+# ------------------------------------------------------------- compensation
+#
+# Two endpoints and a read. The split is the consent mechanism, not REST
+# aesthetics: `plan` is side-effect free and returns a hash of what it found,
+# and `compensate` refuses anything whose plan no longer hashes to what the
+# caller was shown. "Undo this run" with no plan attached would authorise
+# whatever the ledger happened to say by the time the request landed.
+
+
+@app.get("/runs/{run_id}/compensation/plan", response_model=schemas.CompensationPlan)
+def compensation_plan(run_id: str, caller: CallerDep) -> Any:
+    """What walking this run back would do. Reads only.
+
+    Available to every role, including `viewer`. Seeing what a system did and
+    what it could take back is not a privileged action; doing it is.
+    """
+    run = _require_run(run_id, caller.org_id)
+    with connection() as conn, conn.cursor() as cur:
+        items = compensation.plan(cur, run_id)
+
+    compensable, blocked = True, None
+    if run["status"] not in compensation.TERMINAL_RUN_STATUSES:
+        compensable = False
+        blocked = f"run is {run['status']}; cancel it first"
+    elif not items:
+        compensable = False
+        blocked = "this run changed nothing that can be walked back"
+
+    return {
+        "run_id": run_id,
+        "run_status": run["status"],
+        "compensable": compensable,
+        "blocked_reason": blocked,
+        "plan_hash": compensation.plan_hash(items),
+        "items": [_plan_item_view(i) for i in items],
+        "revertable": sum(1 for i in items if i["disposition"] == compensation.REVERT),
+        "unrevertable": sum(1 for i in items if i["disposition"] == compensation.REPORT),
+    }
+
+
+@app.post(
+    "/runs/{run_id}/compensation",
+    response_model=schemas.CompensationView,
+    status_code=status.HTTP_201_CREATED,
+)
+def request_compensation(
+    run_id: str, body: schemas.CompensationRequest, caller: ApproverDep
+) -> Any:
+    """Authorise walking a run back.
+
+    `ApproverDep`, so the role that may not authorise a refund may not
+    authorise undoing one either. A `viewer` can watch a run spend money, can
+    not approve a penny of it, and can not reach into the aftermath.
+    """
+    _require_run(run_id, caller.org_id)
+    with connection() as conn, conn.cursor() as cur:
+        try:
+            compensation_id = compensation.create(
+                cur,
+                org_id=caller.org_id,
+                run_id=run_id,
+                requested_by=caller.user_id,
+                reason=body.reason,
+                expected_plan_hash=body.plan_hash,
+            )
+        except compensation.PlanError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        except psycopg.errors.UniqueViolation as exc:
+            # The partial unique index on (run_id) for active rows. Two people
+            # pressing the button at once is a race the database settles.
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "a compensation for this run is already in flight",
+            ) from exc
+        conn.commit()
+
+    return _compensation_view(compensation_id, caller.org_id)
+
+
+@app.get("/compensations/{compensation_id}", response_model=schemas.CompensationView)
+def get_compensation(compensation_id: str, caller: CallerDep) -> Any:
+    if not _is_uuid(compensation_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such compensation")
+    return _compensation_view(compensation_id, caller.org_id)
+
+
+@app.get("/runs/{run_id}/compensations", response_model=list[schemas.CompensationView])
+def list_compensations(run_id: str, caller: CallerDep) -> Any:
+    _require_run(run_id, caller.org_id)
+    with connection() as conn, conn.cursor() as cur:
+        rows = compensation.for_run(cur, run_id)
+        return [_compensation_row_view(cur, row) for row in rows]
+
+
 @app.get("/usage", response_model=schemas.UsageResponse)
 def usage(caller: CallerDep) -> Any:
     """Today's spend, for this merchant and for the deployment.
@@ -646,6 +742,73 @@ def _require_run(run_id: str, org_id: str) -> dict[str, Any]:
         # a given id exists elsewhere is not this caller's business.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run")
     return row
+
+
+def _plan_item_view(item: dict[str, Any]) -> dict[str, Any]:
+    """A planned item, before a compensation exists. Status is always pending."""
+    return {
+        "seq": item["seq"],
+        "step_seq": item["step_seq"],
+        "tool_name": item["tool_name"],
+        "risk": item["risk"],
+        "disposition": item["disposition"],
+        "describe": item["describe"],
+        "status": "pending",
+        "detail": None,
+        "applied_at": None,
+    }
+
+
+def _compensation_view(compensation_id: str, org_id: str) -> dict[str, Any]:
+    with connection() as conn, conn.cursor() as cur:
+        try:
+            row = compensation.get(cur, compensation_id)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "no such compensation") from exc
+        if str(row["org_id"]) != org_id:
+            # Same reasoning as `_require_run`: whether an id exists in another
+            # merchant's data is not this caller's business.
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "no such compensation")
+        return _compensation_row_view(cur, row)
+
+
+def _compensation_row_view(cur: psycopg.Cursor[DictRow], row: dict[str, Any]) -> dict[str, Any]:
+    rows = compensation.items(cur, str(row["id"]))
+    email = None
+    if row["requested_by"]:
+        cur.execute("select email from users where id = %s", (row["requested_by"],))
+        found = cur.fetchone()
+        email = found["email"] if found else None
+    return {
+        "id": str(row["id"]),
+        "run_id": str(row["run_id"]),
+        "status": row["status"],
+        "reason": row["reason"],
+        "stop_reason": row["stop_reason"],
+        "stop_detail": row["stop_detail"],
+        "requested_by_email": email,
+        "attempt": row["attempt"],
+        "max_attempts": row["max_attempts"],
+        "created_at": row["created_at"],
+        "finished_at": row["finished_at"],
+        "items": [
+            {
+                "seq": i["seq"],
+                "step_seq": i["step_seq"],
+                "tool_name": i["tool_name"],
+                "risk": i["risk"],
+                "disposition": i["disposition"],
+                # Re-derived rather than stored, so the wording of a
+                # description is a presentation concern and changing it does
+                # not require a migration.
+                "describe": compensation.describe(i["tool_name"], i["risk"], i["inverse"], None),
+                "status": i["status"],
+                "detail": i["detail"],
+                "applied_at": i["applied_at"],
+            }
+            for i in rows
+        ],
+    }
 
 
 def _is_uuid(value: str) -> bool:
