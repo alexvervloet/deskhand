@@ -587,3 +587,129 @@ button.peek:hover {
   max-height: none;
   color: var(--text-dim);
 }
+
+/* ------------------------------------------------------- compensation */
+/* Not styled as a success. A compensation happens after the system got
+   something wrong, and the line that has to survive a hurried read is the
+   count of things it cannot take back. Those reuse --irreversible, the same
+   red the tool class that produced them is drawn in, so the eye connects the
+   act to the aftermath without a legend. */
+
+.compensation {
+  margin: 1.25rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.compensation.quiet {
+  opacity: 0.6;
+}
+
+.compensation .kicker {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.compensation .sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.compensation .irreversible {
+  color: var(--irreversible);
+}
+
+.comp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.comp-applied {
+  padding-bottom: 0.8rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.comp-plan {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+}
+
+.comp-plan li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 5px 8px;
+  margin-bottom: 3px;
+  font-size: 12.5px;
+  border-left: 3px solid var(--line);
+  background: var(--bg-sunken);
+}
+
+.comp-plan li.irreversible {
+  border-left-color: var(--irreversible);
+  background: rgba(212, 87, 78, 0.08);
+}
+
+.comp-plan .step {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+}
+
+.comp-plan .tool {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.comp-plan .what {
+  flex: 1;
+}
+
+.comp-plan .detail {
+  flex-basis: 100%;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.compensation .controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 0.8rem;
+}
+
+.compensation .controls input {
+  flex: 1;
+}
+
+.compensation .cannot {
+  margin-top: 0.8rem;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.chip.reverted,
+.chip.applied {
+  color: var(--ok);
+  border-color: #24503a;
+}
+
+.chip.unrevertable,
+.chip.blocked {
+  color: var(--irreversible);
+  border-color: #4a2b28;
+}
+
+.chip.partial,
+.chip.skipped {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
