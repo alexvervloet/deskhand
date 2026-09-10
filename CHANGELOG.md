@@ -4,6 +4,75 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## Compensation: walking a finished run back
+
+The seam this project had named and left open. Every reversible tool had
+recorded its own inverse since the tool layer was written, `apply_inverse` was
+tested, and no runtime path, endpoint or button had ever called one. The hard
+half existed — capturing the prior value at the only moment it is knowable —
+and the easy half didn't: deciding which acts to walk back, and who may ask.
+
+- **A compensation is a plan over the ledger, not a run and not a set of
+  steps.** Not a run, because a recovery path that asks a language model which
+  effects to undo has put an untrusted decision at the moment the system is
+  known to have got something wrong, with the offending ticket still sitting
+  there saying whatever it says. `plan()` is a query over `tool_invocations`
+  and reads nothing else. Not steps, because `steps` is the trajectory, and
+  appending rows to a finished run would make `replay` describe a conversation
+  that never happened.
+- **Inverses apply newest-first, and that is the whole content of
+  correctness.** A run that moved a ticket `normal → high → urgent` recorded
+  "back to normal" then "back to high". Applied in capture order it lands on
+  `high` — a value it genuinely held for one step and was never meant to keep.
+  Each inverse restores what its own call overwrote, so it is only correct
+  while every later call has already been walked back. Reversing one `order by`
+  fails two evals with nothing erroring: every transaction commits, the ledger
+  stays consistent, exactly-once holds, and the answer is wrong.
+- **Nothing is undone.** The word is *compensation* throughout, because undo is
+  false for the irreversible third of any plan. Those items are in the plan,
+  marked `unrevertable`, and their presence is what makes the outcome `partial`
+  rather than `applied`. A plan that quietly listed only what it could revert
+  would read as a clean walk-back, which is the most misleading sentence this
+  system could produce after an incident.
+- **Authorising a plan is bound to the plan that was displayed.** `GET
+  .../compensation/plan` writes nothing and returns a `plan_hash`; the POST
+  recomputes and refuses anything that no longer hashes to what the caller saw.
+  `args_hash` one level up. Requesting takes the same approver role an approval
+  decision does; reading a plan is open to `viewer`, because seeing what a
+  system did is not a privileged action and doing something about it is.
+- **Exactly-once, by the ledger's argument in a different table.** An item
+  flips to `reverted` in the same transaction as the inverse's effect, by a
+  conditional update a second attempt loses. A partial unique index on
+  `(invocation_id) where status = 'reverted'` turns a leasing bug into a
+  constraint violation rather than a ticket that quietly gets un-tagged twice.
+- **A failed inverse blocks the whole compensation.** Remaining items are
+  marked `skipped`, not left `pending`. Walking past a failure means applying
+  an inverse whose precondition — that every later effect is already gone — is
+  no longer true, and nothing here knows which items are independent.
+  `blocked` rather than `failed`: a state a person clears, not one a retry does.
+- **Fixed: `apply_inverse` reported success for an update that changed
+  nothing.** Every branch was a single statement keyed by an id, and Postgres
+  does not raise when a statement matches no rows. An inverse naming a deleted
+  row returned cleanly and the caller would have written `reverted` against
+  something still sitting there. Green since the day it was written, under a
+  test that always had the row present, with no caller but that test.
+  [LESSONS 20](LESSONS.md). Every branch now also scopes to `ctx.org_id`.
+- **New: `irreversible_note` on `ToolDef`.** An irreversible tool has to say
+  what it cannot take back, in one plain sentence, and `register()` refuses one
+  that doesn't. It is the line a compensation shows against an act it is
+  telling somebody it cannot fix, and it lives in the frozen registry next to
+  the risk class for the same reason: a wrong risk class lets money move
+  without consent, and a wrong sentence here tells a person during an incident
+  that something is recoverable when it is not. [LESSONS 21](LESSONS.md).
+- Seven new trajectory evals, one per invariant plus resilience and ordering,
+  taking the gate from 25 to 32. Deleting the approval check now fails 15 of
+  32.
+- `trigger/` deliberately does not have this, and the reasoning is a new
+  section of [TRIGGER-PORT.md](docs/TRIGGER-PORT.md): a compensation has no
+  wait to be suspended across, so it asks a durable execution platform for
+  nothing, and retry-from-the-top is the one platform behaviour it has to
+  defend against rather than benefit from.
+
 ## A security review, and the six gaps it found
 
 A review of the whole surface for prompt injection and the usual web
