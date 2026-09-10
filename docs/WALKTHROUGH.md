@@ -779,6 +779,15 @@ python -m evals.run                 # all 32
 python -m evals.run consent         # one invariant
 ```
 
+Plus two things that are not the merge gate and are not trying to be. `python
+-m pytest tests/test_concurrency.py` enumerates every crash schedule a
+five-turn trajectory admits — 32 of them, and 26 more for a compensation —
+then hands the rest to Hypothesis and to four real threads sharing a queue.
+That search found a deadlock in the payout ceiling that a decade of single
+worker tests could not, because a lock cycle needs two transactions open at the
+same instant and a simulated race has one. `python -m evals.live` points a real
+model at the invariants; see the README for what two of them did to `NW-4`.
+
 The evals drive the real loop, the real tools, the real approval gate, and a real
 Postgres. Only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically without paying for a token or hoping.
