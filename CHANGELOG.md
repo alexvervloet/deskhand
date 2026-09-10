@@ -4,6 +4,38 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## Fuzzing the concurrency claim
+
+Exactly-once was defended by two evals and three unit tests, every one of which
+drives a single worker and kills it at a point I picked. This searches the
+space instead.
+
+- **The claim, stated properly.** Not "the customer is not refunded twice" but:
+  for any crash schedule, the world after the run finishes is identical to the
+  world after an uncrashed run of the same trajectory. Two fingerprints in
+  [tests/fingerprint.py](tests/fingerprint.py), each naming what it excludes —
+  the trajectory one excludes `replayed`, which is the mechanism's own signal
+  and is asserted separately.
+- **Exhaustive where enumeration is possible.** All 32 crash schedules of a
+  five-turn trajectory and all 26 of a five-item compensation, so there is no
+  seed that could have been luckier. Hypothesis covers the rest: longer
+  trajectories, a run stolen mid-flight, crashes between two irreversible acts.
+  `DESKHAND_FUZZ_EXAMPLES` turns it up.
+- **Real threads, not simulated races.** Four workers sharing a queue; two
+  threads calling `invoke()` for the same step at the same instant; four
+  threads racing to claim one compensation item.
+- **Fixed: the payout ceiling deadlocked against its own audit row.**
+  `_ceilings` took `SELECT ... FOR UPDATE` on the merchant, but the same
+  transaction already held a `KEY SHARE` lock on that row from the `audit_log`
+  insert recording the approval — so the request was a lock upgrade, and two
+  payouts for one merchant each waiting to upgrade is a cycle. Exactly-once was
+  never at risk (the transaction rolls back), but the worker marked the run
+  **failed permanently**, so an approved refund silently did not happen. `FOR
+  NO KEY UPDATE` still serialises two payouts and cannot conflict with a
+  foreign key. Regression test fails 5/5 with the old clause, passes 5/5 with
+  the new one. [LESSONS 27](LESSONS.md).
+- The exhaustive half runs in CI unconditionally; the deep sweep is a command.
+
 ## Two real models against the invariants
 
 Every green result in this repo was green against a scripted provider. That is
