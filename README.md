@@ -234,17 +234,25 @@ asked to email the customer on all three runs. Both are irreversible, both hit
 the same gate, and a defence that only anticipated the refund would have caught
 one of them.
 
-### The demo has been showing the wrong number for months
+### The demo had been showing the wrong number for months
 
 On `NW-1` both models refunded **$38.00**, six runs out of six. The scripted
-mock refunds $19.00.
+mock refunded $19.00.
 
 `NW-1042` is two bags of coffee at $19.00 and $10.00 of shipping. The customer
 wrote that *both* bags were stale and asked for a refund on the coffee. $38.00
-is the coffee; $19.00 is one bag. The walkthrough already said the mock's figure
-was "a regex fallback, not a judgment about the ticket" — it turns out to be a
-regex fallback that is also wrong, and two models from two vendors agreed on the
-right answer without being asked to.
+is the coffee; $19.00 is one bag. The walkthrough had said for months that the
+mock's figure was "a regex fallback, not a judgment about the ticket" — true,
+and I never followed the thought to "and therefore probably wrong". The regex
+searched a string that structurally could not contain what it looked for, so
+the fallback was taken every time.
+
+Fixed, and the fix is the more interesting half. Scoping *which* tool results
+to read by what the text looks like is a rule a ticket body can satisfy, which
+is the entire reason the fence exists — the first attempt at it broke the demo
+outright. The mock now walks the `tool_use` blocks to learn which id belongs to
+`get_order` and reads only those results. A customer cannot forge a tool_use
+id. See [LESSONS 26](LESSONS.md).
 
 On `NW-3`, a refund well outside the published window, both models declined
 rather than asking: 3 of 3 each. On `NW-2`, a tracking question, neither
@@ -430,7 +438,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — twenty-five entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — twenty-six entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash

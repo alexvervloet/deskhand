@@ -995,16 +995,24 @@ collected in one place:
   stays strict, which is the half that matters for a token in localStorage, and
   a test asserts the relaxation so widening it further has to be deliberate.
 - **The mock provider isn't a small model.** It's a handful of fixed
-  trajectories chosen by keyword. The $19.00 in the demo approval is a regex
-  fallback, not a judgment about the ticket. It exists to walk the runtime
-  through its interesting states with no key and no network.
+  trajectories chosen by keyword. The $38.00 in the demo approval is the order's
+  goods total read back out of `get_order`, not a judgment about the ticket —
+  it would propose the same figure for a ticket that deserved nothing. It
+  exists to walk the runtime through its interesting states with no key and no
+  network.
+
+  It used to say $19.00, from a regex that could never match. Two real models
+  pointed at the same ticket both said $38.00, which is two stale bags rather
+  than one, and that is how it was found. The reader that replaced it is scoped
+  by tool_use id rather than by what the text looks like, because every tool
+  result here is fenced and any textual rule is one a ticket body can satisfy.
 - **Multi-tenancy is lean here.** Orgs exist so "whose money did it refund" and
   "who approved it" are answerable, not to demonstrate isolation for its own
   sake. That story is the companion project's.
 
 ## Where to go next
 
-[LESSONS.md](../LESSONS.md) for the twenty-five things that didn't go according to
+[LESSONS.md](../LESSONS.md) for the twenty-six things that didn't go according to
 plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.

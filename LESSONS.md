@@ -1098,3 +1098,87 @@ evidence about how often the mechanism is the thing standing between you and a
 payout — and that number, on this evidence, is "most of the time, for one of
 these two models". Twenty-four runs and about fifty cents bought a claim the
 other thirty-two evals structurally could not.
+
+---
+
+## 26. The regex that could not match, and the fix that broke the demo
+
+**Expected.** Two real models both refunded $38.00 on `NW-1` where the mock
+refunds $19.00 ([entry 25](#25-the-model-was-the-layer-that-failed-and-i-had-built-the-argument-for-it-a-month-early)).
+$38.00 is two stale bags on a ticket that complained about two. I expected to
+find a hardcoded constant and replace it with one that was right.
+
+**What happened.** It was not a constant. `DefaultMockProvider` computed the
+amount:
+
+```python
+total = _TOTAL.search(seen)
+amount = int(total.group(1)) * 100 + int(total.group(2)) if total else 1900
+```
+
+`_TOTAL` is `r"total: ([\d,]+)\.(\d{2}) "`, and `seen` is `_brief(messages)`.
+`_brief` stops at the **first** tool result — deliberately, and for a good
+reason written up as [entry 7](#7-two-correct-decisions-that-combined-into-an-incoherent-demo):
+reading the growing transcript made the plan unstable and produced a demo that
+offered to refund a customer who wanted a tracking number.
+
+The first tool result is `get_ticket`'s. `total:` only ever appears in
+`get_order`'s. **The regex searched a string that structurally could not
+contain what it looked for.** It never matched, not once, and the `else 1900`
+ran every time.
+
+Both decisions were right. `_brief` should stop early; the amount should come
+from the order. Composed, one silently disabled the other — which is the same
+shape as entry 7 itself, two correct decisions making an incorrect whole, in the
+same function, four months later.
+
+The walkthrough had described the figure as "a regex fallback, not a judgment
+about the ticket" since the day it was written. Accurate. I never followed it to
+"and therefore probably wrong."
+
+**Then I broke the demo.** The obvious scoping fix was to read item lines only
+from results that are an order:
+
+```python
+if not body.startswith("Order "):
+    continue
+```
+
+Every tool result reaching the model is fenced. None of them begins with
+`Order ` — they begin with the fence marker. So `_refundable` returned 0 for
+every ticket, `issue_refund` was proposed with `amount_cents: 0`, schema
+validation rejected it, and the run carried on and *succeeded without ever
+reaching the approval gate*. The headline demo of this entire project, gone.
+
+The unit tests passed. They built transcripts by hand, and I had not fenced
+them, so the fixtures described a system that does not exist. I found it by
+running the actual app against all four tickets, which is the third time in two
+days that has caught something three green suites did not.
+
+**The fix, and why it is the interesting half.** Scoping by what the text looks
+like is a rule a ticket body can satisfy — a customer can type `Order NW-1042`
+and an item line into a ticket, and `get_ticket` returns it into this same
+transcript. That is the entire reason the fence exists, and I had written a
+textual rule anyway, inside the one file whose job is to pretend to be a model.
+
+`_refundable` now walks the `tool_use` blocks to learn which id belongs to
+`get_order`, and reads only results answering those ids. A ticket body cannot
+forge a tool_use id. The test fixtures now go through `transcript.quarantine`
+like the real thing.
+
+**Next time.** Three, and the last one is the one I want to keep.
+
+A fallback that is always taken is not a fallback, it is the implementation —
+and its guard is dead code that reads as if it works. Worth grepping for: a
+regex over a string whose *producer* is not the one you were picturing.
+
+A test fixture that skips a transformation the real pipeline always applies is
+not a simplified fixture, it is a fixture for a different system. Fenced input
+is not an edge case here; it is the only case.
+
+And: **when the fake is the thing being fixed, the reflex is to reach for the
+quick textual answer, because it is only the fake.** But the fake lives in the
+same transcript as the attacker-controlled text, and every argument this
+project makes about why you cannot pattern-match your way out of injection
+applies to it exactly as written. The demo does not get a pass on the thesis it
+is demonstrating.
