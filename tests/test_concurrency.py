@@ -270,27 +270,33 @@ def test_every_crash_schedule_leaves_the_same_world(die_at: frozenset[int]) -> N
     assert len(fetch_all("select id from refunds")) == 1
 
 
-def test_the_sweep_actually_exercises_the_resume_path() -> None:
-    """A property that passes without the mechanism firing proves nothing.
+def test_the_sweep_is_not_passing_vacuously() -> None:
+    """Two checks that the sweep above is doing what its name says.
 
-    A crash after a completed tool call must produce a `replayed` step — the
-    ledger recognising work it had already done. If this were zero everywhere,
-    every schedule above would be passing because nothing was ever re-entered.
+    A property that holds because nothing happened is the failure mode of every
+    exhaustive search, and it does not announce itself: 32 green cases look the
+    same whether the crashes landed or not.
     """
     _reseed()
     run_id = _start()
-    # Turn 3 is the turn after the refund lands, so the resumed worker walks
-    # back over a completed irreversible call.
-    assert drive_through(run_id, REFUND, frozenset({3})) == "succeeded"
+    assert drive_through(run_id, REFUND, frozenset({1, 3})) == "succeeded"
+
+    # One: the crashes actually cost the run its worker. `attempt` counts
+    # claims, so a schedule with two deaths in it has to show more of them than
+    # the approval suspension alone would explain.
+    run = fetch_one("select attempt from runs where id = %s", (run_id,))
+    assert run is not None
+    assert int(run["attempt"]) >= 4, f"only {run['attempt']} claims; the crashes did not land"
+
+    # Two: and the resume took the *cheap* path. An orderly resume rebuilds the
+    # conversation from the step log, finds the tool's result already recorded,
+    # and never calls the tool again — so it adds no ledger row and marks
+    # nothing `replayed`. The ledger is the second line of defence, and it is
+    # `test_the_ledger_is_what_catches_a_real_race` that exercises it.
     assert fingerprint.replayed_steps(run_id) == 0, (
-        "an orderly resume rebuilds from the step log and never re-enters the tool;"
-        " a replayed step here would mean the step log missed one"
+        "a replayed step here means the step log missed one and the ledger had to catch it"
     )
     assert len(fetch_all("select id from refunds")) == 1
-
-    # The ledger is the *second* line of defence and the step log usually gets
-    # there first. `test_the_ledger_is_what_catches_a_real_race` below is what
-    # exercises the ledger itself.
 
 
 # ------------------------------------------------------ 2. the wider space
