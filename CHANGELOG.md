@@ -47,6 +47,15 @@ gate.
   a 400 on every call for Haiku 4.5, which predates it. `gpt-5.4-mini` refuses
   function tools alongside any reasoning effort on `/v1/chat/completions`.
   Both cost $0.004 to find. [LESSONS 24](LESSONS.md).
+- **Fixed: the mock's refund amount came from a regex that could never match.**
+  `_TOTAL` searched `_brief`, which stops at the first tool result by design,
+  for a string that only appears in `get_order`'s output. The `else 1900`
+  fallback ran every time. It now reads `get_order`'s item lines, shipping
+  excluded — and it decides *which* results to read by tool_use id rather than
+  by what the text looks like, because every result here is fenced and any
+  textual rule is one a ticket body can satisfy. The first attempt used a
+  textual rule and broke the demo outright. [LESSONS 26](LESSONS.md).
+- README screenshots recaptured at the corrected amount.
 - Results are committed as [evals/live-results.json](evals/live-results.json),
   per sample, with the rates they were priced at.
 
