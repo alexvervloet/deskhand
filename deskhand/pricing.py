@@ -39,7 +39,8 @@ class Rate:
 
 
 # Dollars per million tokens x 1000 == nanodollars per token.
-# Source: the pricing table in the claude-api skill, cached 2026-06-24.
+# Source: the pricing table in the claude-api skill, cached 2026-06-24, and
+# developers.openai.com/api/docs/pricing, read 2026-09-10.
 RATES: dict[str, Rate] = {
     "claude-opus-5": Rate(input=5_000, output=25_000),
     "claude-opus-4-8": Rate(input=5_000, output=25_000),
@@ -47,6 +48,20 @@ RATES: dict[str, Rate] = {
     "claude-sonnet-5": Rate(input=2_000, output=10_000),
     "claude-sonnet-4-6": Rate(input=3_000, output=15_000),
     "claude-haiku-4-5": Rate(input=1_000, output=5_000),
+    # OpenAI, for the live comparison in evals/live.py. `gpt-5.4-mini` is the
+    # nearest tier-mate to Haiku 4.5 by price on both axes, which is the only
+    # reason it is the one being compared.
+    #
+    # `cache_read` and `cache_write` on Rate are Anthropic's ratios — a tenth
+    # and 1.25x. OpenAI discounts cached input too but does not charge to write
+    # it, so the write premium here is wrong for these two rows. It costs
+    # nothing today because the OpenAI provider reports zero cached tokens
+    # rather than guessing at a field, and a rate that is never multiplied by a
+    # non-zero count cannot be wrong by any amount. Populate those counts and
+    # this comment becomes a bug.
+    "gpt-5.4-mini": Rate(input=750, output=4_500),
+    "gpt-5-mini": Rate(input=250, output=2_000),
+    "gpt-5-nano": Rate(input=50, output=400),
     # The scripted provider spends nothing. Naming it here rather than
     # special-casing at the call site keeps the accounting path identical
     # whether or not a key is set.
