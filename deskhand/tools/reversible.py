@@ -6,14 +6,19 @@ the prior value is knowable now and merely guessable afterwards. A run that
 fails at step 9 *can* be reverted precisely — set the priority back to `normal`,
 not "back to whatever seems reasonable".
 
-**Nothing in the product calls `apply_inverse` yet.** Every reversible tool
-records its inverse, the ledger stores it, and `apply_inverse` is exercised by
-the test suite — but no runtime path, endpoint, or button reverts a failed run.
-What exists is the hard half: the information needed to undo, captured at the
-only moment it is knowable. What does not exist is the easy half: deciding which
-steps of which run to walk back, and who is allowed to ask for it. Said plainly
-here rather than left for a reader to discover, because "reversible" reads like
-a promise that something reverses.
+`apply_inverse` is what applies one. Its caller is
+[deskhand/runtime/compensation.py](../runtime/compensation.py), which builds an
+ordered plan over the ledger, has a human authorise that exact plan, and walks
+it newest-first. Nothing in the agent loop can reach this function: undoing is
+not a tool, so the model cannot ask for it, and there is no code path from a
+tool result to a compensation.
+
+**A null inverse means the handler changed nothing.** Every early return in
+this file — tagging a ticket that already carries the tags, setting a priority
+to the value it already has — returns a `ToolOutcome` with no inverse, and the
+plan builder skips those rows on exactly that basis. The correspondence is
+asserted in `tests/test_tools.py`, because a handler that ever changes state
+and forgets its inverse would drop out of every plan silently.
 
 Undoing is not the same as never having acted. A reverted internal note was
 still readable by whoever was watching the queue. That is the honest limit of
@@ -50,32 +55,57 @@ def apply_inverse(ctx: ToolContext, inverse: dict[str, Any]) -> None:
     row is not something any tool in the registry can do, and pretending
     otherwise would mean adding tools whose only caller is the revert path —
     tools the model could then also reach.
+
+    Two rules hold for every branch.
+
+    **Every statement is scoped to `ctx.org_id`.** The ids inside an inverse
+    were captured by handlers that already filtered on the org, so they are
+    in-tenant by construction. Scoping again means the guarantee survives a
+    future handler that forgets, and it means a hand-written row in
+    `tool_invocations.inverse` cannot reach across a tenancy boundary.
+
+    **A statement that changes no rows raises.** The row an inverse names can
+    be gone: a ticket deleted, a note already removed by a person. Letting that
+    pass would write `reverted` against something that was not reverted, and an
+    audit trail that overstates what it undid is worse than one that stops. The
+    caller turns this into a `blocked` compensation.
     """
     op = inverse["op"]
     if op == "set_tags":
         ctx.cursor.execute(
-            "update tickets set tags = %s, updated_at = now() where id = %s",
-            (inverse["tags"], inverse["ticket_id"]),
+            "update tickets set tags = %s, updated_at = now() where id = %s and org_id = %s",
+            (inverse["tags"], inverse["ticket_id"], ctx.org_id),
         )
     elif op == "set_priority":
         ctx.cursor.execute(
-            "update tickets set priority = %s::ticket_priority, updated_at = now() where id = %s",
-            (inverse["priority"], inverse["ticket_id"]),
+            "update tickets set priority = %s::ticket_priority, updated_at = now()"
+            " where id = %s and org_id = %s",
+            (inverse["priority"], inverse["ticket_id"], ctx.org_id),
         )
     elif op == "set_status":
         ctx.cursor.execute(
-            "update tickets set status = %s::ticket_status, updated_at = now() where id = %s",
-            (inverse["status"], inverse["ticket_id"]),
+            "update tickets set status = %s::ticket_status, updated_at = now()"
+            " where id = %s and org_id = %s",
+            (inverse["status"], inverse["ticket_id"], ctx.org_id),
         )
     elif op == "set_assignee":
         ctx.cursor.execute(
-            "update tickets set assignee_id = %s, updated_at = now() where id = %s",
-            (inverse["assignee_id"], inverse["ticket_id"]),
+            "update tickets set assignee_id = %s, updated_at = now() where id = %s and org_id = %s",
+            (inverse["assignee_id"], inverse["ticket_id"], ctx.org_id),
         )
     elif op == "delete_message":
-        ctx.cursor.execute("delete from ticket_messages where id = %s", (inverse["message_id"],))
+        ctx.cursor.execute(
+            "delete from ticket_messages m using tickets t"
+            " where m.id = %s and t.id = m.ticket_id and t.org_id = %s",
+            (inverse["message_id"], ctx.org_id),
+        )
     else:  # pragma: no cover - guards against a tool adding an op and forgetting this
         raise ToolError(f"no inverse handler for op {op!r}")
+
+    if ctx.cursor.rowcount == 0:
+        raise ToolError(
+            f"nothing to undo for {op!r}: the row it names is gone or belongs to another merchant"
+        )
 
 
 # --------------------------------------------------------------- tag_ticket
