@@ -44,6 +44,12 @@ def org(cur) -> str:
     return str(row(cur)["id"])
 
 
+@pytest.fixture
+def lumen(cur) -> str:
+    cur.execute("select id from orgs where slug = 'lumen'")
+    return str(row(cur)["id"])
+
+
 def _new_run(cur, org: str) -> str:
     """A minimal run row. The ledger's foreign keys are real, so a tool
     invocation has to belong to a run and a step that actually exist —
@@ -287,6 +293,47 @@ def test_reversible_tools_record_a_usable_inverse(cur, org) -> None:
 
     reverted = run_tool(cur, org, "get_ticket", {"reference": "NW-2"}, seq=3)
     assert "priority=normal" in reverted.result
+
+
+def test_a_reversible_call_that_changes_nothing_records_no_inverse(cur, org) -> None:
+    """The correspondence the compensation planner depends on.
+
+    `compensation.plan` skips reversible ledger rows with a null inverse, and
+    reads that as "this call changed nothing" rather than "the inverse is
+    missing". Every early return in reversible.py has to keep meaning that: a
+    handler that ever changes state and forgets its inverse would drop out of
+    every plan silently, and nothing else in the system would notice.
+    """
+    # NW-2 is seeded `normal`, and these tags are already on the ticket after
+    # the first call, so both handlers take their no-op path.
+    already = run_tool(cur, org, "set_priority", {"reference": "NW-2", "priority": "normal"})
+    assert already.ok
+    assert "already normal" in already.result
+    assert already.inverse is None
+
+    tagged = run_tool(cur, org, "tag_ticket", {"reference": "NW-2", "tags": ["shipping"]}, seq=2)
+    assert tagged.inverse is not None
+    again = run_tool(cur, org, "tag_ticket", {"reference": "NW-2", "tags": ["shipping"]}, seq=3)
+    assert again.ok
+    assert again.inverse is None
+
+
+def test_an_inverse_will_not_cross_a_tenancy_boundary(cur, org, lumen) -> None:
+    """`apply_inverse` scopes every statement to the caller's org.
+
+    The ids inside an inverse were captured by handlers that already filtered
+    on the org, so they are in-tenant by construction. Scoping again means the
+    guarantee survives a handler that forgets, and means a hand-written row in
+    `tool_invocations.inverse` cannot reach across.
+    """
+    changed = run_tool(cur, org, "set_priority", {"reference": "NW-2", "priority": "urgent"})
+    assert changed.inverse is not None
+
+    ctx = tools.ToolContext(
+        org_id=lumen, run_id="r", step_id="s", ticket_id="t", customer_id="c", cursor=cur
+    )
+    with pytest.raises(ToolError, match="nothing to undo"):
+        apply_inverse(ctx, changed.inverse)
 
 
 def test_tagging_keeps_existing_tags(cur, org) -> None:
