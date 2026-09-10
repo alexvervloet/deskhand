@@ -69,6 +69,15 @@ export default function CompensationPanel({
       <div className="compensation quiet">
         <div className="kicker">Nothing to walk back</div>
         <div className="sub">{plan.blocked_reason}</div>
+        {/* Still list what is in the plan. A run whose only mark on the world
+            was a refund has nothing to press and something worth reading. */}
+        {plan.items.length > 0 && (
+          <ol className="comp-plan">
+            {plan.items.map((item) => (
+              <PlanRow key={item.seq} item={item} />
+            ))}
+          </ol>
+        )}
       </div>
     );
   }
