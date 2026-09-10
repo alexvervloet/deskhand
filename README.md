@@ -430,7 +430,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — twenty-four entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — twenty-five entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
