@@ -15,7 +15,7 @@ from psycopg import sql
 from deskhand import seed
 from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
-from deskhand.runtime import approvals, loop, runs
+from deskhand.runtime import approvals, compensation, loop, runs
 
 
 def reset() -> None:
@@ -140,3 +140,77 @@ def refunds() -> list[dict]:
 
 def emails() -> list[dict]:
     return fetch_all("select * from customer_emails order by sent_at")
+
+
+# ----------------------------------------------------------- compensation
+
+
+def compensate(run_id: str, reason: str = "the run did the wrong thing") -> str:
+    """Preview a plan and authorise that exact plan, as the two endpoints do."""
+    with connection() as conn, conn.cursor() as cur:
+        items = compensation.plan(cur, run_id)
+        compensation_id = compensation.create(
+            cur,
+            org_id=org(),
+            run_id=run_id,
+            requested_by=user(),
+            reason=reason,
+            expected_plan_hash=compensation.plan_hash(items),
+        )
+        conn.commit()
+    return compensation_id
+
+
+def plan_of(run_id: str) -> list[dict]:
+    with connection() as conn, conn.cursor() as cur:
+        return compensation.plan(cur, run_id)
+
+
+def apply_compensation(compensation_id: str, worker: str = "eval") -> str:
+    """Claim and advance it, exactly as the worker does."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "update compensations set status = 'running', lease_owner = %s,"
+            "                         lease_expires_at = now() + interval '60 seconds',"
+            "                         attempt = attempt + 1"
+            " where id = %s",
+            (worker, compensation_id),
+        )
+        conn.commit()
+    with connection() as conn:
+        return compensation.advance(conn, compensation_id, worker)
+
+
+def kill_compensation_worker(compensation_id: str) -> None:
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "update compensations set lease_expires_at = now() - interval '1 second' where id = %s",
+            (compensation_id,),
+        )
+        conn.commit()
+
+
+def claim_compensation(worker: str) -> dict | None:
+    with connection() as conn, conn.cursor() as cur:
+        claimed = compensation.claim_next(cur, worker)
+        conn.commit()
+    return claimed
+
+
+def compensation_row(compensation_id: str) -> dict:
+    row = fetch_one("select * from compensations where id = %s", (compensation_id,))
+    assert row is not None
+    return row
+
+
+def compensation_items(compensation_id: str) -> list[dict]:
+    return fetch_all(
+        "select * from compensation_items where compensation_id = %s order by seq",
+        (compensation_id,),
+    )
+
+
+def ticket(reference: str) -> dict:
+    row = fetch_one("select * from tickets where reference = %s", (reference,))
+    assert row is not None
+    return row
