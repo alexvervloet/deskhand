@@ -47,7 +47,8 @@ from psycopg.rows import DictRow
 
 from deskhand.config import settings
 from deskhand.runtime import runs
-from deskhand.tools.base import ToolContext, ToolError
+from deskhand.tools.base import ToolContext, ToolError, is_registered
+from deskhand.tools.base import get as tool_def
 from deskhand.tools.reversible import apply_inverse
 
 log = logging.getLogger("deskhand")
@@ -157,12 +158,17 @@ def plan_hash(items: list[dict[str, Any]]) -> str:
 def describe(tool_name: str, risk: str, inverse: dict[str, Any] | None, args: Any) -> str:
     """One line a human reads before authorising. Deliberately plain.
 
-    Rendered from the tool name and the *inverse*, both of which this system
-    wrote. Never from a tool's result text, which is where a customer's words
-    live.
+    Rendered from the tool name, the *inverse*, and the registry -- all three
+    of which this system wrote. Never from a tool's result text, which is where
+    a customer's words live.
+
+    For an act with no inverse the sentence comes from `irreversible_note` on
+    the ToolDef, so the most important line on the screen is the tool's own
+    declaration rather than a string this module guessed about it.
     """
     if inverse is None:
-        return f"{tool_name} moved something this system cannot take back"
+        note = tool_def(tool_name).irreversible_note if is_registered(tool_name) else None
+        return note or f"{tool_name} did something this system cannot take back"
     op = inverse.get("op")
     if op == "set_tags":
         tags = inverse.get("tags") or []
