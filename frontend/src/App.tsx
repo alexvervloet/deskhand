@@ -146,6 +146,12 @@ function Desk({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
                   <div className="subject">{a.preview}</div>
                   <div className="meta">
                     <span className="chip awaiting_approval">{a.tool_name}</span>
+                    {/* Shown in the queue, not only on the card, so the request
+                        that needs the closest reading is visible before anyone
+                        opens it. */}
+                    {a.basis.some((b) => b.status === "unsupported") && (
+                      <span className="chip failed">not on record</span>
+                    )}
                   </div>
                 </button>
               ))}
