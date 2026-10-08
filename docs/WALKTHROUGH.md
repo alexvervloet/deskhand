@@ -32,10 +32,13 @@ Three commands set the stage, and each one is worth thirty seconds.
 
 `python -m deskhand.migrate` applies every file in [migrations/](../migrations/)
 once, in filename order, each inside its own transaction, recording successes in
-`schema_migrations`. Re-running is a no-op. The five files are worth reading in
-order, because they're the system's outline: identity, the world the agent acts
-on, the idempotency ledger, runs and the step log, and one late column that
-exists because of a bug (more on that at stop 9).
+`schema_migrations`. Re-running is a no-op. The first five files are worth
+reading in order, because they're the system's outline: identity, the world the
+agent acts on, the idempotency ledger, runs and the step log, and one late
+column that exists because of a bug (more on that at stop 9). The four after
+them each add one thing: refund ceilings, the Trigger.dev port's waitpoint
+token, compensation, and `0009`, which changes `steps.content` from `jsonb` to
+`json` so the model's own words come back in the order it wrote them.
 
 `python -m deskhand.seed` wipes and rebuilds the demo data. Six tickets across
 two merchants, chosen to drive different paths rather than to look plausible.
@@ -1021,7 +1024,7 @@ collected in one place:
 
 ## Where to go next
 
-[LESSONS.md](../LESSONS.md) for the twenty-eight things that didn't go according to
+[LESSONS.md](../LESSONS.md) for the thirty things that didn't go according to
 plan, written while the detail was fresh. A full-text search that failed
 *open* on a policy lookup, so an agent reading "no such policy" would reasonably
 conclude it was unconstrained. A green test suite that shipped a broken screen.
