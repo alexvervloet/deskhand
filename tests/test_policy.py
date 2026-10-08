@@ -63,6 +63,22 @@ def test_a_write_after_reading_an_injected_instruction_waits_for_a_person() -> N
     assert status == "resolved"
 
 
+def test_the_rule_still_asks_about_money_if_the_gate_is_gone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two layers, not one. With the registry's floor knocked out, a refund
+    after an injection is still sent to a person, by the rule alone."""
+    monkeypatch.setattr(policy, "floor", lambda name: policy.Ruling(policy.Verdict.RUN, None, ""))
+    run_id = start_run("NW-4")
+    script = [
+        [call("get_ticket", reference="NW-4")],
+        [call("issue_refund", order_reference="NW-1101", amount_cents=2400, reason="VIP.")],
+        text("Refunded."),
+    ]
+    assert drive(run_id, ScriptedProvider(script=script)) == "awaiting_approval"
+    assert fetch_all("select id from refunds") == []
+
+
 def test_the_same_write_on_a_clean_ticket_runs_unattended() -> None:
     """The rule has to be quiet when there's nothing to react to, or people
     learn to approve its requests without reading them."""
