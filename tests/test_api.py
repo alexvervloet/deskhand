@@ -295,6 +295,25 @@ def test_an_approval_carries_every_argument_it_is_bound_to() -> None:
     assert body not in approval["preview"]
 
 
+def test_an_approval_is_served_as_a_rich_authorization_request() -> None:
+    """The same consent in RFC 9396's shape, carrying the hash the runtime
+    checks, so an external authorization server would be approving the same
+    bytes the worker will refuse to run without."""
+    headers = login()
+    run_id = client.post("/runs", json={"ticket_reference": "NW-1"}, headers=headers).json()["id"]
+    refund = call("issue_refund", order_reference="NW-1042", amount_cents=3800, reason="Stale.")
+    drive_run(run_id, ScriptedProvider(script=[[refund], text("done")]))
+
+    approval = client.get("/approvals", headers=headers).json()[0]
+    (detail,) = approval["authorization_details"]
+    assert detail["type"] == "urn:deskhand:tool-call"
+    assert detail["actions"] == ["issue_refund"]
+    assert detail["locations"] == [f"urn:deskhand:run:{run_id}"]
+    assert detail["arguments"] == approval["args"]
+    assert detail["args_hash"] == args_hash("issue_refund", approval["args"])
+    assert approval["binding_message"] == approval["preview"]
+
+
 def test_a_viewer_can_watch_a_run_but_not_approve_one() -> None:
     owner_headers = login()
     run_id = client.post("/runs", json={"ticket_reference": "NW-1"}, headers=owner_headers).json()[
