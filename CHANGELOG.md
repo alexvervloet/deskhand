@@ -50,6 +50,23 @@ one at a time.
   all. The deletion table was re-measured and has a sixth row.
 - **Fixed: a turn mixing an unknown tool with an irreversible one crashed after
   writing the approval.** [LESSONS 32](LESSONS.md).
+- **Sonnet 5.5 by default, at `medium` effort.** Same price as Sonnet 5. The
+  effort level follows Sonnet 5.5's guidance for multistep tool use and is
+  unmeasured here; sweep it before trusting it. The request sends neither of
+  the two things Sonnet 5.5 rejects (`thinking: disabled`, forced
+  `tool_choice`), and a test pins that.
+- **Refusal fallbacks.** Requests to Sonnet 5.5, Opus 5.5, Opus 5 and Fable 5.1
+  carry `fallbacks: "default"`. Each model turn's step records the model that
+  served it and, after a fallback, the one that declined, and the turn is
+  priced at the serving model. The `fallback` marker block is dropped before
+  storage because the SDK would echo its `from` field back as `from_`.
+  **Not yet verified against the live API**: this environment had no key. The
+  request shape follows the docs and is pinned by tests against SDK-typed
+  responses, and LESSONS 24 is the reason to run
+  `python -m evals.live --smoke --models service` before deploying it.
+- **Prices for Sonnet 5.5, Opus 5.5 and Fable 5.1.** Cache reads can now be
+  priced as published rather than as a tenth of input, which overstated Opus
+  5.5's by 2x and Fable 5.1's by 4x.
 
 ## Fuzzing the concurrency claim
 
