@@ -78,6 +78,11 @@ one at a time.
   CIBA `binding_message`. The README maps deskhand's approval fields onto RAR
   and CIBA. Nothing internal reads the new fields; a test checks the hash
   matches what the runtime computes.
+- **A note on DBOS.** [docs/DBOS.md](docs/DBOS.md) maps the runtime onto a
+  library that checkpoints to your own Postgres, the same place deskhand keeps
+  its state. Unrun and labelled as such. It names the two things to check
+  first: workflow determinism, and whether a checkpoint's serializer keeps the
+  model's words as written.
 - **Prices for Sonnet 5.5, Opus 5.5 and Fable 5.1.** Cache reads can now be
   priced as published rather than as a tenth of input, which overstated Opus
   5.5's by 2x and Fable 5.1's by 4x.
