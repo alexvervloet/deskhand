@@ -10,8 +10,8 @@ version of it. The claim worth defending is a refinement property:
 "Identical" needs saying precisely, because two runs of the same trajectory
 differ in ways that are correct and expected — different run ids, different
 timestamps, a higher `attempt`, and a `replayed` flag that is *supposed* to be
-true on the second pass over a step. So there are two fingerprints and each one
-names exactly what it excludes.
+true on the second pass over a step. So there are three fingerprints and each
+one names exactly what it excludes.
 
 Neither hashes anything. They return sorted tuples, so a mismatch shows what
 differed rather than that two hex strings are not equal — which is the whole
@@ -20,10 +20,12 @@ value of the fingerprint when a property test hands you a failing schedule.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
 from deskhand.db import fetch_all
+from deskhand.runtime.transcript import fence_token
 
 # Step content keys that legitimately differ between two runs of the same
 # trajectory. `replayed` is the interesting one: it is the flag the idempotency
@@ -114,6 +116,33 @@ def trajectory(run_id: str) -> tuple[Any, ...]:
             tuple((s["seq"], s["kind"], s["tool_name"], _stable(s["content"])) for s in steps),
         ),
         ("invocations", tuple(tuple(sorted(_stable(i).items())) for i in invocations)),
+    )
+
+
+def conversation(requests: list[Any], run_id: str) -> tuple[Any, ...]:
+    """Every messages array the model was sent, as text, in order.
+
+    The third claim, and the one the model itself would notice: a crash should
+    leave no trace in *what the model was told*. The trajectory fingerprint
+    cannot say this, because it sorts keys to compare rows, and key order is
+    exactly what a lossy round trip through storage changes. So this one is
+    serialised without sorting and compared as strings.
+
+    Excluded: the run's fence token, which is derived from the run id, and the
+    same ids and timestamps `trajectory()` masks.
+    """
+    token = fence_token(run_id)
+    return (
+        (
+            "requests",
+            tuple(
+                _STAMP.sub(
+                    "<when>",
+                    _UUID.sub("<id>", json.dumps(r, ensure_ascii=False).replace(token, "<fence>")),
+                )
+                for r in requests
+            ),
+        ),
     )
 
 
