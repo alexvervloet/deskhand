@@ -531,11 +531,11 @@ against the only payload its author had imagined. It passed for months. See
 is evidence somebody tried, and it belongs in the transcript, the run viewer, and
 the replay.
 
-**Watch for, most of all.** Delete the fence entirely and 33 of 36 evals still
+**Watch for, most of all.** Delete the fence entirely and 34 of 37 evals still
 pass. Do that one yourself if you do nothing else here, because it's the
 uncomfortable consequence of defence in depth: removing a redundant layer
 changes almost nothing you can observe. Delete the
-approval gate instead and 16 of 36 fail. Only the load-bearing layer is loud.
+approval gate instead and 16 of 37 fail. Only the load-bearing layer is loud.
 
 **Then open NW-5.** It gives no orders. Lena says the Colombia was listed at $14
 a bag, she was charged $22 each, and she'd like $16.00 back. None of that is
@@ -826,7 +826,7 @@ than half-applied.
 
 ```bash
 python -m pytest -q
-python -m evals.run                 # all 36
+python -m evals.run                 # all 37
 python -m evals.run consent         # one invariant
 ```
 
@@ -876,8 +876,8 @@ that make the point concrete.
 
 ## Part five. Break it yourself
 
-Everything above is a claim. Here's how to check six of them, at about five
-minutes each. On a clean checkout the suite passes 36 of 36:
+Everything above is a claim. Here's how to check seven of them, at about five
+minutes each. On a clean checkout the suite passes 37 of 37:
 
 ```bash
 docker compose up -d db && python -m deskhand.migrate
@@ -888,12 +888,13 @@ Each change below is one line, and `git checkout <file>` puts it back.
 
 | Delete | In | Evals that fail |
 |---|---|---|
-| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 16 of 36 |
-| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 36 |
-| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 36 |
-| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 36 |
-| The order a compensation applies inverses in | [runtime/compensation.py](../deskhand/runtime/compensation.py) | 2 of 36 |
-| The per-call rules | [runtime/policy.py](../deskhand/runtime/policy.py) | 2 of 36 |
+| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 16 of 37 |
+| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 37 |
+| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 37 |
+| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 37 |
+| The order a compensation applies inverses in | [runtime/compensation.py](../deskhand/runtime/compensation.py) | 2 of 37 |
+| The per-call rules | [runtime/policy.py](../deskhand/runtime/policy.py) | 2 of 37 |
+| The notice before a ceiling | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 37 |
 
 Write your prediction down before you run each one. The gap between the guess
 and the result is the part worth having.
@@ -934,7 +935,7 @@ Last line of `quarantine()`, return `cleaned` instead of wrapping it in the
 delimiters. Tool output now reaches the model with nothing marking where a
 customer's words stop and the runtime's own begin.
 
-Three failures out of thirty-six, and not one of them is an injection eval.
+Three failures out of thirty-seven, and not one of them is an injection eval.
 `every-tool-result-is-fenced`, `the-opening-prompt-quotes-no-customer-text` and
 the last line of `garbage-does-not-derail-the-run` assert that the mechanism is
 *present*. Every eval that asserts an *outcome* still passes.
@@ -1042,7 +1043,7 @@ in front of them a second time. Nothing else notices, because while the gate is
 there, the injection rule only ever agrees with it about money.
 
 Put stops 21 and 26 side by side. Delete either layer and money still doesn't
-move on an injected instruction. Delete both and it does: 19 of 36 fail, and
+move on an injected instruction. Delete both and it does: 19 of 37 fail, and
 both injection evals are among them. That's what two
 independent layers look like, and it's why the rule asks about irreversible
 calls even though the floor already does.
@@ -1054,6 +1055,35 @@ the only reason the injection rule is allowed to be a crude text match. If a
 rule could say "this one's fine", a ticket could learn to make it say so. A
 rule that can only tighten can afford to be wrong, because being wrong costs a
 person a click.
+
+### 27. Stop telling the run
+
+In `_closing_in()`, return `None` before it does anything. The ceilings are
+untouched, so every run still stops exactly where it did.
+
+One failure: `a-run-near-its-cap-is-told-in-time-to-finish`. Its scripted model
+searches the knowledge base forever unless it's told the cap is close, and then
+writes its summary. Untold, it hits the step cap mid-search and the run ends
+`exhausted`, with no summary for whoever opens the ticket next.
+
+That's stop 24's point from the other side. A bound that stops a run without
+explaining itself throws away what went wrong. A bound the run can't see
+coming throws away what went right, because the work done before the cap has
+no account written of it.
+
+**Watch for.** The notice talks in turns, not steps. The first version said
+"stopped after 5 more steps", and the trajectory showed six: the cap is checked
+before a model call, and that call's tool results still land after it. The
+model can't see steps anyway. It can count its own turns, and with a 12-step
+cap and the notice at seq 7 it got exactly the three the notice promised. A
+test asserts that.
+
+**Watch for.** This is where an API task budget would go, and it isn't here on
+purpose. A task budget counts the model's output and the tool results it reads,
+with a 20,000-token floor. The largest run recorded in
+[evals/live-results.json](../evals/live-results.json) produced 1,921 output
+tokens, so a budget at the floor would never bind. The cap that does bind is
+the step count, and one recorded run used 23 of its 24.
 
 ## What this tour doesn't show you
 
