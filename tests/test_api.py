@@ -120,7 +120,7 @@ def test_a_merchant_sees_only_its_own_tickets() -> None:
     northwind = client.get("/tickets", headers=login()).json()
     lumen = client.get("/tickets", headers=login(OTHER_ORG)).json()
 
-    assert {t["reference"] for t in northwind} == {"NW-1", "NW-2", "NW-3", "NW-4"}
+    assert {t["reference"] for t in northwind} == {"NW-1", "NW-2", "NW-3", "NW-4", "NW-5"}
     assert {t["reference"] for t in lumen} == {"LU-1", "LU-2"}
 
 
