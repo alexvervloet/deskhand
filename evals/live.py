@@ -1,6 +1,7 @@
 """The same runtime, a real model, k times.
 
     python -m evals.live --smoke                  # one call per provider, ~$0.001
+    python -m evals.live --smoke --models service # the deployed model's request shape
     python -m evals.live --models claude,openai -k 3
     python -m evals.live --report evals/live-results.json
 
@@ -385,6 +386,10 @@ def print_report(samples: list[Sample]) -> None:
 PROVIDERS: dict[str, Callable[[], Provider]] = {
     "claude": lambda: ClaudeProvider(model=settings.live_claude_model),
     "openai": lambda: OpenAIProvider(model=settings.openai_model_id),
+    # The model the service itself is configured with, which is not the one the
+    # comparison uses. `--smoke --models service` checks the request shape the
+    # deployed app actually sends, fallbacks included.
+    "service": lambda: ClaudeProvider(),
 }
 
 
