@@ -4,6 +4,25 @@ Notable changes, newest first. This is a portfolio project rather than a
 released library, so entries are grouped by the milestone that produced them
 rather than by version number.
 
+## Catching up with October 2026
+
+Things the field or the API changed while the project sat idle, worked through
+one at a time.
+
+- **Fixed: the step log rewrote what the model said.** `steps.content` was
+  `jsonb`, which sorts object keys, so every rebuilt assistant turn put the
+  model's tool arguments in a different order from the one it wrote. Current
+  models bind thinking blocks to the exact prefix that produced them, so that
+  matters now. The column is `json` (migration 0009), and four statements that
+  used jsonb operators on it cast explicitly. [LESSONS 29](LESSONS.md).
+- **A third fingerprint: the conversation.** Every request the model receives
+  is the previous one plus its reply exactly as returned, and a crashed run
+  sends the same requests as a clean one. Checked under every schedule in the
+  crash-space search, and confirmed to fail on the old column type.
+- **Fixed: CI had been red on main since 2026-09-10.** Pyright rejected the
+  threaded cursor in the concurrency tests. Pytest never noticed.
+  [LESSONS 30](LESSONS.md).
+
 ## Fuzzing the concurrency claim
 
 Exactly-once was defended by two evals and three unit tests, every one of which
