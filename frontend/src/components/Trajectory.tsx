@@ -93,6 +93,8 @@ function label(step: Step): string {
       return `approval ${text(step.content.decision)}`;
     case "final":
       return "final";
+    case "notice":
+      return "runtime notice";
     default:
       return step.kind;
   }
@@ -153,6 +155,12 @@ function body(step: Step) {
         {step.content.reason ? ` — ${text(step.content.reason)}` : ""}
       </p>
     );
+  }
+
+  // The runtime telling the model a ceiling is close. Written by loop.py, not
+  // by the model or a tool, so it reads as narration rather than a call.
+  if (step.kind === "notice") {
+    return <p className="notice">{text(step.content.text)}</p>;
   }
 
   if (step.kind === "final") {
