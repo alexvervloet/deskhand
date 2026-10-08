@@ -70,6 +70,13 @@ export type ReplayBlock = {
 
 export type ReplayMessage = { role: string; content: string | ReplayBlock[] };
 
+// What the system of record says about one argument. See deskhand/tools/base.py.
+export type Basis = {
+  arg: string;
+  status: "supported" | "unsupported" | "unchecked";
+  note: string;
+};
+
 export type Approval = {
   id: string;
   run_id: string;
@@ -77,6 +84,7 @@ export type Approval = {
   tool_name: string;
   preview: string;
   args: Record<string, unknown>;
+  basis: Basis[];
   status: string;
   reason: string | null;
   created_at: string;
