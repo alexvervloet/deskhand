@@ -64,6 +64,15 @@ one at a time.
   request shape follows the docs and is pinned by tests against SDK-typed
   responses, and LESSONS 24 is the reason to run
   `python -m evals.live --smoke --models service` before deploying it.
+- **A run is told before a ceiling stops it.** Once per run, close to the step
+  cap, the deadline or the spend cap, the runtime writes a `notice` step
+  (migration 0012). The rebuild shows it after that turn's tool results, and it
+  says how many turns are left. The ceilings are exactly as hard as before. A
+  new eval shows a listening model finishing with a summary instead of ending
+  `exhausted`; 37 in all, and the deletion table has a seventh row.
+- **Not added: the API's task budget.** It counts output and tool results with
+  a 20,000-token floor, and no recorded run came within a tenth of that.
+  [LESSONS 33](LESSONS.md).
 - **Prices for Sonnet 5.5, Opus 5.5 and Fable 5.1.** Cache reads can now be
   priced as published rather than as a tenth of input, which overstated Opus
   5.5's by 2x and Fable 5.1's by 4x.
