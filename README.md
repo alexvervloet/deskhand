@@ -142,6 +142,28 @@ an independent layer rather than a decoration: delete the approval gate and
 both injection evals still pass. Delete the gate and the rules together and
 they fail.
 
+## The approval has a standard name now
+
+Agent authorization caught up with this design while the project sat idle.
+OAuth's answer to "a person consents to one specific action" is a Rich
+Authorization Request ([RFC 9396](https://www.rfc-editor.org/rfc/rfc9396)),
+and its answer to "ask someone on another device while the agent waits" is
+CIBA. Deskhand arrived at both from the other end, so each approval is now also
+served in their shapes:
+
+| Deskhand | OAuth |
+|---|---|
+| `args_hash`, refused on any mismatch | an `authorization_details` entry of type `urn:deskhand:tool-call`, carrying `arguments` and `args_hash` |
+| `preview`, the sentence being approved | CIBA's `binding_message` |
+| `expires_at`, and `approval_expired` as its own stop reason | the CIBA request's `expires_in` |
+| the Python worker polling for a decision | CIBA poll mode |
+| the Trigger.dev port's waitpoint token | CIBA ping and push modes: the decision has an address |
+
+Deskhand isn't an authorization server and this doesn't make it one. What it
+means is that a real one could carry the approval unchanged and be approving
+the same bytes the worker refuses to run without. A test checks that the
+served hash is the one the runtime computes.
+
 ## What the loop actually does
 
 Nothing about a run's position lives in a variable. Every iteration re-derives
