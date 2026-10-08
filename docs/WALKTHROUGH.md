@@ -349,6 +349,13 @@ grant's visible consequence is the tool call that follows. This is why
 and why a run whose most consequential moment was a person clicking Approve would
 otherwise read as if nobody had been involved.
 
+**Watch for.** `GET /approvals` also returns each approval as an RFC 9396
+`authorization_details` entry and a CIBA `binding_message`. Nothing in
+deskhand reads them. They're there so an OAuth authorization server could carry
+the same consent unchanged, and the entry includes `args_hash`, so whoever
+approves it there approves the same bytes the worker checks here. The README's
+table maps the rest.
+
 ### 10. Resuming
 
 The run is `queued` again. A worker claims it, `attempt` becomes 2, and
