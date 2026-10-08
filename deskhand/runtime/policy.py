@@ -91,8 +91,14 @@ def after_text_addressed_to_the_agent(
 
     Reads are left alone. The run has to keep reading to do its job, and an
     escalated read would stall it without protecting anything.
+
+    Irreversible calls are included even though the floor already asks about
+    them, so while the registry is intact this changes nothing for them. It
+    makes the rule an independent layer rather than a decoration on the gate:
+    delete the gate and an injected instruction still can't move money,
+    because this rule asks about the refund on its own.
     """
-    if get(name).risk is not RiskClass.REVERSIBLE:
+    if get(name).risk is RiskClass.READ:
         return None
     cur.execute(
         "select content->>'result' as result from steps where run_id = %s and kind = 'tool_result'",
