@@ -548,7 +548,9 @@ The win isn't less code, it's a class of bug that is now unavailable. The
 idempotency ledger and the argument-hash binding on consent both stayed, and
 the second one got *more* load-bearing, because a platform that retries from
 the top can resume a diverged trajectory on an approval a human gave for a
-different amount.
+different amount. [docs/DBOS.md](docs/DBOS.md) is a shorter, unrun note on the
+library that keeps the same state in your own Postgres, and on the two things
+I'd check before trusting it.
 
 Compensation is deliberately *not* ported, and that's the cleaner half of the
 result. It has no wait to be suspended across — every item is one transaction,
