@@ -896,6 +896,7 @@ def _approval_view(row: dict[str, Any]) -> dict[str, Any]:
         "preview": row["preview"],
         "args": row["args"],
         "basis": row.get("basis") or [],
+        "asked_because": row.get("asked_because"),
         "status": row["status"],
         "reason": row["reason"],
         "created_at": row["created_at"],

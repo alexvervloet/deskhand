@@ -133,6 +133,9 @@ class ApprovalView(BaseModel):
     # approval was requested. A hash proves the call is the one shown; this is
     # what says whether the values in it are true.
     basis: list[BasisView]
+    # Null when the tool is irreversible. Otherwise the policy rule that sent
+    # this call to a person, in one sentence.
+    asked_because: str | None = None
     status: str
     reason: str | None
     created_at: datetime
