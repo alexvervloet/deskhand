@@ -33,6 +33,7 @@ import pytest
 from hypothesis import HealthCheck, given
 from hypothesis import settings as hyp_settings
 from hypothesis import strategies as st
+from psycopg.rows import dict_row
 
 from deskhand.config import settings
 from deskhand.db import connection, fetch_all, fetch_one
@@ -433,10 +434,8 @@ def test_the_ledger_is_what_catches_a_real_race() -> None:
     def attempt() -> None:
         result: Any
         try:
-            with psycopg.Connection.connect(
-                settings.database_url, row_factory=psycopg.rows.dict_row
-            ) as conn:
-                with conn.cursor() as cur:
+            with psycopg.connect(settings.database_url) as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
                     barrier.wait(timeout=10)
                     result = invoke(
                         cur,
