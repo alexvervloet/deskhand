@@ -328,9 +328,11 @@ export async function advance(
           args,
         });
         await db.query(
-          `update steps set content = content
+          // json, not jsonb, since migration 0009: see the same statement in
+          // deskhand/runtime/loop.py for why the round trip here is harmless.
+          `update steps set content = (content::jsonb
                || jsonb_build_object('result', $1::text, 'ok', $2::boolean,
-                                     'replayed', $3::boolean),
+                                     'replayed', $3::boolean))::json,
                             latency_ms = $4
             where id = $5`,
           [result.result, result.ok, result.replayed, result.durationMs, stepId],

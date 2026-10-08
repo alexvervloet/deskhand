@@ -532,10 +532,15 @@ def _settle(
             args=args,
         )
 
+        # `content` is json, not jsonb, so model output keeps its key order
+        # (migration 0009). Merging needs jsonb's `||`, and the round trip
+        # reorders this row's keys, which is harmless: a tool_result's content
+        # is never echoed to the model as stored; `transcript.rebuild` builds
+        # the block it sends from named fields.
         cur.execute(
-            "update steps set content = content"
+            "update steps set content = (content::jsonb"
             "   || jsonb_build_object('result', %s::text, 'ok', %s::boolean,"
-            "                         'replayed', %s::boolean),"
+            "                         'replayed', %s::boolean))::json,"
             "                latency_ms = %s"
             " where id = %s",
             (result.result, result.ok, result.replayed, result.duration_ms, step_id),

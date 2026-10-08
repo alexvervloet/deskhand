@@ -271,8 +271,8 @@ def test_consent_is_bound_to_the_exact_arguments() -> None:
     # far more money than the human ever saw.
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "update steps set content = jsonb_set(content,"
-            "  '{blocks,0,input,amount_cents}', '4800'::jsonb)"
+            "update steps set content = jsonb_set(content::jsonb,"
+            "  '{blocks,0,input,amount_cents}', '4800'::jsonb)::json"
             " where run_id = %s and kind = 'model_call'",
             (run_id,),
         )
