@@ -101,13 +101,7 @@ the version of the attack that leaves every defence above intact.
 So the approval card now says what the system of record thinks of each argument
 before anyone clicks:
 
-```
-order_reference  NW-1123   on record      Lena Okafor's order, the customer on this ticket
-amount_cents     1600      not on record  no whole number of this order's items adds up
-                                          to 16.00 USD. The order is 2 × BEAN-COL-12 at
-                                          18.00 USD, 1 × SHIP-STD at 10.00 USD
-reason           ...       not checked    not checked against any record
-```
+![The approval card for NW-5, with the amount marked not on record](demo/false-fact.png)
 
 The checks are database queries, never readings of tool output, so nothing a
 ticket says can change them. The same check catches a refund against an order
