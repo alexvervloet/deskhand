@@ -73,6 +73,11 @@ one at a time.
 - **Not added: the API's task budget.** It counts output and tool results with
   a 20,000-token floor, and no recorded run came within a tenth of that.
   [LESSONS 33](LESSONS.md).
+- **Approvals in OAuth's shapes.** Each approval is also served as an RFC 9396
+  `authorization_details` entry, carrying the arguments and `args_hash`, and a
+  CIBA `binding_message`. The README maps deskhand's approval fields onto RAR
+  and CIBA. Nothing internal reads the new fields; a test checks the hash
+  matches what the runtime computes.
 - **Prices for Sonnet 5.5, Opus 5.5 and Fable 5.1.** Cache reads can now be
   priced as published rather than as a tenth of input, which overstated Opus
   5.5's by 2x and Fable 5.1's by 4x.
