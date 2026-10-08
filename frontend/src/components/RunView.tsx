@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, streamRun, type Approval, type RunDetail, type Step, type User } from "../api";
+import {
+  api,
+  streamRun,
+  type Approval,
+  type Basis,
+  type RunDetail,
+  type Step,
+  type User,
+} from "../api";
 import CompensationPanel from "./Compensation";
 import Trajectory from "./Trajectory";
 
@@ -151,6 +159,12 @@ function Bound({ label, value }: { label: string; value: string }) {
   );
 }
 
+const BASIS_LABEL: Record<Basis["status"], string> = {
+  supported: "on record",
+  unsupported: "not on record",
+  unchecked: "not checked",
+};
+
 function ApprovalCard({
   approval,
   user,
@@ -190,12 +204,23 @@ function ApprovalCard({
           person would be consenting to without reading it — which is how a
           subject line came to stand in for the body of an email. */}
       <dl className="args">
-        {Object.entries(approval.args).map(([name, value]) => (
-          <div key={name}>
-            <dt>{name}</dt>
-            <dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd>
-          </div>
-        ))}
+        {Object.entries(approval.args).map(([name, value]) => {
+          const check = approval.basis.find((b) => b.arg === name);
+          return (
+            <div key={name}>
+              <dt>{name}</dt>
+              <dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd>
+              {/* What the record says about this value. The hash proves the
+                  call is the one shown; this is what says whether it's true.
+                  Outside the dd so a long email body can't scroll it away. */}
+              {check && (
+                <div className={`basis ${check.status}`}>
+                  <span className="label">{BASIS_LABEL[check.status]}</span> {check.note}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </dl>
       <div className="tool">
         {approval.tool_name} · irreversible · expires{" "}
