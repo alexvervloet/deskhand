@@ -1393,3 +1393,33 @@ time the project sat idle.
 **Next time.** Read the CI status before writing a sentence about it, and look
 at it again on the last push before walking away. A local run of pytest is not
 CI, because CI also runs the four checkers that pytest doesn't.
+
+## 31. The same sort, one table over, found by a browser
+
+**Expected.** Adding per-argument checks to the approval card was a backend
+change with a thin UI on top. Ten unit tests and two evals pinned what the card
+says, and they all passed.
+
+**What happened.** The screenshot listed the arguments backwards: `reason`,
+`amount_cents`, `order_reference`. `approvals.args` is `jsonb`, the same type
+[entry 29](#29-the-column-type-was-rewriting-what-the-model-said) had just
+taken out of `steps`, and the card iterates it. It had been sorting every
+approval's arguments by key length since the gate was built. Nobody noticed,
+because three arguments in any order look plausible.
+
+The fix was to order the card by the checks, which are stored in the order the
+model wrote. I left the column alone, because `args` is compared by hash and
+never sent back to a model, so its key order matters only on screen.
+
+Building the checks found a second gap. `issue_refund` scoped its order lookup
+to the merchant and not to the ticket's customer. Read tools refuse to answer
+about other customers, and `a-ticket-cannot-pivot-to-another-customer` pins
+that, but the refund relied on the person approving it to notice that "against order NW-1101"
+was someone else's. Now the card says so. I chose to flag it rather than
+refuse it, because refunding a gift order is a real thing a support desk does.
+
+**Next time.** After the jsonb finding I grepped for jsonb operators. I should
+have grepped for jsonb columns whose key order reaches a reader, which is the
+property that actually mattered. And this is entry 4 again: three suites green
+and the screen wrong. The capture script exists so a person looks at the
+screen, and it should run as part of every UI change, not just README updates.
