@@ -97,7 +97,9 @@ def rebuild(
     makes "what did the model see when it decided to refund?" a question with
     one reproducible answer, months later. See deskhand/replay.py.
 
-    **`prompt` is the one message here that is not fenced**, which is only safe
+    **`prompt` is the one message here that is not fenced** apart from a
+    runtime notice, whose text is written in loop.py and quotes nothing. That
+    is only safe
     because of what `runs.create` is careful to put in it: the ticket's
     reference and nothing else the ticket contains. Every other byte in this
     array either came from the model or went through `quarantine`. If a future
@@ -158,6 +160,13 @@ def rebuild(
                         "is_error": True,
                     }
                 )
+
+        elif kind == "notice":
+            # The runtime speaking, not a tool and not a customer. It follows
+            # the turn's tool results in the same user message, because a
+            # tool_result has to come first there, and it is not fenced: every
+            # byte of it is a constant in loop.py plus a number.
+            pending.append({"type": "text", "text": content["text"]})
 
         # 'final' and 'error' steps close a run; nothing follows them, so they
         # contribute no message.

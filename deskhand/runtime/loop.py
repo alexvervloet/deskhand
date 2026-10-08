@@ -139,6 +139,72 @@ def _bound_exceeded(cur: psycopg.Cursor[DictRow], run: dict[str, Any]) -> tuple[
     return None
 
 
+# How close to a ceiling a run gets before it is told. Counted in turns, which
+# the model can count, rather than steps, which it can't see.
+NOTICE_TURNS = 3
+NOTICE_SECONDS = 120
+
+
+def _closing_in(cur: psycopg.Cursor[DictRow], run: dict[str, Any]) -> str | None:
+    """What the run should hear before a ceiling stops it, once, or None.
+
+    The ceilings are enforced in `_bound_exceeded` and stay exactly as hard as
+    they were. This only makes the closest one visible in time to finish: a
+    run that reaches its step cap mid-task ends with no summary, which leaves
+    the next person on the ticket a stop reason instead of an account of what
+    happened.
+
+    Written as a step, so it is said once and replayed in the same place on
+    every rebuild. The steps notice is deterministic; the deadline and spend
+    notices depend on the clock and the bill, which is fine because the step
+    records what was decided.
+
+    This is deskhand's version of a task budget. The API's own task budget
+    counts output and tool results against a 20,000-token floor, and the
+    largest run in evals/live-results.json produced 1,921 output tokens, so it
+    would never bind here. What does bind is the step cap: one live run used 23
+    of its 24.
+    """
+    run_id = run["id"]
+    cur.execute(
+        "select coalesce(max(seq), 0) as seq, bool_or(kind = 'notice') as told"
+        "  from steps where run_id = %s",
+        (run_id,),
+    )
+    row = cur.fetchone()
+    assert row is not None
+    if row["told"]:
+        return None
+
+    finish = (
+        " Finish what you can without starting anything that needs a person's"
+        " approval, and end with your summary for whoever handles this ticket next."
+    )
+
+    # Turns left if each calls one tool: a model call and its result are two
+    # steps, the cap is checked before a call, and the notice is about to take
+    # the next seq. Measured, not derived: with a 12-step cap and the notice at
+    # seq 7, the model got calls at 8, 10 and 12.
+    turns = (run["max_steps"] - int(row["seq"])) // 2
+    if turns <= NOTICE_TURNS:
+        return f"Runtime notice: this run will be stopped after about {turns} more turns." + finish
+
+    cur.execute("select extract(epoch from (%s - now()))::int as left_s", (run["deadline_at"],))
+    left = cur.fetchone()
+    assert left is not None
+    if left["left_s"] is not None and left["left_s"] <= NOTICE_SECONDS:
+        return (
+            f"Runtime notice: this run will be stopped in about {max(left['left_s'], 0)}"
+            " seconds." + finish
+        )
+
+    # Integer comparisons, like the caps themselves: four fifths used.
+    if run["cost_micros"] * 5 >= run["max_spend_micros"] * 4:
+        return "Runtime notice: this run has used most of its spending limit." + finish
+
+    return None
+
+
 def _looping(cur: psycopg.Cursor[DictRow], run_id: str) -> str | None:
     """Has the agent made the identical call too many times?
 
@@ -244,6 +310,16 @@ def advance(
                 _end(cur, run, status="exhausted", reason=runs.STOP_LOOP, detail=loop_detail)
                 conn.commit()
                 return "exhausted"
+
+            notice = _closing_in(cur, run)
+            if notice is not None:
+                runs.append_step(
+                    cur,
+                    run_id=run_id,
+                    seq=runs.next_seq(cur, run_id),
+                    kind="notice",
+                    content={"text": notice},
+                )
 
             messages = transcript.rebuild(cur, run_id, run["prompt"])
             conn.commit()
