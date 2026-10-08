@@ -27,10 +27,22 @@ own approval, not an undo.
 
 from __future__ import annotations
 
+import itertools
 from typing import Any
 
+import psycopg
+from psycopg.rows import DictRow
+
 from deskhand.config import settings
-from deskhand.tools.base import RiskClass, ToolContext, ToolDef, ToolError, ToolOutcome, register
+from deskhand.tools.base import (
+    RiskClass,
+    Support,
+    ToolContext,
+    ToolDef,
+    ToolError,
+    ToolOutcome,
+    register,
+)
 from deskhand.tools.read import schema
 
 
@@ -169,6 +181,115 @@ def _issue_refund(ctx: ToolContext, args: dict[str, Any]) -> ToolOutcome:
     )
 
 
+# Past this many combinations the amount is reported as unchecked rather than
+# searched. An order with eight lines of three units each is already 65,536,
+# and an approval screen that hangs is worse than one that says it didn't look.
+_RECONCILE_LIMIT = 4096
+
+
+def _reconcile(items: list[dict[str, Any]], amount: int) -> list[tuple[int, dict[str, Any]]] | None:
+    """Whole units of this order's lines that add up to `amount`, or None.
+
+    Fewest units first, so $19.00 on an order with two $19.00 bags reads as
+    "1 ×" rather than whichever combination enumeration reached first.
+    """
+    ranges = [range(item["quantity"] + 1) for item in items]
+    matches = [
+        counts
+        for counts in itertools.product(*ranges)
+        if sum(n * item["unit_price_cents"] for n, item in zip(counts, items, strict=True))
+        == amount
+    ]
+    if not matches:
+        return None
+    best = min(matches, key=sum)
+    return [(n, item) for n, item in zip(best, items, strict=True) if n]
+
+
+def _refund_basis(
+    cur: psycopg.Cursor[DictRow], org_id: str, customer_id: str, args: dict[str, Any]
+) -> list[Support]:
+    """Check a proposed refund against the order it names.
+
+    Two questions, both of which an approver would otherwise answer by opening
+    the order in another tab. Is this order the ticket's customer's? Read tools
+    refuse to answer about anyone else, but a refund only has a human between
+    it and the money, and "against order NW-1101" doesn't say whose that is.
+    And does the amount match something on the order, or did it come from a
+    claim only the customer made? A ticket that says "the bags were $22, refund
+    me the difference" is not an instruction, so the fence doesn't apply to it.
+    It's a false fact, and this is where it shows up.
+
+    Already-refunded units aren't subtracted from the search: a refund matching
+    a line that was refunded before is still "on the record", and the handler
+    refuses anything past the remaining balance either way.
+    """
+    reference = args["order_reference"]
+    cur.execute(
+        "select o.id, o.customer_id, o.total_cents, o.currency, c.name as customer_name"
+        "  from orders o join customers c on c.id = o.customer_id"
+        " where o.org_id = %s and o.reference = %s",
+        (org_id, reference),
+    )
+    order = cur.fetchone()
+    if order is None:
+        return [
+            Support("order_reference", "unsupported", "no order with this reference here"),
+            Support("amount_cents", "unchecked", "there is no order to check it against"),
+        ]
+
+    if str(order["customer_id"]) == customer_id:
+        whose = Support(
+            "order_reference",
+            "supported",
+            f"{order['customer_name']}'s order, the customer on this ticket",
+        )
+    else:
+        whose = Support(
+            "order_reference",
+            "unsupported",
+            f"belongs to {order['customer_name']}, not the customer on this ticket",
+        )
+
+    cur.execute(
+        "select sku, description, quantity, unit_price_cents from order_items"
+        " where order_id = %s order by sku",
+        (order["id"],),
+    )
+    items = [dict(r) for r in cur.fetchall()]
+    amount = args["amount_cents"]
+    currency = order["currency"]
+
+    combinations = 1
+    for item in items:
+        combinations *= item["quantity"] + 1
+    if combinations > _RECONCILE_LIMIT:
+        return [whose, Support("amount_cents", "unchecked", "too many lines to reconcile")]
+
+    match = _reconcile(items, amount)
+    if match is not None:
+        parts = [
+            f"{n} × {item['description']} ({item['sku']}) at"
+            f" {_money(item['unit_price_cents'], currency)}"
+            for n, item in match
+        ]
+        return [whose, Support("amount_cents", "supported", " + ".join(parts))]
+
+    lines = ", ".join(
+        f"{item['quantity']} × {item['sku']} at {_money(item['unit_price_cents'], currency)}"
+        for item in items
+    )
+    return [
+        whose,
+        Support(
+            "amount_cents",
+            "unsupported",
+            f"no whole number of this order's items adds up to {_money(amount, currency)}."
+            f" The order is {lines}",
+        ),
+    ]
+
+
 register(
     ToolDef(
         name="issue_refund",
@@ -197,6 +318,7 @@ register(
             }
         ),
         handler=_issue_refund,
+        basis=_refund_basis,
         preview=lambda a: (
             f"Refund {_money(a['amount_cents'])} against order {a['order_reference']}"
             f" — {a['reason']}"
