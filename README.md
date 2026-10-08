@@ -124,7 +124,7 @@ judgement and drops the permissive half. A call's ruling is the strictest of
 the registry's floor and every rule, over `RUN < ASK < DENY`, and a test checks
 that for every tool against every verdict. Two rules ship:
 
-- **After a run reads text addressed to the agent**, a `SYSTEM:` line or a
+- **After a run reads text addressed to the agent**, like a `SYSTEM:` line or a
   forged fence marker, every write it makes waits for a person. That covers
   reversible ones like closing the ticket, which used to run freely after an
   injection. Reversible means a compensation can put the value back, not that
