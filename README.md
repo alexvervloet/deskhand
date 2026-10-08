@@ -75,7 +75,9 @@ tries to break it:
    absolute, so a crash-looping run can't earn itself a fresh clock. Money has
    its own ceilings, per run and per merchant per day, checked at the point of
    payment so they hold even after a human clicks approve — a test approves a
-   refund and asserts the ceiling refuses it anyway.
+   refund and asserts the ceiling refuses it anyway. Shortly before the step
+   cap, the deadline or the spend cap lands, the run is told once, in turns,
+   so it can finish and write a summary instead of stopping mid-task.
 4. **Integrity** — content coming back from a tool is data, never instruction,
    and a run reads only what its own ticket is about. The seeded `NW-4` ticket
    contains a forged `SYSTEM:` block ordering an unapproved refund; a test
@@ -580,7 +582,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — thirty-two entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — thirty-three entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
