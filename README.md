@@ -111,6 +111,35 @@ be: once one model has read the ticket, nobody can say which of its outputs came
 from where. Whether the record agrees is a question that has an answer. Two evals
 pin it, and both fail when the check is removed.
 
+## Rules that can only tighten
+
+Hosted agent platforms now offer an `auto` permission mode, where something
+evaluates each tool call in context and runs it, denies it, or pauses for a
+person. Pointed at an agent that reads customer tickets, that evaluator is one
+more thing a ticket can talk to. If it's allowed to say "this one's fine", a
+persuasive enough ticket gets it to say so.
+
+[deskhand/runtime/policy.py](deskhand/runtime/policy.py) keeps the per-call
+judgement and drops the permissive half. A call's ruling is the strictest of
+the registry's floor and every rule, over `RUN < ASK < DENY`, and a test checks
+that for every tool against every verdict. Two rules ship:
+
+- **After a run reads text addressed to the agent**, a `SYSTEM:` line or a
+  forged fence marker, every write it makes waits for a person. That covers
+  reversible ones like closing the ticket, which used to run freely after an
+  injection. Reversible means a compensation can put the value back, not that
+  nobody saw the ticket leave the queue.
+- **A call identical to one a person already declined** is refused without
+  asking them again. Models retry after a denial, and asking twice is how a
+  gate becomes something people click through.
+
+The first rule is a crude text match on purpose. Fooling it costs the attacker
+nothing and gains them nothing, because the most it can do is ask for more
+oversight. It also asks about refunds, which the floor already does, so it's
+an independent layer rather than a decoration: delete the approval gate and
+both injection evals still pass. Delete the gate and the rules together and
+they fail.
+
 ## What the loop actually does
 
 Nothing about a run's position lives in a variable. Every iteration re-derives
@@ -188,7 +217,7 @@ violation rather than a ticket that quietly gets un-tagged twice.
 
 ## Evals that assert on the path, not the answer
 
-`python -m evals.run` — 34 trajectory evals across the five invariants, wired
+`python -m evals.run` — 36 trajectory evals across the five invariants, wired
 as a required CI job. They drive the real loop, the real tools and a real
 Postgres; only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically.
@@ -205,7 +234,7 @@ error, crash, latency, garbage, and hostile text arriving through a tool
 result. It's off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
-**The gate has teeth.** Deliberately removing the approval check fails 17 of 34
+**The gate has teeth.** Deliberately removing the approval check fails 16 of 36
 evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
@@ -400,10 +429,10 @@ load-bearing parts, at the absences that are harder to spot, and at the places
 where the honest answer is "this is a demo and here is the seam". Those seams
 are collected in one list near the end rather than left for you to find.
 
-It ends with five one-line deletions to try yourself, each with the eval count
-it produces. Delete the fence around untrusted content and 31 of 34 evals still
+It ends with six one-line deletions to try yourself, each with the eval count
+it produces. Delete the fence around untrusted content and 33 of 36 evals still
 pass, which is the uncomfortable half of defence in depth. Delete the approval
-check instead and 17 of 34 fail. Only the load-bearing layer is loud. And
+check instead and 16 of 36 fail. Only the load-bearing layer is loud. And
 reverse one `order by` in the compensation planner and two evals go red without
 a single thing failing — every mechanism behaves, and the answer is wrong.
 
