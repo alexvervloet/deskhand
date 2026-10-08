@@ -165,6 +165,10 @@ const BASIS_LABEL: Record<Basis["status"], string> = {
   unchecked: "not checked",
 };
 
+function basisIndex(approval: Approval, arg: string): number {
+  return approval.basis.findIndex((b) => b.arg === arg);
+}
+
 function ApprovalCard({
   approval,
   user,
@@ -203,8 +207,12 @@ function ApprovalCard({
           summary by design, so anything shown only there is something a
           person would be consenting to without reading it — which is how a
           subject line came to stand in for the body of an email. */}
+      {/* In the order the model wrote them, which `basis` keeps and `args`
+          doesn't: args is jsonb, and jsonb sorts keys by length. */}
       <dl className="args">
-        {Object.entries(approval.args).map(([name, value]) => {
+        {Object.entries(approval.args)
+          .sort(([a], [b]) => basisIndex(approval, a) - basisIndex(approval, b))
+          .map(([name, value]) => {
           const check = approval.basis.find((b) => b.arg === name);
           return (
             <div key={name}>
