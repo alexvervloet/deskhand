@@ -544,6 +544,40 @@ def a_run_that_will_not_stop_is_stopped() -> None:
 
 @evaluates(
     "boundedness",
+    "a-run-near-its-cap-is-told-in-time-to-finish",
+    "the runtime says once that the step cap is close, and a model that listens ends with a summary",
+)
+def a_run_near_its_cap_is_told_in_time_to_finish() -> None:
+    # The same endless agent as above, except this one reads the runtime's
+    # notice and wraps up. The cap is untouched; the claim is that the run
+    # hears about it while there's still a turn left to write the summary the
+    # next person on the ticket needs. Whether a real model listens is a live
+    # measurement, not this one.
+    run_id = h.start("NW-2")
+    h.shrink(run_id, max_steps=12)
+
+    class Listens(ScriptedProvider):
+        def complete(self, system, messages, tools):
+            last = messages[-1]["content"]
+            told = isinstance(last, list) and any(
+                b.get("type") == "text" and "Runtime notice" in b.get("text", "") for b in last
+            )
+            if told:
+                self.script = [text("Searched the knowledge base; nothing urgent.")] * 50
+            else:
+                self.script = [[call("search_kb", query=f"variant {i}")] for i in range(50)]
+            return super().complete(system, messages, tools)
+
+    assert h.drive(run_id, Listens(script=[])) == "succeeded"
+    path = Trajectory.load(run_id)
+    notices = [s for s in path.steps if s["kind"] == "notice"]
+    assert len(notices) == 1, f"told {len(notices)} times"
+    assert path.stop_reason == runs.STOP_END_TURN
+    assert path.model_saw("Runtime notice"), "the notice never reached the model"
+
+
+@evaluates(
+    "boundedness",
     "the-deadline-does-not-reset",
     "a resumed run inherits its original deadline rather than a fresh clock",
 )
