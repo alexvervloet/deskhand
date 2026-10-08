@@ -192,6 +192,10 @@ def show(run_id: str) -> int:
                 + (f" — {content['reason']}" if content.get("reason") else "")
             )
 
+        elif kind == "notice":
+            print(f"{head}{DIM}runtime notice{RESET}")
+            print(f"       {DIM}{_oneline(content.get('text', ''))}{RESET}")
+
         elif kind == "final":
             print(f"{head}{GREEN}final{RESET}")
             print(f"       {_oneline(content.get('summary', ''))}")
