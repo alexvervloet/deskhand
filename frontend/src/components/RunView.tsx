@@ -230,8 +230,14 @@ function ApprovalCard({
           );
         })}
       </dl>
+      {/* A rule, not the registry, can send a reversible call here. Say which,
+          or the approver is left wondering why a status change needs them. */}
+      {approval.asked_because && (
+        <div className="asked">Asked because {approval.asked_because}.</div>
+      )}
       <div className="tool">
-        {approval.tool_name} · irreversible · expires{" "}
+        {approval.tool_name} · {approval.asked_because ? "reversible" : "irreversible"} ·
+        expires{" "}
         {new Date(approval.expires_at).toLocaleString()}
       </div>
 
