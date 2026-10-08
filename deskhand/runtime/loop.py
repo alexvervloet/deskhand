@@ -273,7 +273,15 @@ def _record_reply(
         run_id=run_id,
         seq=seq,
         kind="model_call",
-        content={"blocks": reply.content, "stop_reason": reply.stop_reason},
+        # Which model chose this turn's actions, per step rather than per run:
+        # a fallback can serve one turn on a different model from the rest,
+        # and "who decided to refund" has to name the one that did.
+        content={
+            "blocks": reply.content,
+            "stop_reason": reply.stop_reason,
+            "model": reply.model,
+            **({"fell_back_from": reply.fell_back_from} if reply.fell_back_from else {}),
+        },
         input_tokens=reply.input_tokens,
         output_tokens=reply.output_tokens,
         cost_micros=reply.cost_micros,
