@@ -941,7 +941,14 @@ def the_compensation_plan_ignores_what_the_ticket_says() -> None:
             [call("add_internal_note", reference=reference, body="Triaged.")],
             text("Done."),
         ]
-        assert h.drive(run_id, provider(script)) == "succeeded"
+        # On NW-4 each write waits for a person, because the run read text
+        # addressed to the agent (deskhand/runtime/policy.py). Approving adds
+        # no steps, so the two trajectories stay comparable.
+        outcome = h.drive(run_id, provider(script))
+        while outcome == "awaiting_approval":
+            h.decide(run_id, "approved")
+            outcome = h.drive(run_id, provider(script))
+        assert outcome == "succeeded", outcome
 
     def shape(plan: list[dict]) -> list[tuple]:
         return [(i["seq"], i["tool_name"], i["disposition"]) for i in plan]

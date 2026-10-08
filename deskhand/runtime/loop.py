@@ -27,14 +27,13 @@ from psycopg.rows import DictRow
 from deskhand import pricing, tracing
 from deskhand.config import settings
 from deskhand.providers import ModelReply, Provider
-from deskhand.runtime import approvals, runs, transcript
+from deskhand.runtime import approvals, policy, runs, transcript
 from deskhand.tools import (
     ToolError,
     api_schemas,
     args_hash,
     get,
     is_registered,
-    requires_approval,
 )
 from deskhand.tools.invoke import invoke
 
@@ -345,7 +344,11 @@ def _settle(
     """
     run_id = str(run["id"])
     org_id = str(run["org_id"])
-    suspend = False
+    # The calls this turn is waiting on a person for. Collected here rather
+    # than recomputed from the registry afterwards, because a rule can send a
+    # reversible call to a person too, and because asking the registry about a
+    # name the model invented raises.
+    asked: list[tuple[str, dict[str, Any]]] = []
 
     for tool_use in pending:
         name = tool_use["name"]
@@ -380,7 +383,43 @@ def _settle(
             log.warning("run %s asked for unknown tool %r", run_id, name)
             continue
 
-        if requires_approval(name):
+        ruling = policy.evaluate(cur, run_id, name, args, tool_use_id)
+
+        if ruling.verdict is policy.Verdict.DENY:
+            # Refused without asking anyone, and settled the way a bad argument
+            # is: a failed result the agent reads. Only a rule can produce this,
+            # and only by tightening, so there is no approval to look for.
+            runs.append_step(
+                cur,
+                run_id=run_id,
+                seq=runs.next_seq(cur, run_id),
+                kind="tool_result",
+                content={
+                    "tool_use_id": tool_use_id,
+                    "name": name,
+                    "args": args,
+                    "result": f"refused without asking: {ruling.reason}",
+                    "ok": False,
+                },
+                tool_name=name,
+            )
+            runs.audit(
+                cur,
+                org_id=org_id,
+                run_id=run_id,
+                action="policy.denied",
+                detail={"tool": name, "rule": ruling.rule, "reason": ruling.reason},
+            )
+            continue
+
+        # An approval that already exists for this call is honoured whatever
+        # the rules say now. Which path a call takes is decided once, when it
+        # is first settled, so a resumed worker can't route the same call
+        # differently from the one that died.
+        if (
+            ruling.verdict is policy.Verdict.ASK
+            or approvals.lookup(cur, run_id, tool_use_id) is not None
+        ):
             # Validate before asking anyone. `approvals.request` renders the
             # preview a human reads, and it renders it from these arguments —
             # so an irreversible call missing a required property used to raise
@@ -421,6 +460,7 @@ def _settle(
                 tool_use_id=tool_use_id,
                 tool_name=name,
                 args=args,
+                asked_because=ruling.reason if ruling.rule else None,
             )
 
             if decision["status"] == "pending" and decision["is_stale"]:
@@ -445,7 +485,7 @@ def _settle(
                 return "failed"
 
             if decision["status"] == "pending":
-                suspend = True
+                asked.append((name, args))
                 continue
 
             if decision["status"] == "denied":
@@ -555,14 +595,9 @@ def _settle(
             duration_ms=result.duration_ms,
         )
 
-    if suspend:
-        for tool_use in pending:
-            if requires_approval(tool_use["name"]):
-                tracing.approval_requested(
-                    run_id,
-                    tool=tool_use["name"],
-                    args_hash=args_hash(tool_use["name"], tool_use.get("input") or {}),
-                )
+    if asked:
+        for name, args in asked:
+            tracing.approval_requested(run_id, tool=name, args_hash=args_hash(name, args))
         runs.suspend_for_approval(cur, run_id)
         runs.audit(cur, org_id=org_id, run_id=run_id, action="run.awaiting_approval")
         return "awaiting_approval"

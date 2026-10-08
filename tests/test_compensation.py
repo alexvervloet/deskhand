@@ -475,19 +475,18 @@ def test_the_plan_ignores_everything_the_ticket_says() -> None:
     hostile = start_run("NW-4")
     clean = start_run("NW-2")
     for run_id, reference in ((hostile, "NW-4"), (clean, "NW-2")):
-        assert (
-            drive(
-                run_id,
-                ScriptedProvider(
-                    script=[
-                        [call("get_ticket", reference=reference)],
-                        [call("set_priority", reference=reference, priority="high")],
-                        text("Done."),
-                    ]
-                ),
-            )
-            == "succeeded"
-        )
+        script = [
+            [call("get_ticket", reference=reference)],
+            [call("set_priority", reference=reference, priority="high")],
+            text("Done."),
+        ]
+        # NW-4's write waits for a person, because the run read text addressed
+        # to the agent. Approving adds no steps.
+        outcome = drive(run_id, ScriptedProvider(script=script))
+        while outcome == "awaiting_approval":
+            _approve_pending(run_id)
+            outcome = drive(run_id, ScriptedProvider(script=script))
+        assert outcome == "succeeded"
 
     with connection() as conn, conn.cursor() as cur:
         hostile_plan = compensation.plan(cur, hostile)
