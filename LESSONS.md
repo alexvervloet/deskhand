@@ -1321,3 +1321,75 @@ works. The dead regex always took its fallback; the exhausted strategy always
 stopped early. Neither raised, neither logged, and both were sitting under a
 green suite. What caught this one was refusing to publish a number I had not
 measured — which is a habit rather than a test, and considerably less reliable.
+
+## 29. The column type was rewriting what the model said
+
+**Expected.** Models released after this project was written bind each thinking
+block to the exact conversation prefix that produced it, and enforced accounts
+get a 400 if an earlier message changes. Deskhand rebuilds the conversation
+from `steps` before every model call, so I expected to confirm it was already
+append-only. `steps` is append-only by design, and replay has always claimed
+the rebuild is a pure function of the rows.
+
+**What happened.** The rebuild is a pure function of the rows, and the rows
+were wrong. `steps.content` was `jsonb`, and jsonb is a parsed form: it sorts
+object keys by length and then by bytes. The model wrote
+
+```
+{"order_reference": "NW-1042", "amount_cents": 3800, "reason": "..."}
+```
+
+and every later request told it that it had written
+
+```
+{"reason": "...", "amount_cents": 3800, "order_reference": "NW-1042"}
+```
+
+Every assistant turn, on every run, since the first migration. Nothing noticed,
+because each rebuild reordered the same way. Request N+1 really was request N
+plus new turns, so a prefix check between two rebuilds passes. The only thing
+that differed was the model's own words against the model's memory of them,
+and no test compared those two.
+
+The fix is a migration from `jsonb` to `json`, which stores the text and hands
+it back unchanged. Four statements used jsonb operators on the column and now
+cast explicitly, including one in the Trigger.dev port.
+
+**The test that would have caught it** states the property the strict way. Each
+request equals the previous request, plus the provider's reply exactly as
+returned, plus what followed, compared as JSON text without sorting keys. It
+fails on `jsonb` and passes on `json`, which I checked by switching the column
+back. It now runs under every crash schedule in the concurrency search, as a
+third fingerprint next to the world and the trajectory: the model is sent the
+same requests whether or not a worker died on the way.
+
+**Next time.** The trajectory fingerprint compared steps with `sort_keys`, on
+purpose, to ignore differences that don't matter. That's the right call for a
+row and exactly the wrong one for model output, where key order is part of the
+text. A normalising comparison can't find a normalising bug. When the claim is
+"byte-identical", the test has to compare bytes.
+
+I haven't measured whether the API cared about the reorder. The server-side
+check is opaque and testing it costs money. Making the round trip exact turned
+"does it matter?" into a question nobody has to answer.
+
+## 30. CI had been red on main for a month
+
+**Expected.** I came back to the project after four weeks away and ran the
+suites locally as a baseline: 244 tests and 32 evals, all green.
+
+**What happened.** Pyright reported two errors in `tests/test_concurrency.py`.
+They weren't new. The last two pushes to main, both on 2026-09-10, had failed
+CI on exactly those lines. The push before them had failed too, on an
+unresolved `openai` import.
+The test file used `psycopg.rows.dict_row` without importing `psycopg.rows`,
+and `psycopg.Connection.connect` is typed for tuple rows, so the cursor handed
+to `invoke()` didn't match its signature. Pytest doesn't care about either, so
+the tests ran fine.
+
+The README said "green in CI on a clean checkout". It wasn't, for the whole
+time the project sat idle.
+
+**Next time.** Read the CI status before writing a sentence about it, and look
+at it again on the last push before walking away. A local run of pytest is not
+CI, because CI also runs the four checkers that pytest doesn't.
