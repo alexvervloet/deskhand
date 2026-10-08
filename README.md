@@ -207,6 +207,20 @@ exclude. The **world** is refunds, emails, ticket state and internal notes. The
 `replayed` flag — a crash should leave no trace in the trajectory *at all*,
 because a resumed worker rebuilds the same history and asks for the same turn.
 
+A third fingerprint is the **conversation**: every request the model was sent,
+compared as text with key order intact. Under every schedule, the model gets
+the same requests it would have got from a run that never crashed, and each
+request is the previous one plus the model's reply exactly as the provider
+returned it. That's the property current models enforce. A thinking block is
+bound to the exact prefix that produced it, and on enforced accounts a changed
+earlier message is a 400.
+
+It failed the first time it ran, and not because of a crash. `steps.content`
+was `jsonb`, which sorts object keys, so every rebuilt turn told the model it
+had written `{"reason", "amount_cents", "order_reference"}` when it had written
+them the other way round. The trajectory fingerprint compared with sorted keys
+and couldn't see it. The column is `json` now. [LESSONS 29](LESSONS.md).
+
 **Exhaustive where enumeration is possible, and only there.** 63 cases are
 enumerated rather than sampled: all 32 crash schedules of a five-turn
 trajectory, all 26 of a five-item compensation, and the 5 points a theft can
@@ -514,7 +528,7 @@ Vite + TypeScript, Claude for the agent, Docker, GitHub Actions.
 
 ## What went wrong along the way
 
-[LESSONS.md](LESSONS.md) — twenty-eight entries, written while the detail was fresh.
+[LESSONS.md](LESSONS.md) — thirty entries, written while the detail was fresh.
 A full-text search that failed *open* on a policy lookup, so an agent reading
 "no such policy" would reasonably conclude it was unconstrained. A green test
 suite that shipped a broken screen. A fault injector that found a real crash
