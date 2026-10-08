@@ -136,6 +136,11 @@ class ApprovalView(BaseModel):
     # Null when the tool is irreversible. Otherwise the policy rule that sent
     # this call to a person, in one sentence.
     asked_because: str | None = None
+    # The same approval in the shapes OAuth uses for it: RFC 9396
+    # `authorization_details` and the CIBA `binding_message`. See
+    # `_authorization_details` in deskhand/main.py.
+    authorization_details: list[dict[str, Any]]
+    binding_message: str
     status: str
     reason: str | None
     created_at: datetime

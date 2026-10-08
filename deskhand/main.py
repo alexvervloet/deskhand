@@ -887,6 +887,34 @@ def _step_view(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# The RAR `type` for "run exactly this tool call". A URN rather than a URL
+# because nothing resolves it; RFC 9396 only asks that the AS and the resource
+# server agree on what it means.
+RAR_TYPE = "urn:deskhand:tool-call"
+
+
+def _authorization_details(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """This approval as an RFC 9396 `authorization_details` entry.
+
+    Deskhand isn't an OAuth authorization server, and this doesn't make it
+    one. It's the same object in the shape the standard uses for "consent to
+    one specific action", so an external authorization server, or a CIBA
+    approval on somebody's phone, could carry it unchanged. `actions` and
+    `locations` are RAR's common fields. `arguments` and `args_hash` are
+    specific to this type, and the hash is the one the runtime refuses to
+    execute without: whoever approves this has approved these bytes.
+    """
+    return [
+        {
+            "type": RAR_TYPE,
+            "actions": [row["tool_name"]],
+            "locations": [f"urn:deskhand:run:{row['run_id']}"],
+            "arguments": row["args"],
+            "args_hash": row["args_hash"],
+        }
+    ]
+
+
 def _approval_view(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
@@ -897,6 +925,10 @@ def _approval_view(row: dict[str, Any]) -> dict[str, Any]:
         "args": row["args"],
         "basis": row.get("basis") or [],
         "asked_because": row.get("asked_because"),
+        "authorization_details": _authorization_details(row),
+        # CIBA's name for the sentence shown to the person approving, on
+        # whatever device they approve from. Here it is the preview.
+        "binding_message": row["preview"],
         "status": row["status"],
         "reason": row["reason"],
         "created_at": row["created_at"],
