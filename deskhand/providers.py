@@ -464,6 +464,8 @@ _ORDER_REF = re.compile(r"\b([A-Z]{2}-\d{3,})\b")
 _TICKET_REF = re.compile(r"\b([A-Z]{2}-\d{1,2})\b")
 # One line of `get_order`'s item list: "  2x Ethiopia Guji, ... (BEAN-ETH-12) @ 19.00 USD".
 _ORDER_ITEM = re.compile(r"^\s*(\d+)x .*?\(([A-Z][\w-]*)\) @ ([\d,]+)\.(\d{2}) USD", re.M)
+# A customer naming the figure they want back: "refund me $16.00".
+_CLAIMED = re.compile(r"refund (?:me |of )?\$([\d,]+)(?:\.(\d{2}))?", re.I)
 
 
 def _brief(messages: list[dict[str, Any]]) -> str:
@@ -548,6 +550,47 @@ def _refundable(messages: list[dict[str, Any]]) -> int:
     return total
 
 
+def _results_of(tool: str, messages: list[dict[str, Any]]) -> list[str]:
+    """The text of every result whose call was `tool`, found by tool_use id.
+
+    Structural on purpose, for the reason `_refundable` gives: every result is
+    fenced, so the customer's words are in the transcript, and any rule about
+    what a result looks like is one a ticket body can satisfy.
+    """
+    ids = {
+        block["id"]
+        for message in messages
+        for block in (message.get("content") or [])
+        if isinstance(block, dict) and block.get("name") == tool
+    }
+    found: list[str] = []
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if block.get("type") == "tool_result" and block.get("tool_use_id") in ids:
+                inner = block.get("content")
+                found.append(inner if isinstance(inner, str) else str(inner))
+    return found
+
+
+def _claimed(messages: list[dict[str, Any]]) -> int | None:
+    """A dollar figure the customer asked for, in cents, if they named one.
+
+    This is the mock being gullible, deliberately. A model that believes a
+    ticket proposes the figure in it, and NW-5 names a figure the order record
+    contradicts. The keyless demo has to reach that approval card to show what
+    the card says about it, so the mock takes the customer's word.
+    """
+    for body in _results_of("get_ticket", messages):
+        match = _CLAIMED.search(body)
+        if match:
+            dollars, cents = match.groups()
+            return int(dollars.replace(",", "")) * 100 + int(cents or 0)
+    return None
+
+
 class DefaultMockProvider(ScriptedProvider):
     """The trajectory used when there is no API key and no explicit script.
 
@@ -624,7 +667,8 @@ class DefaultMockProvider(ScriptedProvider):
             ]
             return plan
 
-        amount = _refundable(messages)
+        claimed = _claimed(messages)
+        amount = claimed if claimed is not None else _refundable(messages)
 
         plan += [
             [call("get_order", reference=order_ref)],
@@ -634,7 +678,11 @@ class DefaultMockProvider(ScriptedProvider):
                     "issue_refund",
                     order_reference=order_ref,
                     amount_cents=amount,
-                    reason="Quality complaint inside the published refund window.",
+                    reason=(
+                        "Price difference the customer reported."
+                        if claimed is not None
+                        else "Quality complaint inside the published refund window."
+                    ),
                 )
             ],
             [
