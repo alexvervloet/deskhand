@@ -113,6 +113,13 @@ class RunDetail(RunSummary):
     approvals: list[ApprovalView]
 
 
+class BasisView(BaseModel):
+    arg: str
+    # supported | unsupported | unchecked. See deskhand/tools/base.py, Support.
+    status: str
+    note: str
+
+
 class ApprovalView(BaseModel):
     id: str
     run_id: str
@@ -122,6 +129,10 @@ class ApprovalView(BaseModel):
     # arguments the model supplied. This is the sentence a human approves.
     preview: str
     args: dict[str, Any]
+    # What the system of record says about each argument, computed when the
+    # approval was requested. A hash proves the call is the one shown; this is
+    # what says whether the values in it are true.
+    basis: list[BasisView]
     status: str
     reason: str | None
     created_at: datetime

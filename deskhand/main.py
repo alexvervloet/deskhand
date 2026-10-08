@@ -895,6 +895,7 @@ def _approval_view(row: dict[str, Any]) -> dict[str, Any]:
         "tool_name": row["tool_name"],
         "preview": row["preview"],
         "args": row["args"],
+        "basis": row.get("basis") or [],
         "status": row["status"],
         "reason": row["reason"],
         "created_at": row["created_at"],
