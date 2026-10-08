@@ -85,6 +85,9 @@ export type Approval = {
   preview: string;
   args: Record<string, unknown>;
   basis: Basis[];
+  // Null when the tool is irreversible. Otherwise the rule that sent this
+  // call to a person. See deskhand/runtime/policy.py.
+  asked_because: string | null;
   status: string;
   reason: string | null;
   created_at: string;
