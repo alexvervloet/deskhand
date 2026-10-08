@@ -20,15 +20,18 @@ class Settings(BaseSettings):
 
     # --- Model ---
     anthropic_api_key: str | None = None
-    # Sonnet 5 rather than an Opus tier. This is a demo on a public URL doing
-    # short tool-calling turns over six seeded tickets, which is not work that
-    # repays the most capable model; Opus is one environment variable away if a
-    # route ever turns out to need it. The request shape below is unchanged by
-    # the choice — both take adaptive thinking and `effort`.
-    model_id: str = "claude-sonnet-5"
-    # low | medium | high | xhigh | max. `high` is the API default; agentic work
-    # is the case where xhigh earns its cost, so it is worth sweeping per route.
-    model_effort: str = "high"
+    # Sonnet 5.5 rather than an Opus tier. This is a demo on a public URL doing
+    # short tool-calling turns over seven seeded tickets, which is not work
+    # that repays the most capable model; Opus is one environment variable
+    # away if a route ever turns out to need it. Same price as Sonnet 5. It
+    # rejects `thinking: disabled` and forced `tool_choice`, and this sends
+    # neither.
+    model_id: str = "claude-sonnet-5-5"
+    # low | medium | high | xhigh | max. Sonnet 5.5 recalibrated the levels and
+    # its guidance is to start multistep tool use at `medium`. Unmeasured here:
+    # the live comparison ran on Haiku, which takes no effort at all. Sweep it
+    # with `python -m evals.live` before trusting either value.
+    model_effort: str = "medium"
 
     # --- The comparison provider ---
     # Only `evals/live.py` reaches for these. The service itself runs on Claude
