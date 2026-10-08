@@ -22,6 +22,22 @@ one at a time.
 - **Fixed: CI had been red on main since 2026-09-10.** Pyright rejected the
   threaded cursor in the concurrency tests. Pytest never noticed.
   [LESSONS 30](LESSONS.md).
+- **The approval card checks each argument against the record.** Under every
+  argument it says `on record`, `not on record` or `not checked`, with one
+  sentence of why. `issue_refund` checks that the order is the ticket
+  customer's, and that the amount is a whole number of the order's items. The
+  checks are database queries, so a ticket can't influence them. They're stored
+  with the approval (migration 0010), and the queue flags a request with an
+  unsupported argument before anyone opens it.
+- **NW-5, a ticket that lies instead of giving orders.** It claims a price the
+  order record contradicts and asks for the difference. The keyless mock
+  believes it, so the demo reaches the flagged card. Two new evals, 34 in all,
+  and both fail when the check is removed. The five "break it yourself"
+  deletions were re-measured: deleting the gate now fails 17 of 34.
+- **Fixed: the refund never checked whose order it was.** It's flagged on the
+  card rather than refused. [LESSONS 31](LESSONS.md).
+- **Fixed: the card listed arguments in jsonb key order.** Found by the
+  screenshot, not by any of the suites. [LESSONS 31](LESSONS.md).
 
 ## Fuzzing the concurrency claim
 
