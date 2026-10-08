@@ -1464,3 +1464,38 @@ script that undoes its own change with `git checkout` also undoes yours.
 And keep re-measuring the deletion table when a layer is added, not just
 updating the counts. The counts were the expected part. The surprise was which
 evals moved, and that said more about the design than any test I'd written.
+
+## 33. The recommendation that didn't fit the workload
+
+**Expected.** When I came back to this project I recommended adding the API's
+new task budget: the model sees a token countdown and wraps up on its own
+instead of hitting a hard cap. That matched LESSONS 11, a run that died on its
+deadline with no summary written.
+
+**What happened.** The docs for task budgets say what they count: the model's
+output and the tool results it reads, not the history resent each turn. The
+minimum is 20,000 tokens. They also say not to add one without measuring the
+right value. I couldn't measure live, but `evals/live-results.json` already
+had 24 real runs in it. The most any run produced was 1,921 output tokens, and
+the largest tool result in the database is 302 characters. A budget at the
+floor would be ten times larger than anything a run here uses. It would never
+bind, and shipping it would have been a feature that only looked like one.
+
+The same file showed what does bind. One run used 23 of its 24 steps. So the
+idea stayed and the mechanism changed: the runtime writes one notice step when
+a run gets close to its own step cap, deadline or spend cap, and the rebuild
+shows it to the model after that turn's tool results.
+
+The first version of the notice was wrong too. It said "stopped after 5 more
+steps", and the trajectory had six: the cap is checked before a model call,
+and that call's tool results land after it. The model can't see steps anyway.
+It now says turns, and a test checks that the number it says is the number of
+turns that followed.
+
+And one process slip, caught before pushing: my check chain piped `pyright`
+into `tail -1`, which reported the error and returned 0. The commits went in
+with a type error. Verification now runs from a script with `pipefail` set.
+
+**Next time.** A recommendation written from release notes is a hypothesis
+about the workload. The data to test it was already in the repo. I should have
+read it before recommending, not after.
