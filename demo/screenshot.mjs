@@ -50,4 +50,17 @@ if (await runButton.count()) {
 await page.screenshot({ path: `${OUT}/fenced-content.png` });
 console.log(`wrote ${OUT}/fenced-content.png`);
 
+// A third: the ticket that lies rather than gives orders, parked at the gate
+// with the card saying the amount isn't on the record.
+await page.click(".ticket:has-text('NW-5')");
+await page.waitForTimeout(800);
+const runNw5 = page.locator("button.primary:has-text('Run the agent')");
+if (await runNw5.count()) {
+  await runNw5.click();
+}
+await page.waitForSelector(".approval .basis.unsupported", { timeout: 20000 });
+await page.waitForTimeout(1200);
+await page.locator(".approval").screenshot({ path: `${OUT}/false-fact.png` });
+console.log(`wrote ${OUT}/false-fact.png`);
+
 await browser.close();
