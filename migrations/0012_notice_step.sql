@@ -1,0 +1,13 @@
+-- A step the runtime writes to the model, rather than one the model or a tool
+-- wrote.
+--
+-- Every ceiling on a run is enforced before a model call and is invisible to
+-- the model until it lands. A run that reaches its step cap mid-task ends
+-- `exhausted` with no summary, and the person who opens the ticket next gets a
+-- half-finished trajectory and a stop reason. A notice tells the model once,
+-- shortly before a ceiling, so it can finish and say what it did.
+--
+-- It is a step, not something computed during the rebuild, so a resumed worker
+-- replays the same notice in the same place and the conversation stays
+-- append-only. See `_closing_in` in deskhand/runtime/loop.py.
+alter type step_kind add value if not exists 'notice';
