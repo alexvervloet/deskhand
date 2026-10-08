@@ -18,6 +18,7 @@ process being absent.
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from typing import Any
 
 import psycopg
@@ -25,7 +26,7 @@ from psycopg.rows import DictRow
 
 from deskhand.config import settings
 from deskhand.runtime import runs
-from deskhand.tools import args_hash, get
+from deskhand.tools import Support, args_hash, get
 
 
 def request(
@@ -49,8 +50,8 @@ def request(
 
     cur.execute(
         "insert into approvals (org_id, run_id, step_seq, tool_use_id, tool_name, args,"
-        "                       args_hash, preview, expires_at)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(secs => %s))"
+        "                       args_hash, preview, basis, expires_at)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(secs => %s))"
         " on conflict (run_id, tool_use_id) do nothing",
         (
             org_id,
@@ -61,10 +62,42 @@ def request(
             json.dumps(args),
             args_hash(tool_name, args),
             preview,
+            json.dumps(basis(cur, run_id, org_id, tool_name, args)),
             settings.approval_ttl_seconds,
         ),
     )
     return lookup(cur, run_id, tool_use_id)  # type: ignore[return-value]
+
+
+def basis(
+    cur: psycopg.Cursor[DictRow],
+    run_id: str,
+    org_id: str,
+    tool_name: str,
+    args: dict[str, Any],
+) -> list[dict[str, str]]:
+    """One check per argument, in the order the arguments were given.
+
+    An argument the tool's own check doesn't cover is listed as `unchecked`
+    rather than left out. A card that shows a tick beside the amount and
+    nothing beside the reason reads as if the reason had been checked too.
+    """
+    cur.execute(
+        "select t.customer_id from runs r join tickets t on t.id = r.ticket_id where r.id = %s",
+        (run_id,),
+    )
+    row = cur.fetchone()
+    assert row is not None, f"run {run_id} has no ticket"
+
+    tool = get(tool_name)
+    found = {
+        s.arg: s
+        for s in (tool.basis(cur, org_id, str(row["customer_id"]), args) if tool.basis else [])
+    }
+    return [
+        asdict(found.get(name) or Support(name, "unchecked", "not checked against any record"))
+        for name in args
+    ]
 
 
 def lookup(cur: psycopg.Cursor[DictRow], run_id: str, tool_use_id: str) -> dict[str, Any] | None:
