@@ -8,6 +8,7 @@ can run without a human, and that decision is made here, once, at import time.
 from deskhand.tools import irreversible, read, reversible  # noqa: F401  (import registers)
 from deskhand.tools.base import (
     RiskClass,
+    Support,
     ToolContext,
     ToolDef,
     ToolError,
@@ -22,6 +23,7 @@ from deskhand.tools.base import (
 
 __all__ = [
     "RiskClass",
+    "Support",
     "ToolContext",
     "ToolDef",
     "ToolError",

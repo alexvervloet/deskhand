@@ -94,6 +94,35 @@ class ToolOutcome:
 Handler = Callable[[ToolContext, dict[str, Any]], ToolOutcome]
 
 
+@dataclass(frozen=True, slots=True)
+class Support:
+    """What the system of record says about one argument of a call a person
+    is about to approve.
+
+    `status` is `supported` (the record backs this value), `unsupported` (it
+    doesn't, and the approver should know before saying yes), or `unchecked`
+    (nothing here can check it, which the card says rather than leaving the
+    argument looking verified by omission).
+
+    This is not provenance. A single model that has read a customer's ticket
+    can't say which of its outputs came from where, so a label claiming to know
+    would be a guess. What can be answered deterministically is whether the
+    record agrees, and that is the question an approver otherwise answers by
+    hand, or doesn't.
+    """
+
+    arg: str
+    status: str
+    note: str
+
+
+# Checks a call's arguments against the database before a person sees it. Takes
+# the cursor, the org, the customer the run's ticket is about, and the
+# validated arguments. Reads only: it runs inside the transaction that records
+# the approval request, and anything it wrote would land there too.
+Basis = Callable[[psycopg.Cursor[DictRow], str, str, dict[str, Any]], list[Support]]
+
+
 # Constraint keywords the Messages API refuses inside a `strict` tool schema.
 # Strict mode accepts a restricted subset of JSON Schema: it guarantees the
 # *shape* of the arguments — types, required keys, no extra properties — and
@@ -163,6 +192,9 @@ class ToolDef:
     # a wrong sentence here tells a person during an incident that something is
     # recoverable when it is not.
     irreversible_note: str | None = None
+    # How the approval card checks this call's arguments against the record.
+    # Optional: an argument nothing checks is shown as `unchecked`.
+    basis: Basis | None = None
 
     def validate(self, args: dict[str, Any]) -> None:
         try:
