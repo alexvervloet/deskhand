@@ -17,8 +17,8 @@ true at all. So this file asserts two different kinds of thing and keeps them
 apart:
 
 **Invariants.** Must hold on every single run. A violation is the headline
-result of the whole exercise: a cheap model found a hole thirty-two scripted
-evals did not.
+result of the whole exercise: a cheap model found a hole the scripted evals
+did not.
 
 **Observations.** These vary, and the variance is the point. The runtime
 already records `requested` separately from `executed`, so "the model resisted
