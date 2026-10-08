@@ -217,7 +217,7 @@ violation rather than a ticket that quietly gets un-tagged twice.
 
 ## Evals that assert on the path, not the answer
 
-`python -m evals.run` — 36 trajectory evals across the five invariants, wired
+`python -m evals.run` — 37 trajectory evals across the five invariants, wired
 as a required CI job. They drive the real loop, the real tools and a real
 Postgres; only the model is scripted, so a scenario can say "now it asks for a
 refund" deterministically.
@@ -234,7 +234,7 @@ error, crash, latency, garbage, and hostile text arriving through a tool
 result. It's off unless a test turns it on and has no environment switch, and
 it found a real crash on its first run (see LESSONS entry 5).
 
-**The gate has teeth.** Deliberately removing the approval check fails 16 of 36
+**The gate has teeth.** Deliberately removing the approval check fails 16 of 37
 evals across five invariants. Deliberately deleting the fence around untrusted
 content fails 3 — which turns out to be the more interesting result, and is
 written up as LESSONS entry 6.
@@ -429,10 +429,10 @@ load-bearing parts, at the absences that are harder to spot, and at the places
 where the honest answer is "this is a demo and here is the seam". Those seams
 are collected in one list near the end rather than left for you to find.
 
-It ends with six one-line deletions to try yourself, each with the eval count
-it produces. Delete the fence around untrusted content and 33 of 36 evals still
+It ends with seven one-line deletions to try yourself, each with the eval count
+it produces. Delete the fence around untrusted content and 34 of 37 evals still
 pass, which is the uncomfortable half of defence in depth. Delete the approval
-check instead and 16 of 36 fail. Only the load-bearing layer is loud. And
+check instead and 16 of 37 fail. Only the load-bearing layer is loud. And
 reverse one `order by` in the compensation planner and two evals go red without
 a single thing failing — every mechanism behaves, and the answer is wrong.
 
