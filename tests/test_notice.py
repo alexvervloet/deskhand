@@ -8,6 +8,7 @@ write its summary, rather than being cut off mid-task with nothing said.
 from __future__ import annotations
 
 import json
+from typing import LiteralString
 
 import pytest
 
@@ -24,9 +25,10 @@ pytestmark = pytest.mark.usefixtures("fresh")
 ENDLESS = [[call("search_kb", query=f"shipping times {i}")] for i in range(40)]
 
 
-def _set(run_id: str, sql: str, *params: object) -> None:
+def _set(run_id: str, statement: LiteralString, *params: object) -> None:
+    """Run one literal `update runs ... where id = %s` against this run."""
     with connection() as conn, conn.cursor() as cur:
-        cur.execute(f"update runs set {sql} where id = %s", (*params, run_id))  # noqa: S608 - test-only, fixed fragments
+        cur.execute(statement, (*params, run_id))
         conn.commit()
 
 
@@ -36,7 +38,7 @@ def notices(run_id: str) -> list[str]:
 
 def test_a_run_near_its_step_cap_is_told_once_and_still_stopped() -> None:
     run_id = start_run("NW-2")
-    _set(run_id, "max_steps = %s", 12)
+    _set(run_id, "update runs set max_steps = %s where id = %s", 12)
     assert drive(run_id, ScriptedProvider(script=ENDLESS)) == "exhausted"
 
     told = notices(run_id)
@@ -53,7 +55,7 @@ def test_a_run_near_its_step_cap_is_told_once_and_still_stopped() -> None:
 
 def test_the_notice_reaches_the_model_after_the_turns_tool_results() -> None:
     run_id = start_run("NW-2")
-    _set(run_id, "max_steps = %s", 12)
+    _set(run_id, "update runs set max_steps = %s where id = %s", 12)
     calls: list = []
     drive(run_id, Recording(ENDLESS, calls))
 
@@ -77,7 +79,7 @@ def test_a_short_run_hears_nothing() -> None:
 
 def test_a_run_near_its_deadline_is_told_in_seconds() -> None:
     run_id = start_run("NW-2")
-    _set(run_id, "deadline_at = now() + interval '90 seconds'")
+    _set(run_id, "update runs set deadline_at = now() + interval '90 seconds' where id = %s")
     script = [[call("get_ticket", reference="NW-2")], text("Done.")]
     assert drive(run_id, ScriptedProvider(script=script)) == "succeeded"
     told = notices(run_id)
@@ -86,7 +88,7 @@ def test_a_run_near_its_deadline_is_told_in_seconds() -> None:
 
 def test_a_run_near_its_spend_cap_is_told() -> None:
     run_id = start_run("NW-2")
-    _set(run_id, "cost_micros = max_spend_micros * 9 / 10")
+    _set(run_id, "update runs set cost_micros = max_spend_micros * 9 / 10 where id = %s")
     script = [[call("get_ticket", reference="NW-2")], text("Done.")]
     assert drive(run_id, ScriptedProvider(script=script)) == "succeeded"
     told = notices(run_id)
@@ -96,7 +98,7 @@ def test_a_run_near_its_spend_cap_is_told() -> None:
 def test_a_resumed_run_is_not_told_twice() -> None:
     """The decision is a row. A worker that resumes finds it and says nothing."""
     run_id = start_run("NW-2")
-    _set(run_id, "max_steps = %s", 12)
+    _set(run_id, "update runs set max_steps = %s where id = %s", 12)
 
     class DiesOnce(ScriptedProvider):
         died = False
@@ -115,7 +117,7 @@ def test_a_resumed_run_is_not_told_twice() -> None:
     with pytest.raises(RuntimeError):
         drive(run_id, DiesOnce(script=ENDLESS), worker="a")
     with connection() as conn:
-        _set(run_id, "lease_expires_at = now() - interval '1 second'")
+        _set(run_id, "update runs set lease_expires_at = now() - interval '1 second' where id = %s")
         assert loop.advance(conn, run_id, "a", DiesOnce(script=ENDLESS)) == "exhausted"
 
     assert len(notices(run_id)) == 1
