@@ -499,6 +499,14 @@ a model response, a tool argument, or a tool result can reach it. An eval drives
 a *fully obedient* model at this ticket, one that reads the instruction and does
 exactly what it says, and the refund still only becomes a request.
 
+There's a third layer now, and it's independent of the other two. Once a run
+has read text addressed to the agent, a rule in
+[policy.py](../deskhand/runtime/policy.py) sends every write it makes to a
+person, the reversible ones included. Run NW-4 with the keyless mock and you'll
+be asked about the internal note and the status change as well as the refund.
+The card says why: "Asked because this run read text addressed to the agent".
+Stop 26 deletes it.
+
 **Watch for.** The marker is derived from the run id, not fixed and not random.
 Fixed would mean a constant delimiter published in an open-source repository,
 which a customer can type into a ticket. Random would break replay, because
@@ -515,11 +523,11 @@ against the only payload its author had imagined. It passed for months. See
 is evidence somebody tried, and it belongs in the transcript, the run viewer, and
 the replay.
 
-**Watch for, most of all.** Delete the fence entirely and 31 of 34 evals still
+**Watch for, most of all.** Delete the fence entirely and 33 of 36 evals still
 pass. Do that one yourself if you do nothing else here, because it's the
 uncomfortable consequence of defence in depth: removing a redundant layer
 changes almost nothing you can observe. Delete the
-approval gate instead and 17 of 34 fail. Only the load-bearing layer is loud.
+approval gate instead and 16 of 36 fail. Only the load-bearing layer is loud.
 
 **Then open NW-5.** It gives no orders. Lena says the Colombia was listed at $14
 a bag, she was charged $22 each, and she'd like $16.00 back. None of that is
@@ -810,7 +818,7 @@ than half-applied.
 
 ```bash
 python -m pytest -q
-python -m evals.run                 # all 34
+python -m evals.run                 # all 36
 python -m evals.run consent         # one invariant
 ```
 
@@ -860,8 +868,8 @@ that make the point concrete.
 
 ## Part five. Break it yourself
 
-Everything above is a claim. Here's how to check five of them, at about five
-minutes each. On a clean checkout the suite passes 34 of 34:
+Everything above is a claim. Here's how to check six of them, at about five
+minutes each. On a clean checkout the suite passes 36 of 36:
 
 ```bash
 docker compose up -d db && python -m deskhand.migrate
@@ -872,11 +880,12 @@ Each change below is one line, and `git checkout <file>` puts it back.
 
 | Delete | In | Evals that fail |
 |---|---|---|
-| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 17 of 34 |
-| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 34 |
-| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 34 |
-| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 34 |
-| The order a compensation applies inverses in | [runtime/compensation.py](../deskhand/runtime/compensation.py) | 2 of 34 |
+| The approval gate | [tools/base.py](../deskhand/tools/base.py) | 16 of 36 |
+| The fence | [runtime/transcript.py](../deskhand/runtime/transcript.py) | 3 of 36 |
+| The deterministic idempotency key | [tools/invoke.py](../deskhand/tools/invoke.py) | 1 of 36 |
+| Loop detection | [runtime/loop.py](../deskhand/runtime/loop.py) | 1 of 36 |
+| The order a compensation applies inverses in | [runtime/compensation.py](../deskhand/runtime/compensation.py) | 2 of 36 |
+| The per-call rules | [runtime/policy.py](../deskhand/runtime/policy.py) | 2 of 36 |
 
 Write your prediction down before you run each one. The gap between the guess
 and the result is the part worth having.
@@ -885,10 +894,8 @@ and the result is the part worth having.
 
 In `requires_approval`, return `False` instead of asking the registry.
 
-Seventeen failures, spread across every invariant in the project rather than
-sitting inside `consent`. Both injection evals go red, because the gate and not
-the fence is what stops an injected instruction from moving money. The
-durability and payout-ceiling evals go red because they need to reach the gate
+Sixteen failures, spread across every invariant in the project rather than
+sitting inside `consent`. The durability and payout-ceiling evals go red because they need to reach the gate
 to set their scenario up at all: you can't check that a ceiling refused a
 refund when nothing ever suspends. The accountability evals go red because
 "who authorised this" has no answer when nothing was authorised — including the
@@ -897,10 +904,19 @@ check that the walk-back reports it as untouchable. The two evals for the
 approval card's checks go red too, for the plainest reason: with no gate there
 is no card, and the refund they were meant to flag is simply paid.
 
-Four integrity evals live: the fence, keeping customer text out of the opening
-prompt, scoping a read to the ticket's own customer, and a compensation plan
-that ignores what the ticket says. Each is enforced somewhere else and doesn't
-care. That's the shape the next one is about.
+Look at what survives, though. Both injection evals stay green, and they used
+to be the first thing to fail here. A policy rule in
+[policy.py](../deskhand/runtime/policy.py) asks a person about any write a run
+makes after reading text addressed to the agent, and it asks about the refund
+on its own, without consulting the registry. With the gate gone, an injected
+instruction still can't move money. The eval that checks an injection can't
+quietly close the ticket stays green for the same reason. That's two layers
+where there used to be one, and stop 26 deletes the other one.
+
+The rest of the integrity evals live too: the fence, keeping customer text out
+of the opening prompt, scoping a read to the ticket's own customer, and a
+compensation plan that ignores what the ticket says. Each is enforced somewhere
+else and doesn't care. That's the shape the next one is about.
 
 This is what a load-bearing mechanism looks like when you remove it.
 
@@ -910,7 +926,7 @@ Last line of `quarantine()`, return `cleaned` instead of wrapping it in the
 delimiters. Tool output now reaches the model with nothing marking where a
 customer's words stop and the runtime's own begin.
 
-Three failures out of thirty-four, and not one of them is an injection eval.
+Three failures out of thirty-six, and not one of them is an injection eval.
 `every-tool-result-is-fenced`, `the-opening-prompt-quotes-no-customer-text` and
 the last line of `garbage-does-not-derail-the-run` assert that the mechanism is
 *present*. Every eval that asserts an *outcome* still passes.
@@ -1006,6 +1022,31 @@ Worth pausing on before you `git checkout`: this is the one deletion in this
 list that a reviewer would have waved through. `order by` with no direction is
 a plausible thing to write and reads as a style choice.
 
+### 26. Delete the rules
+
+In [policy.py](../deskhand/runtime/policy.py), set `RULES` to an empty tuple.
+The registry's floor is untouched, so every irreversible call still waits for
+a person.
+
+Two failures, both the rules' own evals. An injected instruction can close the
+ticket again without anyone seeing it, and a refund a person declined gets put
+in front of them a second time. Nothing else notices, because while the gate is
+there, the injection rule only ever agrees with it about money.
+
+Put stops 21 and 26 side by side. Delete either layer and money still doesn't
+move on an injected instruction. Delete both and it does: 19 of 36 fail, and
+both injection evals are among them. That's what two
+independent layers look like, and it's why the rule asks about irreversible
+calls even though the floor already does.
+
+**Watch for.** `evaluate()` takes the strictest of the floor and every rule,
+and a test in [tests/test_policy.py](../tests/test_policy.py) checks that for
+every registered tool against a rule returning every verdict. That property is
+the only reason the injection rule is allowed to be a crude text match. If a
+rule could say "this one's fine", a ticket could learn to make it say so. A
+rule that can only tighten can afford to be wrong, because being wrong costs a
+person a click.
+
 ## What this tour doesn't show you
 
 A guide who only points at the good exhibits is selling something. The seams,
@@ -1062,6 +1103,12 @@ collected in one place:
   show every argument as "not checked", which is true. And the Trigger.dev port
   writes approvals with no checks at all: the column defaults to empty, and
   porting `_refund_basis` to TypeScript would be a second copy that drifts.
+- **The policy rules are a text match and a hash lookup.** The injection rule
+  flags a `SYSTEM:` line, "ignore previous instructions", or a forged fence
+  marker, and a ticket that avoids all three won't trigger it. That's an
+  accepted limit, not a bug: the rule can only add oversight, so missing an
+  attack leaves things exactly as they were before it existed. The Trigger.dev
+  port doesn't run the rules at all.
 - **Multi-tenancy is lean here.** Orgs exist so "whose money did it refund" and
   "who approved it" are answerable, not to demonstrate isolation for its own
   sake. That story is the companion project's.
