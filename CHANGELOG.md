@@ -38,6 +38,18 @@ one at a time.
   card rather than refused. [LESSONS 31](LESSONS.md).
 - **Fixed: the card listed arguments in jsonb key order.** Found by the
   screenshot, not by any of the suites. [LESSONS 31](LESSONS.md).
+- **Per-call rules that can only tighten.** `deskhand/runtime/policy.py` rules
+  each call as the strictest of the registry's floor and every rule, over
+  `RUN < ASK < DENY`. A test checks that across every tool and every verdict.
+  One rule sends a run's writes to a person once it has read text addressed to
+  the agent. Another refuses a call identical to one a person already declined.
+  The card says why a reversible call is waiting (migration 0011).
+- **Two independent layers against injection.** The rule asks about refunds
+  too, so deleting the approval gate leaves both injection evals green.
+  Deleting the gate and the rules together turns them red. Two new evals, 36 in
+  all. The deletion table was re-measured and has a sixth row.
+- **Fixed: a turn mixing an unknown tool with an irreversible one crashed after
+  writing the approval.** [LESSONS 32](LESSONS.md).
 
 ## Fuzzing the concurrency claim
 
