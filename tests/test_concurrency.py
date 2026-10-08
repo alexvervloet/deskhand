@@ -24,6 +24,7 @@ is the trajectory.
 from __future__ import annotations
 
 import itertools
+import json
 import os
 import threading
 from typing import Any
@@ -42,6 +43,7 @@ from deskhand.runtime import approvals, compensation, loop, runs
 from deskhand.tools.invoke import invoke
 from tests import fingerprint
 from tests.conftest import _reseed
+from tests.test_transcript import assert_append_only
 
 pytestmark = pytest.mark.usefixtures("fresh")
 
@@ -144,13 +146,19 @@ class DiesAt(ScriptedProvider):
         super().__init__(script=[list(turn) for turn in script])
         self.die_at = die_at
         self.died: set[int] = set()
+        # Every request answered and what it was answered with, for the
+        # conversation fingerprint. A request the provider died on is not here,
+        # because from the model's side it never arrived.
+        self.calls: list[tuple[Any, Any]] = []
 
     def complete(self, system, messages, tools):
         index = self.turn_index(messages)
         if index in self.die_at and index not in self.died:
             self.died.add(index)
             raise Died(f"worker died on turn {index}")
-        return super().complete(system, messages, tools)
+        reply = super().complete(system, messages, tools)
+        self.calls.append((json.loads(json.dumps(messages)), json.loads(json.dumps(reply.content))))
+        return reply
 
 
 # -------------------------------------------------------------------- driving
@@ -199,14 +207,20 @@ def _approve_pending(run_id: str) -> None:
 TERMINAL = {"succeeded", "failed", "exhausted", "cancelled"}
 
 
-def drive_through(run_id: str, script: list[Any], die_at: frozenset[int]) -> str:
+def drive_through(
+    run_id: str, script: list[Any], die_at: frozenset[int], calls: list[Any] | None = None
+) -> str:
     """Drive one run to a terminal status, surviving every crash in `die_at`.
 
     A fresh worker name after each death, because a resumed run being picked up
     by *the same* worker would not exercise the handover — and the handover is
     the thing under test.
+
+    `calls`, if given, collects every request the model answered.
     """
     provider = DiesAt(script, die_at)
+    if calls is not None:
+        provider.calls = calls
     for attempt in range(40):
         _claim(run_id, f"worker-{attempt}")
         try:
@@ -224,13 +238,27 @@ def drive_through(run_id: str, script: list[Any], die_at: frozenset[int]) -> str
     raise AssertionError("run never terminated")
 
 
-def _golden(script: list[Any]) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
-    """What a clean, uncrashed run of this script leaves behind."""
+def _golden(script: list[Any]) -> tuple[tuple[Any, ...], tuple[Any, ...], tuple[Any, ...]]:
+    """What a clean, uncrashed run of this script leaves behind, and what it
+    told the model on the way."""
     _reseed()
     run_id = _start()
-    status = drive_through(run_id, script, frozenset())
+    calls: list[Any] = []
+    status = drive_through(run_id, script, frozenset(), calls)
     assert status == "succeeded", f"the clean run did not succeed: {status}"
-    return fingerprint.world(), fingerprint.trajectory(run_id)
+    return (
+        fingerprint.world(),
+        fingerprint.trajectory(run_id),
+        fingerprint.conversation([sent for sent, _ in calls], run_id),
+    )
+
+
+def _assert_same_conversation(clean: tuple[Any, ...], run_id: str, calls: list[Any]) -> None:
+    """The model cannot tell the run crashed: every request it received is the
+    one a clean run would have sent, and each extends the last exactly."""
+    told = fingerprint.conversation([sent for sent, _ in calls], run_id)
+    assert told == clean, fingerprint.describe(clean, told)
+    assert_append_only(calls)
 
 
 # ------------------------------------------------- 1. the exhaustive sweep
@@ -252,11 +280,13 @@ def test_every_crash_schedule_leaves_the_same_world(die_at: frozenset[int]) -> N
     that could have been luckier, and no schedule left unexamined. Random
     search over a space this small is strictly worse than enumerating it.
     """
-    clean_world, clean_trajectory = _golden(REFUND)
+    clean_world, clean_trajectory, clean_conversation = _golden(REFUND)
 
     _reseed()
     run_id = _start()
-    assert drive_through(run_id, REFUND, die_at) == "succeeded"
+    calls: list[Any] = []
+    assert drive_through(run_id, REFUND, die_at, calls) == "succeeded"
+    _assert_same_conversation(clean_conversation, run_id, calls)
 
     crashed_world = fingerprint.world()
     assert crashed_world == clean_world, fingerprint.describe(clean_world, crashed_world)
@@ -328,11 +358,13 @@ def test_any_crash_schedule_on_any_trajectory(die_at: frozenset[int], script_cho
     search it had not performed.
     """
     script = SCRIPTS[script_choice]
-    clean_world, _ = _golden(script)
+    clean_world, _, clean_conversation = _golden(script)
 
     _reseed()
     run_id = _start()
-    assert drive_through(run_id, script, die_at) == "succeeded"
+    calls: list[Any] = []
+    assert drive_through(run_id, script, die_at, calls) == "succeeded"
+    _assert_same_conversation(clean_conversation, run_id, calls)
 
     crashed_world = fingerprint.world()
     assert crashed_world == clean_world, fingerprint.describe(clean_world, crashed_world)
