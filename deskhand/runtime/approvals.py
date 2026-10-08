@@ -38,8 +38,12 @@ def request(
     tool_use_id: str,
     tool_name: str,
     args: dict[str, Any],
+    asked_because: str | None = None,
 ) -> dict[str, Any]:
     """Record that a human decision is needed, or return the existing request.
+
+    `asked_because` is set when a policy rule, not the registry, sent the call
+    here. See deskhand/runtime/policy.py.
 
     Idempotent on (run_id, tool_use_id): a resumed run re-derives the same
     tool_use id from its persisted step log and must find the decision that was
@@ -50,8 +54,9 @@ def request(
 
     cur.execute(
         "insert into approvals (org_id, run_id, step_seq, tool_use_id, tool_name, args,"
-        "                       args_hash, preview, basis, expires_at)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, now() + make_interval(secs => %s))"
+        "                       args_hash, preview, basis, asked_because, expires_at)"
+        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
+        "         now() + make_interval(secs => %s))"
         " on conflict (run_id, tool_use_id) do nothing",
         (
             org_id,
@@ -63,6 +68,7 @@ def request(
             args_hash(tool_name, args),
             preview,
             json.dumps(basis(cur, run_id, org_id, tool_name, args)),
+            asked_because,
             settings.approval_ttl_seconds,
         ),
     )
