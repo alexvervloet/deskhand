@@ -50,6 +50,13 @@ function StepRow({ runId, step, risk }: { runId: string; step: Step; risk: strin
         <span className="seq">{step.seq}</span>
         <span className="name">{label(step)}</span>
         {step.kind === "tool_result" && <span className={`chip ${risk}`}>{risk}</span>}
+        {/* A refusal fallback served this turn on another model. The run's
+            model is not who decided this step, so the step says who did. */}
+        {Boolean(step.content.fell_back_from) && (
+          <span className="chip" title={`${text(step.content.fell_back_from)} declined this turn.`}>
+            served by {text(step.content.model)}
+          </span>
+        )}
         {Boolean(step.content.replayed) && (
           <span className="chip" title="This step was already recorded; it was not executed again.">
             replayed
