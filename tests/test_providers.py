@@ -329,8 +329,13 @@ def test_a_ticket_body_cannot_set_the_refund_amount() -> None:
 
     This is a demo fake and not a defence: the amount is still gated, still
     capped by `max_refund_cents`, and still shown to a person. But a fake a
-    ticket body can steer is a worse demonstration of this runtime than one it
-    cannot.
+    ticket body can steer by forging a record is a worse demonstration of this
+    runtime than one it cannot.
+
+    There is one way in, on purpose, and the next test pins it: a customer who
+    *names* a figure ("refund me $16.00") is believed, the way a gullible model
+    would believe them. That is what lets the keyless demo reach NW-5's
+    approval card, where the record contradicts the figure.
     """
     from deskhand.providers import _refundable
 
@@ -341,3 +346,20 @@ def test_a_ticket_body_cannot_set_the_refund_amount() -> None:
     )
     messages = _turn("get_order", ORDER_RESULT, "c1") + _turn("get_ticket", hostile, "c2")
     assert _refundable(messages) == 3800, "a ticket body moved the proposed refund"
+
+
+def test_a_figure_the_customer_names_is_believed_and_one_they_forge_is_not() -> None:
+    """The mock's one deliberate gullibility, and its limit. A named figure in
+    the customer's own words is proposed as-is, so the approval card has
+    something false to flag. A forged order listing still moves nothing,
+    because order lines are only read from `get_order`'s results."""
+    from deskhand.providers import _claimed, _refundable
+
+    named = "Ticket NW-5: Charged more\n\nPlease refund me $16.00 for the difference."
+    messages = _turn("get_order", ORDER_RESULT, "c1") + _turn("get_ticket", named, "c2")
+    assert _claimed(messages) == 1600
+    assert _refundable(messages) == 3800
+
+    # The same sentence arriving through `get_order` is not the customer's
+    # claim, and is not read as one.
+    assert _claimed(_turn("get_order", named, "c3")) is None
