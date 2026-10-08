@@ -40,8 +40,12 @@ class ModelReply:
     cache_write_tokens: int
     cost_micros: int
     provider: str
+    # The model that produced this reply, which is not always the one asked
+    # for: a server-side fallback can serve a turn on another model.
     model: str
     latency_ms: int
+    # Set when the requested model declined and another one served the turn.
+    fell_back_from: str | None = None
 
     @property
     def tool_uses(self) -> list[dict[str, Any]]:
@@ -79,6 +83,17 @@ class Provider(Protocol):
 # Established by a real call, not by reading: `python -m evals.live --smoke`.
 NO_ADAPTIVE_THINKING = frozenset({"claude-haiku-4-5"})
 
+# Models that accept `fallbacks: "default"`: on a safety-classifier decline the
+# API re-runs the same request on the model Anthropic recommends for that
+# category, inside the same call. Without it a decline just ends the run as
+# `model_refusal`, which is honest and also a run a person has to restart.
+# Exact ids, for the reason above. Claude API only; the header is specific to
+# this form of the parameter, and the array form takes a different one.
+FALLBACK_DEFAULT = frozenset(
+    {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
+)
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
 
 class ClaudeProvider:
     """The real thing.
@@ -94,6 +109,13 @@ class ClaudeProvider:
     * The system prompt carries a cache breakpoint. Tools render ahead of it
       and are emitted in a stable order, so the cached prefix survives between
       steps of a run and between runs of the same shape.
+    * Refusal fallbacks are on where the model supports them. A fallback turn
+      is priced at the model that served it, and the step records both. The
+      `fallback` marker block is dropped rather than stored: the API calls it
+      an ignored audit marker, and the SDK would dump its `from` field as
+      `from_`, which is not a key the API accepts back. Non-streaming
+      requests never contain a declined partial, so nothing else needs
+      removing before the turn is replayed.
     """
 
     name = "claude"
@@ -130,8 +152,18 @@ class ClaudeProvider:
             request["output_config"] = {"effort": self.effort}
 
         started = time.monotonic()
-        response = self._client.messages.create(**request)
+        if self.model in FALLBACK_DEFAULT:
+            response = self._client.beta.messages.create(
+                **request, betas=[FALLBACK_BETA], fallbacks="default"
+            )
+        else:
+            response = self._client.messages.create(**request)
         latency_ms = int((time.monotonic() - started) * 1000)
+
+        served = response.model
+        fell_back_from = next(
+            (b.from_.model for b in response.content if b.type == "fallback"), None
+        )
 
         usage = response.usage
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
@@ -142,22 +174,29 @@ class ClaudeProvider:
         # list, so anything that indexes content[0] unconditionally breaks
         # here rather than at the API boundary.
         return ModelReply(
-            content=[b.model_dump(exclude_none=True) for b in response.content],
+            content=[
+                b.model_dump(exclude_none=True) for b in response.content if b.type != "fallback"
+            ],
             stop_reason=response.stop_reason or "end_turn",
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cache_read_tokens=cache_read,
             cache_write_tokens=cache_write,
+            # Top-level usage covers only the attempt that produced this reply,
+            # so a declined attempt before it isn't counted here. Per-attempt
+            # figures are in `usage.iterations`; this undercounts a fallback
+            # turn by whatever the declined attempt was billed, if anything.
             cost_micros=pricing.cost_micros(
-                self.model,
+                served,
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cache_read_tokens=cache_read,
                 cache_write_tokens=cache_write,
             ),
             provider=self.name,
-            model=self.model,
+            model=served,
             latency_ms=latency_ms,
+            fell_back_from=fell_back_from,
         )
 
 
