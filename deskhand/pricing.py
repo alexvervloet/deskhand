@@ -26,11 +26,15 @@ class Rate:
 
     input: int
     output: int
+    # Set when the published cache-read price isn't a tenth of input. It was a
+    # tenth for every model until Opus 5.5 (a twentieth) and Fable 5.1 (a
+    # fortieth), and a ratio applied to those overstates every cached read.
+    read: int | None = None
 
     @property
     def cache_read(self) -> int:
-        """Cached input is billed at roughly a tenth of the input rate."""
-        return self.input // 10
+        """Cached input: a tenth of the input rate unless the model says otherwise."""
+        return self.read if self.read is not None else self.input // 10
 
     @property
     def cache_write(self) -> int:
@@ -39,9 +43,12 @@ class Rate:
 
 
 # Dollars per million tokens x 1000 == nanodollars per token.
-# Source: the pricing table in the claude-api skill, cached 2026-06-24, and
+# Source: the pricing table in the claude-api skill, cached 2026-09-25, and
 # developers.openai.com/api/docs/pricing, read 2026-09-10.
 RATES: dict[str, Rate] = {
+    "claude-fable-5-1": Rate(input=10_000, output=50_000, read=250),
+    "claude-opus-5-5": Rate(input=4_000, output=20_000, read=200),
+    "claude-sonnet-5-5": Rate(input=2_000, output=10_000),
     "claude-opus-5": Rate(input=5_000, output=25_000),
     "claude-opus-4-8": Rate(input=5_000, output=25_000),
     "claude-fable-5": Rate(input=10_000, output=50_000),
