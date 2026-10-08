@@ -412,6 +412,14 @@ safety refusal arrives as a successful HTTP response with an empty or partial
 content list, so anything that indexes `content[0]` unconditionally breaks at the
 wrong layer.
 
+**Watch for.** On Sonnet 5.5, the default, the request opts into
+`fallbacks: "default"`, so some declines are retried on another model inside
+the same call and never reach this check. When that happens the step's content
+records `model` (who served the turn) and `fell_back_from` (who declined it),
+the trajectory marks it "served by", and the turn is priced at the serving
+model's rate. The run's own `model` column can't answer "which model decided to
+refund" once one turn ran somewhere else, so the step answers it.
+
 ### 12. What's left behind
 
 This is the part of the tour where you look at the receipts. Every one of these
