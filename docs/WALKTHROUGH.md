@@ -1094,6 +1094,11 @@ collected in one place:
   than one, and that is how it was found. The reader that replaced it is scoped
   by tool_use id rather than by what the text looks like, because every tool
   result here is fenced and any textual rule is one a ticket body can satisfy.
+
+  It has one deliberate exception. If the customer's own message names a figure
+  ("refund me $16.00"), the mock proposes that figure, the way a model that
+  believes them would. That's how the keyless demo reaches NW-5's flagged
+  approval card. A forged order listing still moves nothing.
 - **The approval card's checks are a snapshot.** They're computed when the
   approval is requested and stored with it, so the run viewer can show later
   what the approver saw. If another run refunds the same order while this one
