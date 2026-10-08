@@ -1423,3 +1423,44 @@ have grepped for jsonb columns whose key order reaches a reader, which is the
 property that actually mattered. And this is entry 4 again: three suites green
 and the screen wrong. The capture script exists so a person looks at the
 screen, and it should run as part of every UI change, not just README updates.
+
+## 32. A measurement that changed the design, and one that ate my work
+
+**Expected.** The per-call rules were a small feature. One rule escalates
+reversible writes after an injection, the other refuses a retry of a declined
+call. Wire them in, add evals, re-measure the deletion table, done.
+
+**What happened, three times over.**
+
+*The suspension path had been crashing on a mixed turn.* To let a rule send a
+reversible call to a person, the loop had to stop assuming "waiting for a
+person" means "irreversible". The trace at the end of `_settle` asked the
+registry about every call in the turn, and the registry raises for a name the
+model made up. So a turn with `escalate_to_finance` (not a tool) beside
+`issue_refund` wrote the approval row and then threw. I reproduced it on the
+old code before claiming it: `ToolError: no such tool`. The existing
+unknown-tool eval never mixed the two in one turn.
+
+*The re-measured table showed the rule as a decoration.* With the gate deleted,
+the injection evals still failed. The rule only looked at reversible tools, so
+with the floor gone a refund after an injection ran unasked. The rule was
+adding oversight to status changes and nothing to money, which is backwards.
+Including irreversible tools costs nothing while the gate exists, because the
+floor already asks and ties go to the floor. Without the gate it's a second
+layer. Now deleting either one leaves the injection evals green, and deleting
+both turns them red, which I also measured rather than inferred.
+
+*The measuring script destroyed uncommitted work.* The deletion script edits a
+file, runs the evals, and restores it with `git checkout`. I ran it with the
+policy wiring still uncommitted in `loop.py`, so restoring `loop.py` reverted it
+to HEAD. And `git checkout` on the new, untracked `policy.py` failed, so its
+deletion leaked into every later case and the first table was wrong in five
+rows. I rebuilt the wiring from the edits in my own session and committed
+before measuring again.
+
+**Next time.** Commit before running anything that restores files with git. A
+script that undoes its own change with `git checkout` also undoes yours.
+
+And keep re-measuring the deletion table when a layer is added, not just
+updating the counts. The counts were the expected part. The surprise was which
+evals moved, and that said more about the design than any test I'd written.
