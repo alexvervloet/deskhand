@@ -6,6 +6,7 @@ the README and tries to break it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -850,3 +851,33 @@ def test_an_injected_instruction_cannot_escape_the_approval_gate() -> None:
         one("select status::text from approvals where run_id = %s", (run_id,))["status"]
         == "pending"
     )
+
+
+class FellBack(ScriptedProvider):
+    """A provider whose second turn was served by another model."""
+
+    def complete(self, system, messages, tools):
+        reply = super().complete(system, messages, tools)
+        if self.turn_index(messages) == 1:
+            return replace(reply, model="claude-sonnet-5", fell_back_from="claude-sonnet-5-5")
+        return replace(reply, model="claude-sonnet-5-5")
+
+
+def test_each_model_turn_records_the_model_that_served_it() -> None:
+    """Invariant 5. "Which model decided to do this" is a per-step question once
+    a refusal fallback can serve one turn on a different model."""
+    run_id = start_run("NW-2")
+    script = [
+        [call("get_ticket", reference="NW-2")],
+        [call("add_internal_note", reference="NW-2", body="Checked.")],
+        text("Done."),
+    ]
+    assert drive(run_id, FellBack(script=script)) == "succeeded"
+
+    turns = [s["content"] for s in steps_of(run_id) if s["kind"] == "model_call"]
+    assert [t["model"] for t in turns] == [
+        "claude-sonnet-5-5",
+        "claude-sonnet-5",
+        "claude-sonnet-5-5",
+    ]
+    assert [t.get("fell_back_from") for t in turns] == [None, "claude-sonnet-5-5", None]
